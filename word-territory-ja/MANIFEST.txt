@@ -1,0 +1,29 @@
+JP_V28_FULL_ENGINE_RELEASE_CHANGELOG.md
+MANIFEST.txt
+README_JP_V28_FULL_ENGINE_RELEASE.md
+RUN_APPLY_AND_TEST_JP_V28_FULL_ENGINE.ps1
+backend/bot_match_test_ja.py
+backend/bot_match_test_synergy.py
+backend/dictionaries/ja_words.txt
+backend/dictionaries/ja_words_ui.txt
+backend/dictionary.py
+backend/engine.py
+backend/ja_words.txt
+backend/ja_words_ui.txt
+backend/main.py
+backend/models.py
+backend/spectator_seed.py
+baseline_results/bot_match_results_ja_v28rc_clean_v18_90.csv
+baseline_results/bot_match_summary_ja_v28rc_clean_v18_90.csv
+frontend/api.js
+frontend/locales/ja.json
+frontend/pages/index.js
+scorecard.py
+validate_jp_v28_dictionary.py
+validate_jp_v28_results_strict.py
+validate_v28_full_engine.py
+
+
+## Release completeness rule
+
+A FULL ENGINE release must include `backend/language_profiles/__init__.py` and `backend/language_profiles/ja.py`. The backend imports `from language_profiles import ja` when `WT_LANG=ja`; omitting these files can work only on a developer repo that already has leftovers, but fails on a blank checkout.

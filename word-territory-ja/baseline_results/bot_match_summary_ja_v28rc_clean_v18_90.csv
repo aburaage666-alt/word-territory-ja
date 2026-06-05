@@ -1,0 +1,4 @@
+selected_synergy,games,wins_RED,wins_BLUE,draws,avg_gap,close_le_6,avg_synergies,avg_captures,avg_reclaim,avg_three_letter_ratio
+BORDER_LORD,30,14,12,4,5.1,21,2.0,22.03,0.0,0.616
+COMEBACK_SPARK,30,18,10,2,4.9,21,1.1,21.5,0.0,0.649
+FORTIFIER,30,15,15,0,5.53,21,0.73,20.77,0.0,0.611
