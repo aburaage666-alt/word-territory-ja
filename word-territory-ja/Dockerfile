@@ -2,11 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY word-territory-ja/backend/requirements.txt /app/backend/requirements.txt
+COPY backend/requirements.txt /app/backend/requirements.txt
 RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 
-COPY word-territory-ja/backend /app/backend
-COPY word-territory-ja/frontend /app/frontend
+COPY backend /app/backend
+COPY frontend /app/frontend
 
 ENV WT_LANG=ja
 ENV PYTHONPATH=/app/backend
