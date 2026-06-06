@@ -1,4 +1,4 @@
-import json
+﻿import json
 import random
 import sqlite3
 import uuid
@@ -743,3 +743,4 @@ def get_threat(game_id: str):
         return {"threats": get_threat_preview(state, limit=8)}
     except Exception:
         return {"threats": []}
+

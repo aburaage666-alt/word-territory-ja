@@ -1,9 +1,9 @@
-from typing import List, Optional, Literal
+﻿from typing import List, Optional, Literal
 from pydantic import BaseModel
 
 Player = Literal["RED", "BLUE"]
 Winner = Literal["RED", "BLUE", "DRAW"]
-BotLevel = Literal["normal", "strong"]
+BotLevel = Literal["easy", "normal", "strong"]
 
 
 class Coord(BaseModel):
@@ -161,3 +161,5 @@ class DailyLeaderboardResponse(BaseModel):
 
 class WaitlistSubmission(BaseModel):
     email: str
+
+
