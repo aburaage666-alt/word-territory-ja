@@ -1,66 +1,9 @@
-﻿// ?? Hand generator ???????????????????????????????????????????????????????????
-// WT_JA_HAND_GENERATOR_FINAL_NO_MOJIBAKE_20260606
-const VOWELS = "\u3042\u3044\u3046\u3048\u304a".split("");
-const CONSONANTS = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d".split("").filter(c => !VOWELS.includes(c));
-
-function randomLetter(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function isKanaVowel(c) {
-  return VOWELS.includes(c);
-}
-
-function sanitizeKanaTile(c) {
-  return /^[\u3041-\u3096\u30fc]$/.test(c) ? c : randomLetter(CONSONANTS);
-}
-
-function dealHand(size = 5) {
-  const tiles = [];
-  tiles.push(randomLetter(VOWELS));
-  tiles.push(randomLetter(VOWELS));
-
-  for (let i = 2; i < size; i++) {
-    tiles.push(Math.random() < 0.30 ? randomLetter(VOWELS) : randomLetter(CONSONANTS));
-  }
-
-  for (let i = tiles.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
-  }
-
-  return tiles.map(sanitizeKanaTile);
-}
-
-function replaceCard(hand, usedLetter) {
-  const cleanHand = (hand || []).map(sanitizeKanaTile);
-  const idx = cleanHand.findIndex(c => c === usedLetter);
-
-  if (idx === -1) {
-    const next = [
-      ...cleanHand.slice(1),
-      Math.random() < 0.30 ? randomLetter(VOWELS) : randomLetter(CONSONANTS)
-    ];
-    return next.map(sanitizeKanaTile);
-  }
-
-  const next = [...cleanHand];
-  const vowelCount = next.filter((c, i) => i !== idx && isKanaVowel(c)).length;
-
-  next[idx] = vowelCount < 2
-    ? randomLetter(VOWELS)
-    : (Math.random() < 0.30 ? randomLetter(VOWELS) : randomLetter(CONSONANTS));
-
-  return next.map(sanitizeKanaTile);
-}
-
-
 import Head from "next/head";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyLeaderboard,
-  getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, get脅威, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, passAsyncTurn,
+  getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, getThreat, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, passAsyncTurn,
   joinWaitlist, passTurn, previewMove, seedMove, submitDailyScore, submitMove,
   useFreeLetter,
 } from "../lib/api";
@@ -68,50 +11,8 @@ import {
 // ── helpers ──────────────────────────────────────────────────────────────────
 const asKey = (r, c) => `${r}-${c}`;
 
-// WT_JA_自由_INPUT_AND_UI_FINAL_20260606
-const WT_JA_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
-
-function wtJaKatakanaToHiragana(value) {
-  return String(value || "").replace(/[\u30a1-\u30f6]/g, ch =>
-    String.fromCharCode(ch.charCodeAt(0) - 0x60)
-  );
-}
-
-function wtJaNormalizeKanaInput(value) {
-  const raw = String(value || "").normalize("NFKC");
-  const hira = wtJaKatakanaToHiragana(raw);
-  const chars = Array.from(hira).filter(ch => /^[\u3041-\u3096\u30fc]$/.test(ch));
-  return chars.length ? chars[chars.length - 1] : "";
-}
-
-function wtJaHasKana(value) {
-  return !!wtJaNormalizeKanaInput(value);
-}
-
-
-// WT_JA_自由_INPUT_AND_UI_FINAL_20260606
-const WT_JA_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
-
-function wtJaKatakanaToHiragana(value) {
-  return String(value || "").replace(/[\u30a1-\u30f6]/g, ch =>
-    String.fromCharCode(ch.charCodeAt(0) - 0x60)
-  );
-}
-
-function wtJaNormalizeKanaInput(value) {
-  const raw = String(value || "").normalize("NFKC");
-  const hira = wtJaKatakanaToHiragana(raw);
-  const chars = Array.from(hira).filter(ch => /^[\u3041-\u3096\u30fc]$/.test(ch));
-  return chars.length ? chars[chars.length - 1] : "";
-}
-
-function wtJaHasKana(value) {
-  return !!wtJaNormalizeKanaInput(value);
-}
-
-
-// WT_JA_自由_INPUT_FIX_20260606
-const WT_JA_自由_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
+// WT_JA_FREE_INPUT_FIX_20260606
+const WT_JA_FREE_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
 
 function wtJaKatakanaToHiragana(value) {
   return String(value || "").replace(/[\u30a1-\u30f6]/g, ch =>
@@ -142,11 +43,11 @@ const asArray = (value) => {
   if (Array.isArray(value.data)) return value.data;
   if (Array.isArray(value.threat_moves)) return value.threat_moves;
   if (
-    Array.isArray(value.マス) ||
+    Array.isArray(value.cells) ||
     Array.isArray(value.path) ||
-    Array.isArray(value.threat_マス) ||
-    Array.isArray(value.affected_マス) ||
-    Array.isArray(value.captured_マス)
+    Array.isArray(value.threat_cells) ||
+    Array.isArray(value.affected_cells) ||
+    Array.isArray(value.captured_cells)
   ) return [value];
   return [];
 };
@@ -159,28 +60,28 @@ const toCell = (value) => {
   return { row, col };
 };
 
-const normalize脅威s = (value) => {
+const normalizeThreats = (value) => {
   return asArray(value)
     .map((item) => {
-      const マスSource =
-        item?.マス ??
+      const cellSource =
+        item?.cells ??
         item?.path ??
-        item?.threat_マス ??
-        item?.affected_マス ??
-        item?.captured_マス ??
+        item?.threat_cells ??
+        item?.affected_cells ??
+        item?.captured_cells ??
         [];
-      const マス = asArray(マスSource).map(toCell).filter(Boolean);
-      const mainCell = toCell(item) || toCell(item?.move) || toCell(item?.target) || マス[0] || null;
+      const cells = asArray(cellSource).map(toCell).filter(Boolean);
+      const mainCell = toCell(item) || toCell(item?.move) || toCell(item?.target) || cells[0] || null;
       return {
         ...(item || {}),
         row: mainCell?.row,
         col: mainCell?.col,
-        マス
+        cells
       };
     })
     .filter((item) => {
       const hasMain = Number.isFinite(Number(item.row)) && Number.isFinite(Number(item.col));
-      const hasCells = Array.isArray(item.マス) && item.マス.length > 0;
+      const hasCells = Array.isArray(item.cells) && item.cells.length > 0;
       return hasMain || hasCells;
     });
 };
@@ -235,14 +136,14 @@ function wtJaToTextList(value) {
   return out;
 }
 
-function wtJaTo脅威List(value) {
+function wtJaToThreatList(value) {
   const raw = wtJaToArray(value);
 
   return raw.map((item) => {
     const obj = item && typeof item === "object" ? item : {};
-    const マスRaw = wtJaToArray(obj.マス || obj.path || obj.threat_マス || obj.affected_マス);
+    const cellsRaw = wtJaToArray(obj.cells || obj.path || obj.threat_cells || obj.affected_cells);
 
-    const マス = マスRaw
+    const cells = cellsRaw
       .map((c) => {
         if (!c || typeof c !== "object") return null;
         const row = Number(c.row ?? c.r ?? c.y);
@@ -255,7 +156,7 @@ function wtJaTo脅威List(value) {
     return {
       ...obj,
       word: String(obj.word || obj.text || obj.label || "Capture threat"),
-      マス
+      cells
     };
   });
 }
@@ -325,8 +226,8 @@ const TERRAIN_LABELS = {
 function terrainComboLabel(label, move = null) {
   const raw = String(label || "");
   if (raw.startsWith("SYNERGY:")) return raw.replace("SYNERGY:", "").trim();
-  if (raw === "CAPTURE" && move?.captureCount) return `Captured ${move.captureCount} マス${move.captureCount === 1 ? "" : "s"}`;
-  if (raw === "DOUBLE CAPTURE" && move?.captureCount) return `Double Capture (+${move.captureCount} マス)`;
+  if (raw === "CAPTURE" && move?.captureCount) return `Captured ${move.captureCount} cell${move.captureCount === 1 ? "" : "s"}`;
+  if (raw === "DOUBLE CAPTURE" && move?.captureCount) return `Double Capture (+${move.captureCount} cells)`;
   if (raw === "BRIDGE") return "Bridge — connected zones";
   if (raw === "CUT") return "Cut — split enemy territory";
   if (raw === "FORTIFY CHAIN") return "Fortify Chain — locked ground";
@@ -346,8 +247,8 @@ function moveInsightLines(m) {
   if (m.moveType === "SEED") return [`${m.player} seeded ${m.placedLetter || "a letter"} to build future territory.`];
   if (m.word) lines.push(`${m.player} played ${m.word}.`);
   if ((m.territoryGained || 0) > 0) lines.push(`Territory Swing +${m.territoryGained}.`);
-  if ((m.captureCount || 0) > 0) lines.push(`Captured ${m.captureCount} マス${m.captureCount === 1 ? "" : "s"}.`);
-  if ((m.fortifiedCellsGained || 0) > 0) lines.push(`Locked ${m.fortifiedCellsGained} マス${m.fortifiedCellsGained === 1 ? "" : "s"}.`);
+  if ((m.captureCount || 0) > 0) lines.push(`Captured ${m.captureCount} cell${m.captureCount === 1 ? "" : "s"}.`);
+  if ((m.fortifiedCellsGained || 0) > 0) lines.push(`Locked ${m.fortifiedCellsGained} cell${m.fortifiedCellsGained === 1 ? "" : "s"}.`);
   const labels = (m.comboLabels || []).map(x => terrainComboLabel(x, m));
   const terrainLabels = labels.filter(Boolean);
   if (terrainLabels.length) lines.push(terrainLabels.join(" · "));
@@ -393,10 +294,10 @@ function getRankEmoji(capturePct) {
 function buildEmojiBoard(board) {
   if (!board) return "";
   return board.map(row =>
-    row.map(マス => {
-      if (!マス.letter) return "⬜";
-      if (マス.owner === "RED") return "🟥";
-      if (マス.owner === "BLUE") return "🟦";
+    row.map(cell => {
+      if (!cell.letter) return "⬜";
+      if (cell.owner === "RED") return "🟥";
+      if (cell.owner === "BLUE") return "🟦";
       return "⬜";
     }).join("")
   ).join("\n");
@@ -425,7 +326,7 @@ function buildShare(num, ds, r) {
 // Japanese kana-only hand generator.
 // WT_JA_KANA_GENERATOR_FIX_20260606
 // Never emit A-Z in the Japanese version.
-const VOWELS = "\u3042\u3044\u3046\u3048\u304a".split("");
+const VOWELS = "?????".split("");
 const CONSONANTS = (
   "?????" +
   "?????" +
@@ -514,22 +415,22 @@ function updateStreak(dateStr) {
 }
 
 // ── Cell ──────────────────────────────────────────────────────────────────────
-function Cell({ マス, sel, placed, legal, changed, captured, lockedNow, bridgePath, lockNeighbor, tutorialPlace, tutorialPath, disabled, gen, attack, inPath, threat, threatMove, captureOrder, lockOrder, onClick }) {
-  const cls = ["マス",
-    マス.owner === "RED" ? "cr" : マス.owner === "BLUE" ? "cb" : "",
-    マス.fortified ? "ft" : "", sel ? "sl" : "", placed ? "pl" : "",
+function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePath, lockNeighbor, tutorialPlace, tutorialPath, disabled, gen, attack, inPath, threat, threatMove, captureOrder, lockOrder, onClick }) {
+  const cls = ["cell",
+    cell.owner === "RED" ? "cr" : cell.owner === "BLUE" ? "cb" : "",
+    cell.fortified ? "ft" : "", sel ? "sl" : "", placed ? "pl" : "",
     legal ? "lg" : "", disabled && !sel ? "dm" : "",
-    attack ? "atk" : "",   // opponent マス that can be attacked
+    attack ? "atk" : "",   // opponent cell that can be attacked
     threat ? "threat" : "", threatMove ? "threatMove" : "",
     bridgePath ? "bridge-path" : "", lockNeighbor ? "lock-neighbor" : "",
-    tutorialPlace ? "tut-pulse tut-マス" : "", tutorialPath ? "tut-arrow-マス" : "",
-    inPath ? "inpath" : "", // opponent マス currently in selected path (will be captured)
+    tutorialPlace ? "tut-pulse tut-cell" : "", tutorialPath ? "tut-arrow-cell" : "",
+    inPath ? "inpath" : "", // opponent cell currently in selected path (will be captured)
   ].filter(Boolean).join(" ");
   const animStyle = {
     "--cap-order": captureOrder != null ? captureOrder : 0,
     "--cap-delay": captureOrder != null ? `${captureOrder * 80}ms` : "0ms",
-    "--my-color": マス.owner === "RED" ? "rgba(220,38,38,.42)" : マス.owner === "BLUE" ? "rgba(37,99,235,.42)" : "#fafafa",
-    "--opp-color": マス.owner === "RED" ? "rgba(37,99,235,.36)" : マス.owner === "BLUE" ? "rgba(220,38,38,.36)" : "#fafafa",
+    "--my-color": cell.owner === "RED" ? "rgba(220,38,38,.42)" : cell.owner === "BLUE" ? "rgba(37,99,235,.42)" : "#fafafa",
+    "--opp-color": cell.owner === "RED" ? "rgba(37,99,235,.36)" : cell.owner === "BLUE" ? "rgba(220,38,38,.36)" : "#fafafa",
     "--lock-delay": lockOrder != null ? `${lockOrder * 70}ms` : "0ms",
   };
   return (
@@ -537,8 +438,8 @@ function Cell({ マス, sel, placed, legal, changed, captured, lockedNow, bridge
       data-chg={changed ? gen : null}
       data-cap={captured ? gen : null}
       data-lk={lockedNow ? gen : null}>
-      {マス.letter || ""}
-      {マス.fortified && <span className="lock-shield" title="Fortified ground">🛡</span>}
+      {cell.letter || ""}
+      {cell.fortified && <span className="lock-shield" title="Fortified ground">🛡</span>}
       {attack && !inPath && <span className="atk-dot"/>}
       {threat && !inPath && <span className="threat-dot" title="Capture threat"/>}
     </button>
@@ -609,26 +510,6 @@ function LeaderboardModal({ onClose, dailyInfo, myRank }) {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
-// WT_JA_FREE_INPUT_AND_UI_FINAL_20260606
-const WT_JA_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
-
-function wtJaKatakanaToHiragana(value) {
-  return String(value || "").replace(/[\u30a1-\u30f6]/g, ch =>
-    String.fromCharCode(ch.charCodeAt(0) - 0x60)
-  );
-}
-
-function wtJaNormalizeKanaInput(value) {
-  const raw = String(value || "").normalize("NFKC");
-  const hira = wtJaKatakanaToHiragana(raw);
-  const chars = Array.from(hira).filter(ch => /^[\u3041-\u3096\u30fc]$/.test(ch));
-  return chars.length ? chars[chars.length - 1] : "";
-}
-
-function wtJaHasKana(value) {
-  return !!wtJaNormalizeKanaInput(value);
-}
-
 export default function Home() {
   const [gameId, setGameId]     = useState("");
   const [state,  setState]      = useState(null);
@@ -644,11 +525,11 @@ export default function Home() {
   const [copied, setCopied]     = useState(false);
 
   // UI panels
-  const [showルール,   setルール]   = useState(false);
-  const [show履歴, set履歴] = useState(true);
+  const [showRules,   setRules]   = useState(false);
+  const [showHistory, setHistory] = useState(true);
   const [showSuggest, setSuggest] = useState(false);
   const [showAlmost,  setAlmostOpen] = useState(true);
-  const [show脅威Panel, set脅威Panel] = useState(false);
+  const [showThreatPanel, setThreatPanel] = useState(false);
   const [mobileTab, setMobileTab] = useState("hints"); // hints | history | threat
   const [showLB,      setShowLB]  = useState(false);  // ④
 
@@ -660,9 +541,9 @@ export default function Home() {
   const [synergyOpts, setSynergyOpts] = useState([]);
   const [synergy,     setSynergy]     = useState("");
   const [valuePrev,   setValuePrev]   = useState([]); // Territory Preview candidates
-  const [threatsRaw,  _set脅威s]    = useState([]); // opponent capture threats, raw API payload
-  const threats = useMemo(() => normalize脅威s(threatsRaw), [threatsRaw]);
-  const set脅威s = (value) => _set脅威s(normalize脅威s(value));
+  const [threatsRaw,  _setThreats]    = useState([]); // opponent capture threats, raw API payload
+  const threats = useMemo(() => normalizeThreats(threatsRaw), [threatsRaw]);
+  const setThreats = (value) => _setThreats(normalizeThreats(value));
   const [asyncMode,   setAsyncMode]   = useState(false);
   const [asyncToken,  setAsyncToken]  = useState("");
   const [asyncRole,   setAsyncRole]   = useState("");
@@ -673,13 +554,13 @@ export default function Home() {
   const [showIntro, setShowIntro] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
-  const [soundOn, set音On] = useState(true);
+  const [soundOn, setSoundOn] = useState(true);
   const comboTimer = useRef(null);
   const soundTurnRef = useRef(null);
-  const capture音Ref = useRef(null);
-  const bridge音Ref = useRef(null);
-  const lock音Ref = useRef(null);
-  const battle音Ref = useRef(null);
+  const captureSoundRef = useRef(null);
+  const bridgeSoundRef = useRef(null);
+  const lockSoundRef = useRef(null);
+  const battleSoundRef = useRef(null);
   const audioCtxRef = useRef(null);
   const [animGen,  setAnimGen]    = useState(0);
 
@@ -784,14 +665,14 @@ export default function Home() {
   const [shareText,   setShareText]   = useState("");
   const [nickname,    setNickname]    = useState("");
   const [myRank,      setMyRank]      = useState(null);
-  const [submitted,   set確定ted]   = useState(false);
+  const [submitted,   setSubmitted]   = useState(false);
   const [almost,      setAlmost]      = useState([]);
   const [market,      setMarket]      = useState({ active:[], preview:[], stats:[], freeLetterUsed:false });
   const [freeLetter,  setFreeLetter]  = useState('');
   const [showFreeInput, setShowFreeInput] = useState(false);
   const [wildMode, setWildMode] = useState(false);
   // Tutorial UX: track how many turns have been played
-  const tutTurns = (state?.move履歴?.length || 0);
+  const tutTurns = (state?.moveHistory?.length || 0);
   const isTutorial = tutTurns < 3;
   const WT_JA_LAST_STAND_FIX_20260606 = true;
   const lastStand = Boolean(
@@ -827,7 +708,7 @@ export default function Home() {
           setGameId(mid); setState(d.state); setDailyMode(false); setBootMsg("");
           if (d.state?.marketLetters?.length > 0) setMarket({ active:d.state.marketLetters, preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed });
           getSuggestions(mid).then(x => setSugg(wtJaToTextList(x))).catch(()=>setSugg([]));
-          get脅威(mid).then(x => set脅威s(wtJaTo脅威List(x))).catch(()=>set脅威s([]));
+          getThreat(mid).then(x => setThreats(wtJaToThreatList(x))).catch(()=>setThreats([]));
         }).catch(e => setError(e.message || "Could not load async match"));
       } else if (typeof window !== "undefined" && localStorage.getItem(LS_INTRO) !== "1") {
         setShowIntro(true);
@@ -842,7 +723,7 @@ export default function Home() {
             setGameId(saved.match); setState(d.state); setDailyMode(false); setBootMsg("");
             if (d.state?.marketLetters?.length > 0) setMarket({ active:d.state.marketLetters, preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed });
             getSuggestions(saved.match).then(d=>setSugg(wtJaToTextList(d))).catch(()=>setSugg([]));
-            get脅威(saved.match).then(d=>set脅威s(wtJaTo脅威List(d))).catch(()=>set脅威s([]));
+            getThreat(saved.match).then(d=>setThreats(wtJaToThreatList(d))).catch(()=>setThreats([]));
           }).catch(()=>{ try { localStorage.removeItem(LS_ASYNC); } catch {} });
         }
       }
@@ -859,7 +740,7 @@ export default function Home() {
   function reset() {
     setPath([]); setPlaced(null); setLetter(""); setError(""); setPreview(null); setValuePrev([]);
     setSum(false); setCopied(false); setShareText(""); setNickname(""); setMyRank(null);
-    set確定ted(false); summaryFired.current = false;
+    setSubmitted(false); summaryFired.current = false;
   }
   async function boot(m = mode) {
     let lastErr;
@@ -878,7 +759,7 @@ export default function Home() {
           try { const mk = await getMarket(d.game_id); setMarket(mk); } catch(_) {}
         }
         getSuggestions(d.game_id).then(x => setSugg(wtJaToTextList(x))).catch(() => setSugg([]));
-        get脅威(d.game_id).then(x => set脅威s(wtJaTo脅威List(x))).catch(() => set脅威s([]));
+        getThreat(d.game_id).then(x => setThreats(wtJaToThreatList(x))).catch(() => setThreats([]));
         // Show synergy card selection
         getSynergyOptions(d.game_id).then(r => {
           setSynergyOpts(r.options||[]);
@@ -944,7 +825,7 @@ export default function Home() {
         try { const mk = await getMarket(d.game_id); setMarket(mk); } catch(_) {}
       }
       try { setSugg(await getSuggestions(d.game_id)); } catch { setSugg([]); }
-      try { set脅威s(await get脅威(d.game_id)); } catch { set脅威s([]); }
+      try { setThreats(await getThreat(d.game_id)); } catch { setThreats([]); }
       getSynergyOptions(d.game_id).then(r => {
         const options = r.options || [];
         setSynergyOpts(options);
@@ -999,8 +880,8 @@ export default function Home() {
     if (tutorialStep === 0 && letter) setTutorialStep(1);
     else if (tutorialStep === 1 && placed) setTutorialStep(2);
     else if (tutorialStep === 2 && path.length >= 3) setTutorialStep(3);
-    else if (tutorialStep === 3 && (state?.move履歴?.length || 0) > 0) finishTutorial();
-  }, [showTutorial, tutorialStep, letter, placed?.row, placed?.col, path.length, state?.move履歴?.length]);
+    else if (tutorialStep === 3 && (state?.moveHistory?.length || 0) > 0) finishTutorial();
+  }, [showTutorial, tutorialStep, letter, placed?.row, placed?.col, path.length, state?.moveHistory?.length]);
 
 
   // ── state tick ───────────────────────────────────────────────────────────
@@ -1027,24 +908,24 @@ export default function Home() {
     if (asyncMode || spectatorMode) return;
     if (state.winner && state.winner !== "") return;  // stops on RED/BLUE/DRAW
     if (state.currentPlayer !== state.botPlayer) return;
-    let canマスed = false;
+    let cancelled = false;
     const run = async () => {
       setThinking(true);
       try {
         await new Promise(r => setTimeout(r, 350));
         const next = await botMove(gameId);
-        if (canマスed) return;
+        if (cancelled) return;
         setState(next);
         // Market stable during bot turns (bot not market-constrained)
         reset();
         try { setSugg(await getSuggestions(gameId)); } catch(_) {}
       } catch(e) {
-        if (!canマスed) setError(e.message || "Bot failed");
+        if (!cancelled) setError(e.message || "Bot failed");
       }
-      if (!canマスed) setThinking(false);
+      if (!cancelled) setThinking(false);
     };
     run();
-    return () => { canマスed = true; setThinking(false); };
+    return () => { cancelled = true; setThinking(false); };
   }, [state?.turn, state?.currentPlayer, spectatorMode]);
 
   // ── spectator demo auto-play ─────────────────────────────────────────────
@@ -1055,7 +936,7 @@ export default function Home() {
       setSpectatorNote("Battle Report ready — this is how words became territory.");
       return;
     }
-    let canマスed = false;
+    let cancelled = false;
     const combos = state.lastComboLabels || [];
     const hasHighlight = combos.some(x => String(x).includes("CAPTURE") || String(x).includes("BRIDGE") || String(x).includes("LOCK") || String(x).includes("SYNERGY"));
     const delay = hasHighlight ? 1700 : 850;
@@ -1063,15 +944,15 @@ export default function Home() {
       setThinking(true);
       try {
         await new Promise(r => setTimeout(r, delay));
-        if (canマスed) return;
+        if (cancelled) return;
         const next = await autoMove(gameId, true);
-        if (canマスed) return;
+        if (cancelled) return;
         setState(next);
         setSpectatorSteps(n => n + 1);
         reset();
         try { setSugg(await getSuggestions(gameId)); } catch { setSugg([]); }
-        try { set脅威s(await get脅威(gameId)); } catch { set脅威s([]); }
-        const last = next.move履歴?.[next.move履歴.length - 1];
+        try { setThreats(await getThreat(gameId)); } catch { setThreats([]); }
+        const last = next.moveHistory?.[next.moveHistory.length - 1];
         if (last?.comboLabels?.length) {
           setSpectatorNote(`${last.player} reshaped the map: ${terrainMoveLabel(last)}`);
         } else if (last?.word && last.word !== "SEED") {
@@ -1080,12 +961,12 @@ export default function Home() {
           setSpectatorNote("Bots are probing the frontier…");
         }
       } catch(e) {
-        if (!canマスed) setError(e.message || "Spectator demo failed");
+        if (!cancelled) setError(e.message || "Spectator demo failed");
       }
-      if (!canマスed) setThinking(false);
+      if (!cancelled) setThinking(false);
     };
     run();
-    return () => { canマスed = true; setThinking(false); };
+    return () => { cancelled = true; setThinking(false); };
   }, [spectatorMode, state?.turn, state?.currentPlayer, gameId]);
 
   // ── game over ────────────────────────────────────────────────────────────
@@ -1103,7 +984,7 @@ export default function Home() {
     setSum(true);
 
     if (dailyMode && dailyInfo) {
-      const wm = state.move履歴.filter(m => m.moveType === "WORD");
+      const wm = state.moveHistory.filter(m => m.moveType === "WORD");
       const best = [...wm].sort((a, b) =>
         (b.territoryGained*2 + b.wordScoreGained*1.5 + b.fortifiedCellsGained*2 + (b.captureCount?5:0)) -
         (a.territoryGained*2 + a.wordScoreGained*1.5 + a.fortifiedCellsGained*2 + (a.captureCount?5:0))
@@ -1137,7 +1018,7 @@ export default function Home() {
     }
   }, [state?.winner]);
 
-  useEffect(() => { if (histRef.current) histRef.current.scrollTop = histRef.current.scrollHeight; }, [state?.move履歴?.length]);
+  useEffect(() => { if (histRef.current) histRef.current.scrollTop = histRef.current.scrollHeight; }, [state?.moveHistory?.length]);
 
   // ── preview ──────────────────────────────────────────────────────────────
   const currentWord = useMemo(() => {
@@ -1157,7 +1038,7 @@ export default function Home() {
     return () => clearTimeout(h);
   }, [gameId, placed, letter, JSON.stringify(path)]);
 
-  // Auto-focus letter input when マス is placed
+  // Auto-focus letter input when cell is placed
   useEffect(() => {
     if (placed && letterRef.current) letterRef.current.focus();
   }, [placed]);
@@ -1166,7 +1047,7 @@ export default function Home() {
   const human = () => state && !spectatorMode && !thinking && !state.winner && (asyncMode ? state.currentPlayer === asyncRole : state.currentPlayer !== state.botPlayer);
   const isSel = (r,c) => path.some(p => p.row===r && p.col===c);
 
-  // Opponent マス adjacent to any placeable empty マス = attackable
+  // Opponent cells adjacent to any placeable empty cell = attackable
   const opponent = state?.currentPlayer === "RED" ? "BLUE" : "RED";
   const attackableSet = useMemo(() => {
     if (!state || !human()) return new Set();
@@ -1174,9 +1055,9 @@ export default function Home() {
     const BS = state.board.length;
     for (let r = 0; r < BS; r++) {
       for (let c = 0; c < BS; c++) {
-        const マス = state?.board?.[r]?.[c];
-    if (!マス) return;
-        if (マス.letter && マス.owner === opponent && !マス.fortified) {
+        const cell = state?.board?.[r]?.[c];
+    if (!cell) return;
+        if (cell.letter && cell.owner === opponent && !cell.fortified) {
           for (const [nr, nc] of [[r-1,c],[r+1,c],[r,c-1],[r,c+1]]) {
             if (nr>=0&&nr<BS&&nc>=0&&nc<BS&&!state.board[nr][nc].letter) {
               s.add(asKey(r,c));
@@ -1189,13 +1070,13 @@ export default function Home() {
     return s;
   }, [state?.turn, state?.currentPlayer]);
 
-  // Opponent マス currently in the selected path (will be captured if submitted)
+  // Opponent cells currently in the selected path (will be captured if submitted)
   const inPathOpponentSet = useMemo(() => {
     if (!path.length) return new Set();
     const s = new Set();
     path.forEach(p => {
-      const マス = state?.board?.[p.row]?.[p.col];
-      if (マス?.owner === opponent) s.add(asKey(p.row, p.col));
+      const cell = state?.board?.[p.row]?.[p.col];
+      if (cell?.owner === opponent) s.add(asKey(p.row, p.col));
     });
     return s;
   }, [path, state?.turn]);
@@ -1212,21 +1093,21 @@ export default function Home() {
     // Do not dim it just because the user cannot click.
     if (spectatorMode || state.winner) return false;
     if (!human()) return true;
-    const マス = state?.board?.[r]?.[c];
-    if (!マス) return true;
-    // Already selected マス are not dim but not clickable again
+    const cell = state?.board?.[r]?.[c];
+    if (!cell) return true;
+    // Already selected cells are not dim but not clickable again
     if (isSel(r,c)) return false;
     // Phase 0: nothing selected yet
     if (path.length === 0) {
-      // Can start from a green マス (will become placed) OR existing letter
-      return !isLegal(r,c) && !マス.letter;
+      // Can start from a green cell (will become placed) OR existing letter
+      return !isLegal(r,c) && !cell.letter;
     }
-    // Must be adjacent to last マス in path
+    // Must be adjacent to last cell in path
     const last = path[path.length - 1];
     if (!adj(last, {row:r, col:c})) return true;
-    // Can select: existing letter OR the green placed マス
-    if (マス.letter) return false;
-    if (isLegal(r,c) && !placed) return false; // green マス not yet set as placed
+    // Can select: existing letter OR the green placed cell
+    if (cell.letter) return false;
+    if (isLegal(r,c) && !placed) return false; // green cell not yet set as placed
     if (placed && placed.row===r && placed.col===c) return false;
     return true;
   };
@@ -1234,30 +1115,30 @@ export default function Home() {
   function clickCell(r,c) {
     if (!state || !human()) return;
     playSfx("click");
-    const マス = state.board[r][c];
+    const cell = state.board[r][c];
 
-    // Deselect last マス if tapping it again (undo last step)
+    // Deselect last cell if tapping it again (undo last step)
     if (path.length > 0 && path[path.length-1].row===r && path[path.length-1].col===c) {
       const newPath = path.slice(0, -1);
       setPath(newPath);
-      // If we removed the placed マス from path, unset placed
+      // If we removed the placed cell from path, unset placed
       if (placed && placed.row===r && placed.col===c) {
         setPlaced(null);
       }
       return;
     }
 
-    if (isSel(r,c)) return; // already in path (not last マス)
+    if (isSel(r,c)) return; // already in path (not last cell)
 
     // Phase 0: start path
     if (path.length === 0) {
       if (isLegal(r,c)) {
-        // Green マス → becomes placed マス
+        // Green cell → becomes placed cell
         setPlaced({row:r, col:c});
         setPath([{row:r, col:c}]);
         setError("");
-      } else if (マス.letter) {
-        // Existing letter → start of path (placed マス comes later)
+      } else if (cell.letter) {
+        // Existing letter → start of path (placed cell comes later)
         setPath([{row:r, col:c}]);
         setError("");
       }
@@ -1268,7 +1149,7 @@ export default function Home() {
     const last = path[path.length - 1];
     if (!adj(last, {row:r, col:c})) return;
 
-    // Adding green マス (placed マス not yet set)
+    // Adding green cell (placed cell not yet set)
     if (isLegal(r,c) && !placed) {
       setPlaced({row:r, col:c});
       setPath(prev => [...prev, {row:r, col:c}]);
@@ -1277,29 +1158,29 @@ export default function Home() {
     }
 
     // Adding existing letter
-    if (マス.letter) {
+    if (cell.letter) {
       setPath(prev => [...prev, {row:r, col:c}]);
       return;
     }
 
-    // Adding the already-set placed マス
+    // Adding the already-set placed cell
     if (placed && placed.row===r && placed.col===c) {
       setPath(prev => [...prev, {row:r, col:c}]);
     }
   }
 
   // ── move actions ─────────────────────────────────────────────────────────
-  async function sync脅威s(id = gameId) {
+  async function syncThreats(id = gameId) {
     if (!id) {
-      set脅威s([]);
+      setThreats([]);
       return [];
     }
     try {
-      const data = await get脅威(id);
-      set脅威s(data);
-      return normalize脅威s(data);
+      const data = await getThreat(id);
+      setThreats(data);
+      return normalizeThreats(data);
     } catch {
-      set脅威s([]);
+      setThreats([]);
       return [];
     }
   }
@@ -1312,7 +1193,7 @@ export default function Home() {
   }
   const refresh = async (id=gameId) => {
     try { setSugg(wtJaToTextList(await getSuggestions(id))); } catch { setSugg([]); }
-    await sync脅威s(id);
+    await syncThreats(id);
   };
   async function submit() {
     if (!placed) { setError("Tap a green square first."); return; }
@@ -1337,7 +1218,7 @@ export default function Home() {
   }
   async function seed() {
     if (!placed) { setError("Tap a green square first."); return; }
-    if (!letter) { setError("ひらがな1文字 in the input box."); return; }
+    if (!letter) { setError("Type one letter in the input box."); return; }
     try {
       const payload = {row:placed.row,col:placed.col,letter};
       const next = asyncMode ? await seedAsyncMove(gameId, asyncToken, payload) : await seedMove(gameId,payload);
@@ -1355,11 +1236,11 @@ export default function Home() {
     try { const next = asyncMode ? await passAsyncTurn(gameId, asyncToken) : await passTurn(gameId); setState(next); reset(); await refresh(); }
     catch(e) {
       if (await recoverIfGameGone(e)) return;
-      setError(normalizeStringError(e, "パス failed"));
+      setError(normalizeStringError(e, "Pass failed"));
     }
   }
 
-  // ④ 確定 daily score to leaderboard
+  // ④ Submit daily score to leaderboard
   async function submitScore() {
     if (!dailyInfo || !dailyResult || submitted) return;
     try {
@@ -1372,7 +1253,7 @@ export default function Home() {
         turns: dailyResult.turns,
       });
       setMyRank(res.rank);
-      set確定ted(true);
+      setSubmitted(true);
     } catch { setError("Could not submit score"); }
   }
 
@@ -1390,17 +1271,17 @@ export default function Home() {
   const pct  = Math.round((redT / Math.max(redT+blueT,1)) * 100);
   const incPlaced = placed && path.some(p=>p.row===placed.row&&p.col===placed.col);
   const ok = preview?.isInDictionary && preview?.includesPlacedCell;
-  const topMoves = [...(state?.move履歴||[])].filter(m=>m.moveType==="WORD")
+  const topMoves = [...(state?.moveHistory||[])].filter(m=>m.moveType==="WORD")
     .sort((a,b)=>(b.territoryGained*2+b.wordScoreGained*1.5+b.fortifiedCellsGained*2+(b.captureCount?5:0)+(b.comboLabels?.length||0)*1.5)
                 -(a.territoryGained*2+a.wordScoreGained*1.5+a.fortifiedCellsGained*2+(a.captureCount?5:0)+(a.comboLabels?.length||0)*1.5))
     .slice(0,3);
   const bestMove = topMoves[0] || null;
   const moveLabel = terrainMoveLabel;
-  const suggestionList = useMemo(() => wtJaToTextList(suggestions), [JSON.stringify(suggestions || [])]); const threatList = useMemo(() => normalize脅威s(threats), [JSON.stringify(threats || [])]);
+  const suggestionList = useMemo(() => wtJaToTextList(suggestions), [JSON.stringify(suggestions || [])]); const threatList = useMemo(() => normalizeThreats(threats), [JSON.stringify(threats || [])]);
   const threatCellSet = useMemo(() => {
     const s = new Set();
     threatList.forEach(t => {
-      asArray(t?.マス).forEach(c0 => {
+      asArray(t?.cells).forEach(c0 => {
         const c = toCell(c0);
         if (c) s.add(asKey(c.row, c.col));
       });
@@ -1415,7 +1296,7 @@ export default function Home() {
     });
     return s;
   }, [JSON.stringify(threatList)]);
-  const lastMove = (state?.move履歴 || [])[Math.max((state?.move履歴?.length || 0) - 1, 0)] || null;
+  const lastMove = (state?.moveHistory || [])[Math.max((state?.moveHistory?.length || 0) - 1, 0)] || null;
   const lastMoveInsights = moveInsightLines(lastMove);
   const lastMoveIsSwing = !!lastMove && (
     (lastMove.captureCount || 0) > 0 ||
@@ -1426,9 +1307,9 @@ export default function Home() {
 
   const boardOpeningClass = `opening-${String(state?.openingName || "plain").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-opening$/,"").replace(/^-|-$/g,"") || "plain"}`;
   const boardBannerText = lastMoveIsSwing && lastMove ? [
-    (lastMove.captureCount||0)>0 ? `Captured ${lastMove.captureCount} マス${lastMove.captureCount===1?"":"s"}` : null,
+    (lastMove.captureCount||0)>0 ? `Captured ${lastMove.captureCount} cell${lastMove.captureCount===1?"":"s"}` : null,
     (lastMove.comboLabels||[]).some(x=>String(x).includes("BRIDGE")) ? "Bridge connected zones" : null,
-    (lastMove.fortifiedCellsGained||0)>0 ? `Locked ${lastMove.fortifiedCellsGained} マス${lastMove.fortifiedCellsGained===1?"":"s"}` : null,
+    (lastMove.fortifiedCellsGained||0)>0 ? `Locked ${lastMove.fortifiedCellsGained} cell${lastMove.fortifiedCellsGained===1?"":"s"}` : null,
     (lastMove.comboLabels||[]).some(x=>String(x).startsWith("SYNERGY:")) ? "Synergy activated" : null,
     (lastMove.territoryGained||0)>=5 ? `Territory Swing +${lastMove.territoryGained}` : null,
   ].filter(Boolean).join(" · ") : "";
@@ -1458,8 +1339,8 @@ export default function Home() {
     if (!showTutorial || tutorialStep !== 1 || !state?.board) return "";
     for (let r = 0; r < state.board.length; r++) {
       for (let c = 0; c < state.board[r].length; c++) {
-        const マス = state.board[r][c];
-        if (マス?.letter) continue;
+        const cell = state.board[r][c];
+        if (cell?.letter) continue;
         const neighbors = [[r+1,c],[r-1,c],[r,c+1],[r,c-1]];
         if (neighbors.some(([nr,nc]) => nr>=0 && nr<state.board.length && nc>=0 && nc<state.board[nr].length && state.board[nr][nc]?.letter)) {
           return asKey(r,c);
@@ -1488,16 +1369,16 @@ export default function Home() {
     const key = `${lastMove.turn}-${lastMove.player}-${lastMove.word}`;
     const labels = (lastMove.comboLabels || []).map(x => String(x));
 
-    if ((lastMove.captureCount || 0) > 0 && capture音Ref.current !== key) {
-      capture音Ref.current = key;
+    if ((lastMove.captureCount || 0) > 0 && captureSoundRef.current !== key) {
+      captureSoundRef.current = key;
       playSfx("capture", 0);
     }
-    if (labels.some(x => x.includes("BRIDGE")) && bridge音Ref.current !== key) {
-      bridge音Ref.current = key;
+    if (labels.some(x => x.includes("BRIDGE")) && bridgeSoundRef.current !== key) {
+      bridgeSoundRef.current = key;
       playSfx("bridge", (lastMove.captureCount || 0) > 0 ? 130 : 0);
     }
-    if ((lastMove.fortifiedCellsGained || 0) > 0 && lock音Ref.current !== key) {
-      lock音Ref.current = key;
+    if ((lastMove.fortifiedCellsGained || 0) > 0 && lockSoundRef.current !== key) {
+      lockSoundRef.current = key;
       playSfx("lock", labels.some(x => x.includes("BRIDGE")) ? 250 : 120);
     }
     if (labels.some(x => x.startsWith("SYNERGY:")) && soundTurnRef.current !== key) {
@@ -1509,8 +1390,8 @@ export default function Home() {
   useEffect(() => {
     if (!state?.winner) return;
     const key = `${gameId}-${state?.winner}-${state?.turn}`;
-    if (battle音Ref.current === key) return;
-    battle音Ref.current = key;
+    if (battleSoundRef.current === key) return;
+    battleSoundRef.current = key;
     playSfx("battle", 120);
   }, [state?.winner, gameId, state?.turn, soundOn]);
 
@@ -1552,15 +1433,15 @@ export default function Home() {
           <div className="intro-card">
             <div className="intro-kicker">30-second demo</div>
             <h2>Words become territory.</h2>
-            <p>Watch letters claim ground, trigger captures, lock マス, and reshape the map.</p>
+            <p>Watch letters claim ground, trigger captures, lock cells, and reshape the map.</p>
             <div className="intro-steps">
               <span>1. Choose a letter</span>
-              <span>2. Tap a glowing マス</span>
+              <span>2. Tap a glowing cell</span>
               <span>3. Connect a word</span>
               <span>4. Watch territory change</span>
             </div>
             <div className="intro-btns">
-              <button className="bprim" onClick={()=>dismissIntro(true)}>▶ デモを見る</button>
+              <button className="bprim" onClick={()=>dismissIntro(true)}>▶ Watch Demo</button>
               <button className="bsm" onClick={()=>dismissIntro(false)}>Start Playing</button>
             </div>
           </div>
@@ -1582,7 +1463,7 @@ export default function Home() {
           <p className="tagline">Words become territory. Each move reshapes the map.</p>
         </div>
         <div className="hdr-r">
-          <button className="bsm sound-toggle" onClick={()=>set音On(v=>!v)} title="Toggle sound">{soundOn ? "🔊 音" : "🔇 Muted"}</button>
+          <button className="bsm sound-toggle" onClick={()=>setSoundOn(v=>!v)} title="Toggle sound">{soundOn ? "🔊 Sound" : "🔇 Muted"}</button>
           {!dailyMode&&(
             <div className="mode-box">
               <label>Bot</label>
@@ -1604,14 +1485,14 @@ export default function Home() {
               </div>
             </div>
           )}
-          <button className="bsm" onClick={()=>setルール(v=>!v)}>{showルール?"✕ ルール":"? ルール"}</button>
-          <Link href="/about" className="bsm" style={{textDecoration:"none",color:"#111"}}>概要</Link>
+          <button className="bsm" onClick={()=>setRules(v=>!v)}>{showRules?"✕ Rules":"? Rules"}</button>
+          <Link href="/about" className="bsm" style={{textDecoration:"none",color:"#111"}}>About</Link>
           {dailyMode
             ?<button className="bprim" onClick={()=>boot(mode)}>← Free Play</button>
-            :<button className="bprim" onClick={()=>boot(mode)}>新規ゲーム</button>
+            :<button className="bprim" onClick={()=>boot(mode)}>New Game</button>
           }
-          <button className="bsm demo-btn" onClick={startSpectatorDemo}>▶ デモを見る</button>
-          {spectatorMode&&<button className="bsm" onClick={()=>{setSpectatorMode(false); setSpectatorNote("Demo paused. Press 新規ゲーム to play.");}}>Stop Demo</button>}
+          <button className="bsm demo-btn" onClick={startSpectatorDemo}>▶ Watch Demo</button>
+          {spectatorMode&&<button className="bsm" onClick={()=>{setSpectatorMode(false); setSpectatorNote("Demo paused. Press New Game to play.");}}>Stop Demo</button>}
           <button className="bsm" onClick={async()=>{try{const d=await createAsyncMatch({botLevel:mode}); setAsyncMode(true); setSpectatorMode(false); setAsyncToken(d.redToken); setAsyncRole('RED'); setGameId(d.game_id); setState(d.state); setDailyMode(false); setInviteUrl(`${window.location.origin}${d.blueUrl}`); setMarket({active:d.state.marketLetters||[], preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed}); await refresh(d.game_id);}catch(e){setError(e.message||'Could not create async match');}}}>Async PvP</button>
           {asyncMode&&<button className="bsm" onClick={async()=>{try{const d=await getAsyncMatch(gameId, asyncToken); setState(d.state); await refresh(gameId);}catch(e){setError(e.message||'Could not refresh match');}}}>Refresh Match</button>}
         </div>
@@ -1620,33 +1501,33 @@ export default function Home() {
       {/* ── First-move guide ── */}
       {tutTurns === 0 && human() && (
         <div className="firstmove-banner">
-          <strong>遊び方:</strong>{" "}
-          Tap a <span className="fm-green">green square</span> → type a letter → connect letters to make a word → press <strong>領地を取る</strong>
+          <strong>How to play:</strong>{" "}
+          Tap a <span className="fm-green">green square</span> → type a letter → connect letters to make a word → press <strong>Claim Territory</strong>
         </div>
       )}
       {/* ── score bar ── */}
       <div className="sbar">
         <div className="srow">
-          <span className="stxt red-t">🔴 {redT} マス</span>
+          <span className="stxt red-t">🔴 {redT} cells</span>
           <span className="smid">
-            {redT===blueT ? "同点" : `${redT>blueT?"🔴 RED":"🔵 BLUE"} +${Math.abs(redT-blueT)}`}
+            {redT===blueT ? "Tied" : `${redT>blueT?"🔴 RED":"🔵 BLUE"} +${Math.abs(redT-blueT)}`}
           </span>
-          <span className="stxt blue-t">{blueT} マス 🔵</span>
+          <span className="stxt blue-t">{blueT} cells 🔵</span>
         </div>
         <div className="bar"><div className="br" style={{width:`${pct}%`}}/><div className="bb" style={{width:`${100-pct}%`}}/></div>
       </div>
 
       {/* ── rules ── */}
-      {showルール&&(
+      {showRules&&(
         <div className="rules">
           <strong>Build words from a shared draft. Place letters. Capture territory.</strong>
           <ol>
-            <li>Tap a <em>green square</em> → type any letter → connect letters to make a 3–6 letter word → press <strong>領地を取る ⚔</strong>.</li>
+            <li>Tap a <em>green square</em> → type any letter → connect letters to make a 3–6 letter word → press <strong>Claim Territory ⚔</strong>.</li>
             <li>Example: board has D–S–T, place U → select D→U→S→T → DUST! Your letter can go anywhere in the path.</li>
-            <li>Enclose opponent マス to <strong>capture</strong> them. Surrounded own マス become 🏰 <strong>Fortified</strong>.</li>
+            <li>Enclose opponent cells to <strong>capture</strong> them. Surrounded own cells become 🏰 <strong>Fortified</strong>.</li>
             <li><strong>Role Bonuses</strong> — earn extra territory: BRIDGE +3T · CUT +2T · CROSS WORD +2T · LONG PATH +1T</li>
             <li><strong>Seed</strong> — place a letter without capturing when stuck. Good for setting up future words.</li>
-            <li><strong>Goal:</strong> More red マス than blue wins. Territory beats vocabulary.</li>
+            <li><strong>Goal:</strong> More red cells than blue wins. Territory beats vocabulary.</li>
             <li><strong>Daily Challenge</strong> — same board worldwide each day. One attempt. Strong bot.</li>
           </ol>
         </div>
@@ -1673,25 +1554,25 @@ export default function Home() {
               <div className={`end-flood ${state.winner==="RED"?"flood-red":state.winner==="BLUE"?"flood-blue":"flood-draw"}`} key={`flood-${state.winner}`}/>
             )}
             <div className="board-wrap"><div className={`board ${boardOpeningClass} ${spectatorMode ? "board-demo" : ""} ${lastMoveIsSwing ? "board-swing" : ""} ${bridgeFlash ? "board-bridge" : ""}`}>
-              {state.board.map(row=>row.map(マス=>{
-                const k=asKey(マス.row,マス.col);
+              {state.board.map(row=>row.map(cell=>{
+                const k=asKey(cell.row,cell.col);
                 const vp = Array.isArray(valuePrev)
-                  ? valuePrev.find(p => p.row === マス.row && p.col === マス.col)
+                  ? valuePrev.find(p => p.row === cell.row && p.col === cell.col)
                   : null;
-                const showVp = !state.winner && vp && !マス.letter && ((Number(vp.gain)||0) >= 2 || (vp.roles||[]).length > 0 || !!vp.word);
-                return <div key={k} className="マス-slot">
-                  <Cell マス={マス}
-                    sel={isSel(マス.row,マス.col)} placed={placed?.row===マス.row&&placed?.col===マス.col}
-                    legal={!placed&&isLegal(マス.row,マス.col)}
+                const showVp = !state.winner && vp && !cell.letter && ((Number(vp.gain)||0) >= 2 || (vp.roles||[]).length > 0 || !!vp.word);
+                return <div key={k} className="cell-slot">
+                  <Cell cell={cell}
+                    sel={isSel(cell.row,cell.col)} placed={placed?.row===cell.row&&placed?.col===cell.col}
+                    legal={!placed&&isLegal(cell.row,cell.col)}
                     changed={changedS.has(k)} captured={capturedS.has(k)} lockedNow={lockedS.has(k)}
                     bridgePath={bridgePathSet.has(k)} lockNeighbor={lockNeighborSet.has(k)}
                     tutorialPlace={tutorialPlaceKey === k} tutorialPath={tutorialPathKey === k}
                     captureOrder={capturedOrderMap.get(k)} lockOrder={lockedOrderMap.get(k)}
-                    disabled={isDim(マス.row,マス.col)} gen={animGen}
-                    attack={attackableSet.has(k) && !isSel(マス.row,マス.col)}
+                    disabled={isDim(cell.row,cell.col)} gen={animGen}
+                    attack={attackableSet.has(k) && !isSel(cell.row,cell.col)}
                     threat={threatCellSet.has(k)} threatMove={threatMoveSet.has(k)}
                     inPath={inPathOpponentSet.has(k)}
-                    onClick={()=>clickCell(マス.row,マス.col)}/>
+                    onClick={()=>clickCell(cell.row,cell.col)}/>
                   {showVp && <div className={`vp-overlay vp-${vp.tier || 'basic'}`} title={vp.word ? `${vp.word} · Territory Swing +${vp.gain||0}${vp.synergyPreview ? ' · '+vp.synergyPreview : ''}` : 'Setup'}>
                     <span className="vp-num">{vp.tier==='strong' ? `+${vp.gain}T` : vp.tier==='frontline' ? `+${vp.gain}T` : (Number(vp.gain)||0) > 0 ? `+${vp.gain}T` : 'SET'}</span>
                     {vp.tier==='strong' && <span className="vp-star">★</span>}
@@ -1727,7 +1608,7 @@ export default function Home() {
                 </div>
                 {bestMove && <div className="report-best"><span>Best Territorial Swing</span><strong>{moveLabel(bestMove)}</strong></div>}
                 <div className="report-stats">
-                  <span>Largest capture: {Math.max(0, ...((state.move履歴||[]).map(m=>m.captureCount||0)))} マス</span>
+                  <span>Largest capture: {Math.max(0, ...((state.moveHistory||[]).map(m=>m.captureCount||0)))} cells</span>
                   <span>Top swings: {topMoves.length}</span>
                   <span>Opening: {state.openingName}</span>
                 </div>
@@ -1740,11 +1621,11 @@ export default function Home() {
             </>
           )}
 
-          {/* ── 文字カード ── */}
+          {/* ── Letter Market ── */}
           {!state.winner && (
             <div className="lm-panel" style={{display: market.active.length > 0 ? 'block' : 'none'}}>
               <div className="lm-header">
-                <span className="lm-title">🎴 文字カード {comebackChance && <b className="come-badge">★ Reclaim</b>}</span>
+                <span className="lm-title">🎴 Letter Market {comebackChance && <b className="come-badge">★ Reclaim</b>}</span>
                 <span className="lm-preview">
                   Next: {(market.preview||[]).map((l,i) => <span key={i} className="lm-prev-chip">{l}</span>)}
                 </span>
@@ -1806,7 +1687,7 @@ export default function Home() {
                     title="Use once per game — choose any letter"
                   >
                     <span className="lm-letter">⭐</span>
-                    <span className="lm-stats"><span className="lm-freeLabel">自由</span></span>
+                    <span className="lm-stats"><span className="lm-freeLabel">FREE</span></span>
                   </button>
                 ) : (
                   <div className="lm-tile lm-free lm-used" title="Free letter already used">
@@ -1816,69 +1697,44 @@ export default function Home() {
                 )}
               </div>
               {showFreeInput && (
-  <div className="freeInput">
-    <input
-      className="freeType"
-      value={freeLetter}
-      maxLength={8}
-      lang="ja"
-      inputMode="text"
-      autoComplete="off"
-      placeholder={"\u3072\u3089\u304c\u306a"}
-      disabled={!human()}
-      onChange={e => {
-        const v = e.target.value;
-        if (e.nativeEvent?.isComposing) {
-          setFreeLetter(v);
-          return;
-        }
-        setFreeLetter(wtJaNormalizeKanaInput(v));
-      }}
-      onCompositionEnd={e => setFreeLetter(wtJaNormalizeKanaInput(e.currentTarget.value))}
-      onKeyDown={e => {
-        if (e.key === 'Enter' && wtJaHasKana(freeLetter)) {
-          const chosen = wtJaNormalizeKanaInput(freeLetter);
-          useFreeLetter(gameId, { letter: chosen, source: wildMode ? "wild" : "free" }).then(r => {
-            setMarket(m => ({...m, ...r}));
-            setLetter(chosen);
-            setFreeLetter('');
-            setShowFreeInput(false);
-            setWildMode(false);
-            setPath([]);
-            setPlaced(null);
-          }).catch(e => setError(e.message));
-        }
-      }}
-    />
-    <button
-      className="btn primary"
-      disabled={!human() || !wtJaHasKana(freeLetter)}
-      onClick={() => {
-        const chosen = wtJaNormalizeKanaInput(freeLetter);
-        if (!chosen) {
-          setError("????1????????????");
-          return;
-        }
-        useFreeLetter(gameId, { letter: chosen, source: wildMode ? "wild" : "free" }).then(r => {
-          setMarket(m => ({...m, ...r}));
-          setLetter(chosen);
-          setFreeLetter('');
-          setShowFreeInput(false);
-          setWildMode(false);
-          setPath([]);
-          setPlaced(null);
-        }).catch(e => setError(e.message));
-      }}
-    >
-      ??
-    </button>
-  </div>
-)}
+                <div className="lm-free-row">
+                  <input className="lm-free-input" maxLength={1}
+                    placeholder={wildMode ? "WILD: type any letter" : "Type any letter"}
+                    value={freeLetter}
+                    onChange={e => setFreeLetter(e.target.value.toUpperCase().replace(/[^A-Z]/g,''))}
+                    onKeyDown={e => {
+                      if(e.key==='Enter' && freeLetter) {
+                        useFreeLetter(gameId, freeLetter, wildMode ? "wild" : "free").then(r => {
+                          setMarket(m => ({...m, ...r}));
+                          setLetter(chosenFreeLetter);
+                          setShowFreeInput(false);
+                          setWildMode(false);
+                          setPath([]); setPlaced(null);
+                        }).catch(e => setError(e.message));
+                      }
+                    }}
+                  />
+                  <button className="lm-free-confirm"
+                    onClick={() => {
+                      if(!freeLetter) return;
+                      useFreeLetter(gameId, freeLetter, wildMode ? "wild" : "free").then(r => {
+                        setMarket(m => ({...m, ...r}));
+                        setLetter(chosenFreeLetter);
+                        setShowFreeInput(false);
+                        setWildMode(false);
+                        setPath([]); setPlaced(null);
+                      }).catch(e => setError(e.message));
+                    }}
+                  >{wildMode ? "Use ★ Wild" : "Use ⭐"}</button>
+                </div>
+              )}
+            </div>
+          )}
 
-{/* move controls */}}
+          {/* move controls */}
           {!state.winner && <div className="mpanel">
             <div className="mrow">
-              <label className="mlbl">{market.active.length > 0 ? "選択中" : "Letter"}</label>
+              <label className="mlbl">{market.active.length > 0 ? "Selected" : "Letter"}</label>
               <input ref={letterRef}
                 className={`minput${market.active.length > 0 && !letter ? ' minput-empty' : ''}`}
                 value={letter} maxLength={8} lang="ja" inputMode="text" autoComplete="off"
@@ -1913,9 +1769,9 @@ export default function Home() {
                 ):(
                   <div className="pvhint">
                     {!placed
-                      ? (market.active.length > 0 ? (thinking ? "Bot is thinking..." : state?.winner ? "Battle Report" : "Choose a tile from 文字カード above ↑ then read the Territory Preview.") : "Tap a green square to place a letter.")
+                      ? (market.active.length > 0 ? (thinking ? "Bot is thinking..." : state?.winner ? "Battle Report" : "Choose a tile from Letter Market above ↑ then read the Territory Preview.") : "Tap a green square to place a letter.")
                       : !letter
-                      ? "ひらがな1文字を入力してください。"
+                      ? "Type one letter."
                       : path.length < 2
                       ? "Now tap connected letters to make a word."
                       : !incPlaced
@@ -1926,21 +1782,21 @@ export default function Home() {
               </div>
             </div>
             <div className="brow">
-              <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={submit} disabled={!human()}>{showTutorial && tutorialStep===3 ? "Capture Word ⚔" : ok ? "領地を取る ⚔" : "確定"}</button>
+              <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={submit} disabled={!human()}>{showTutorial && tutorialStep===3 ? "Capture Word ⚔" : ok ? "Claim Territory ⚔" : "Submit"}</button>
               {!isTutorial && <button className="ba bseed" onClick={seed} disabled={!human()} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "Seed (free — +3T next word)" : "Seed costs 1 territory"}>
               <span className="seed-label">{lastStand ? "Reclaim" : "Seed"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "Free" : "Cost -1"}</span>}
             </button>}
-              <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); }} disabled={!human()}>取消</button>
-              {!isTutorial && <button className="ba" onClick={pass} disabled={!human()}>パス</button>}
+              <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); }} disabled={!human()}>Clear</button>
+              {!isTutorial && <button className="ba" onClick={pass} disabled={!human()}>Pass</button>}
             </div>
           </div>}
         </div>
 
         {/* side panel */}
         <div className="mobile-tabs">
-          <button className={mobileTab==="hints" ? "active" : ""} onClick={()=>setMobileTab("hints")}>ヒント</button>
-          <button className={mobileTab==="threat" ? "active" : ""} onClick={()=>setMobileTab("threat")}>脅威</button>
-          <button className={mobileTab==="history" ? "active" : ""} onClick={()=>setMobileTab("history")}>履歴</button>
+          <button className={mobileTab==="hints" ? "active" : ""} onClick={()=>setMobileTab("hints")}>Hints</button>
+          <button className={mobileTab==="threat" ? "active" : ""} onClick={()=>setMobileTab("threat")}>Threat</button>
+          <button className={mobileTab==="history" ? "active" : ""} onClick={()=>setMobileTab("history")}>History</button>
         </div>
         <div className={`scol tab-${mobileTab}`}>
           {synergy && (() => { const sc = synergyOpts.find(c=>c.key===synergy); return sc ? (
@@ -1966,37 +1822,37 @@ export default function Home() {
           )}
           <div className="panel panel-suggest">
             <div className="ph" onClick={()=>setSuggest(v=>!v)}>
-              <span>💡 候補</span><span className="ci">{showSuggest?"▲":"▼"}</span>
+              <span>💡 Suggested</span><span className="ci">{showSuggest?"▲":"▼"}</span>
             </div>
             {showSuggest&&(
               <div className="chips sc">
-                {suggestionList.length ? suggestionList.map(w=><span key={w} className="chip">{w}</span>):<div className="no-word-hint">使える単語が見つかりません。<br/>Use <strong>Seed</strong> to place a tile without capturing.</div>}
+                {suggestionList.length ? suggestionList.map(w=><span key={w} className="chip">{w}</span>):<div className="no-word-hint">No playable word found.<br/>Use <strong>Seed</strong> to place a tile without capturing.</div>}
               </div>
             )}
           </div>
                     <div className="panel panel-threat">
-            <div className="ph" onClick={()=>set脅威Panel(v=>!v)}>
-              <span>⚠ 脅威</span><span className="ci">{show脅威Panel?"▲":"▼"}</span>
+            <div className="ph" onClick={()=>setThreatPanel(v=>!v)}>
+              <span>⚠ Threat</span><span className="ci">{showThreatPanel?"▲":"▼"}</span>
             </div>
-            {show脅威Panel&&(
+            {showThreatPanel&&(
               <div className="threat-list">
                 {threatList && threatList.length ? threatList.slice(0,5).map((t,i)=>(
                   <div className="threat-row" key={i}>
                     <strong>{t.word || "Capture threat"}</strong>
-                    <span>{(t.マス||[]).length} マス{(t.マス||[]).length===1?"":"s"} exposed</span>
+                    <span>{(t.cells||[]).length} cell{(t.cells||[]).length===1?"":"s"} exposed</span>
                   </div>
-                )) : <div className="muted">直近の脅威はありません。</div>}
+                )) : <div className="muted">No immediate capture threat.</div>}
               </div>
             )}
           </div>
 <div className="panel panel-history">
-            <div className="ph" onClick={()=>set履歴(v=>!v)}>
-              <span>📋 履歴</span><span className="ci">{show履歴?"▲":"▼"}</span>
+            <div className="ph" onClick={()=>setHistory(v=>!v)}>
+              <span>📋 History</span><span className="ci">{showHistory?"▲":"▼"}</span>
             </div>
-            {show履歴&&(
+            {showHistory&&(
               <div className="hist" ref={histRef}>
-                {!state.move履歴.length&&<div className="muted">No moves yet</div>}
-                {state.move履歴.map((m,i)=><HistItem key={i} m={m}/>)}
+                {!state.moveHistory.length&&<div className="muted">No moves yet</div>}
+                {state.moveHistory.map((m,i)=><HistItem key={i} m={m}/>)}
               </div>
             )}
           </div>
@@ -2020,7 +1876,7 @@ export default function Home() {
       {showSynergy && !synergy && (
         <div className="modal-bg" onClick={e => e.target===e.currentTarget&&setShowSynergy(false)}>
           <div className="modal syn-modal">
-            <h2 style={{marginBottom:6}}>🎴 作戦を選ぶ</h2>
+            <h2 style={{marginBottom:6}}>🎴 Choose Your Strategy</h2>
             <p style={{fontSize:13,color:'#888',marginBottom:20}}>Pick one card. It stays active the whole game.</p>
             <div className="syn-cards">
               {(synergyOpts||[]).map(card => (
@@ -2055,8 +1911,8 @@ export default function Home() {
                 </h2>
                 <p className="muted">{dailyInfo.dateStr} · {dailyInfo.openingName}</p>
                 <div className="scard">
-                  <div className="scrow"><span>🔴 YOU</span><strong>{redT} マス</strong></div>
-                  <div className="scrow"><span>🔵 BOT</span><strong>{blueT} マス</strong></div>
+                  <div className="scrow"><span>🔴 YOU</span><strong>{redT} cells</strong></div>
+                  <div className="scrow"><span>🔵 BOT</span><strong>{blueT} cells</strong></div>
                   <div className="scres">{(dailyResult?.winner??state.winner)==="RED"?"✅ WIN":(dailyResult?.winner??state.winner)===null?"🤝 DRAW":"❌ LOSS"}</div>
                   <div className="muted tac">{(dailyResult?.turns??state.turn-1)} turns · Territory ×1.5 + Words</div>
                 </div>
@@ -2102,13 +1958,13 @@ export default function Home() {
                 <h2>Battle Report</h2>
                 <p>Winner: <strong>{state.winner||"Draw"}</strong></p>
                 <div className="scard">
-                  <div className="scrow"><span>🔴 RED</span><strong>{redT} マス</strong></div>
-                  <div className="scrow"><span>🔵 BLUE</span><strong>{blueT} マス</strong></div>
+                  <div className="scrow"><span>🔴 RED</span><strong>{redT} cells</strong></div>
+                  <div className="scrow"><span>🔵 BLUE</span><strong>{blueT} cells</strong></div>
                 </div>
                 {bestMove && <div className="best-move-card"><strong>Best Territorial Swing:</strong> {moveLabel(bestMove)}</div>}
                 {topMoves.length>0&&<><h3>Top Territorial Swings</h3>{topMoves.map((m,i)=><HistItem key={i} m={m}/>)}</>}
                 <div className="modal-btns">
-                  <button className="bprim" onClick={()=>boot(mode)}>新規ゲーム</button>
+                  <button className="bprim" onClick={()=>boot(mode)}>New Game</button>
                   {dailyInfo&&!dailyResult&&<button onClick={()=>{setSum(false);bootDaily();}}>Daily Challenge</button>}
                   <button onClick={()=>setSum(false)}>Close</button>
                 </div>
@@ -2201,7 +2057,7 @@ export default function Home() {
       /* board — visual polish */
       .bwrap{background:linear-gradient(180deg,#fffdf8,#f7f3ea);border:1px solid #ddd6c8;border-radius:18px;padding:16px;overflow-x:auto;box-shadow:0 6px 24px rgba(31,41,51,.06)}
       .board-wrap{width:100%;overflow-x:auto;display:flex;justify-content:center;-webkit-overflow-scrolling:touch}
-      .board{--マス:52px;--gap:6px;position:relative;display:grid;grid-template-columns:repeat(7,var(--マス));gap:var(--gap);justify-content:center;min-width:max-content;padding:12px;border-radius:20px;background:
+      .board{--cell:52px;--gap:6px;position:relative;display:grid;grid-template-columns:repeat(7,var(--cell));gap:var(--gap);justify-content:center;min-width:max-content;padding:12px;border-radius:20px;background:
         radial-gradient(circle at 50% 50%,rgba(255,255,255,.42),transparent 52%),
         linear-gradient(135deg,rgba(255,255,255,.55),rgba(244,239,228,.72));
         border:1px solid rgba(216,210,196,.9);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 12px 28px rgba(31,41,51,.07)}
@@ -2213,34 +2069,34 @@ export default function Home() {
       .board.opening-forest,.board.opening-plant{background:linear-gradient(135deg,#fffdf8,#eff8ef)}
       .board.opening-market{background:linear-gradient(45deg,rgba(245,158,11,.10),transparent 32%),linear-gradient(135deg,#fffdf8,#f4efe4)}
       .board.board-swing{animation:boardpulse 900ms ease both}
-      .board-demo .マス{opacity:1!important;filter:none!important}
-      .マス-slot{position:relative;width:var(--マス);height:var(--マス);display:flex;align-items:center;justify-content:center}
-      .マス{position:relative;width:var(--マス);height:var(--マス);border:1px solid #d8d2c4;border-radius:12px;background:#f7f3ea;font-size:19px;font-weight:900;cursor:pointer;transition:background .16s, transform .12s, box-shadow .16s,color .16s;color:#1f2933;box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 2px 7px rgba(31,41,51,.10);font-feature-settings:"kern" 1;user-select:none}
-      .マス.cr{background:rgba(216,92,92,.28);border-color:rgba(216,92,92,.58);color:#7a2424;box-shadow:inset 0 1px 0 rgba(255,255,255,.52),0 2px 8px rgba(216,92,92,.12)}
-      .マス.cb{background:rgba(79,131,204,.30);border-color:rgba(79,131,204,.58);color:#173e74;box-shadow:inset 0 1px 0 rgba(255,255,255,.52),0 2px 8px rgba(79,131,204,.13)}
-      .マス.ft{border:2px solid rgba(17,24,39,.78);box-shadow:inset 0 0 0 3px rgba(17,24,39,.18),inset 0 1px 0 rgba(255,255,255,.55),0 2px 7px rgba(17,24,39,.16)}
-      .マス.sl{outline:3px solid #f59e0b;outline-offset:-3px}
-      .マス.pl{box-shadow:inset 0 0 0 3px #111827,0 2px 7px rgba(31,41,51,.12)}
-      .マス.lg{background:#e9f9e7;border-color:#70bf6f;box-shadow:0 0 0 3px rgba(112,191,111,.12),0 2px 7px rgba(31,41,51,.08)}
-      .マス:hover:not(.dm):not(.sl){transform:translateY(-1px);filter:brightness(1.04)}
-      .マス.cr:hover:not(.dm){background:rgba(216,92,92,.40)}
-      .マス.cb:hover:not(.dm){background:rgba(79,131,204,.42)}
-      .マス.lg:hover{background:#dff5dc;transform:translateY(-1px)}
-      .マス.dm{opacity:.72;cursor:not-allowed}
-      .マス:not(.cr):not(.cb):not(.lg):not([data-letter])::after{
+      .board-demo .cell{opacity:1!important;filter:none!important}
+      .cell-slot{position:relative;width:var(--cell);height:var(--cell);display:flex;align-items:center;justify-content:center}
+      .cell{position:relative;width:var(--cell);height:var(--cell);border:1px solid #d8d2c4;border-radius:12px;background:#f7f3ea;font-size:19px;font-weight:900;cursor:pointer;transition:background .16s, transform .12s, box-shadow .16s,color .16s;color:#1f2933;box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 2px 7px rgba(31,41,51,.10);font-feature-settings:"kern" 1;user-select:none}
+      .cell.cr{background:rgba(216,92,92,.28);border-color:rgba(216,92,92,.58);color:#7a2424;box-shadow:inset 0 1px 0 rgba(255,255,255,.52),0 2px 8px rgba(216,92,92,.12)}
+      .cell.cb{background:rgba(79,131,204,.30);border-color:rgba(79,131,204,.58);color:#173e74;box-shadow:inset 0 1px 0 rgba(255,255,255,.52),0 2px 8px rgba(79,131,204,.13)}
+      .cell.ft{border:2px solid rgba(17,24,39,.78);box-shadow:inset 0 0 0 3px rgba(17,24,39,.18),inset 0 1px 0 rgba(255,255,255,.55),0 2px 7px rgba(17,24,39,.16)}
+      .cell.sl{outline:3px solid #f59e0b;outline-offset:-3px}
+      .cell.pl{box-shadow:inset 0 0 0 3px #111827,0 2px 7px rgba(31,41,51,.12)}
+      .cell.lg{background:#e9f9e7;border-color:#70bf6f;box-shadow:0 0 0 3px rgba(112,191,111,.12),0 2px 7px rgba(31,41,51,.08)}
+      .cell:hover:not(.dm):not(.sl){transform:translateY(-1px);filter:brightness(1.04)}
+      .cell.cr:hover:not(.dm){background:rgba(216,92,92,.40)}
+      .cell.cb:hover:not(.dm){background:rgba(79,131,204,.42)}
+      .cell.lg:hover{background:#dff5dc;transform:translateY(-1px)}
+      .cell.dm{opacity:.72;cursor:not-allowed}
+      .cell:not(.cr):not(.cb):not(.lg):not([data-letter])::after{
         content:"";display:block;width:5px;height:5px;border-radius:50%;
         background:rgba(31,41,51,.12);position:absolute;top:50%;left:50%;
         transform:translate(-50%,-50%);pointer-events:none
       }
-      .マス[data-chg]{animation:aclaim 500ms ease forwards}
-      .マス[data-cap]{animation:acap 1050ms cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(var(--cap-order,0) * 90ms);animation-fill-mode:both}
-      .マス[data-lk]{animation:alk 850ms ease forwards;animation-delay:var(--lock-delay,0ms);animation-fill-mode:both}
+      .cell[data-chg]{animation:aclaim 500ms ease forwards}
+      .cell[data-cap]{animation:acap 1050ms cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(var(--cap-order,0) * 90ms);animation-fill-mode:both}
+      .cell[data-lk]{animation:alk 850ms ease forwards;animation-delay:var(--lock-delay,0ms);animation-fill-mode:both}
       .lock-shield{position:absolute;right:3px;bottom:2px;font-size:9px;line-height:1;background:rgba(255,255,255,.90);border:1.5px solid rgba(17,24,39,.72);border-radius:999px;padding:2px 3px;box-shadow:0 1px 4px rgba(0,0,0,.18);pointer-events:none;letter-spacing:0}
-      .マス.threat{box-shadow:inset 0 0 0 2px rgba(37,99,235,.48),0 0 0 3px rgba(37,99,235,.08);background:rgba(37,99,235,.08)}
-      .マス.threatMove{outline:2px dashed rgba(37,99,235,.42);outline-offset:-5px}
+      .cell.threat{box-shadow:inset 0 0 0 2px rgba(37,99,235,.48),0 0 0 3px rgba(37,99,235,.08);background:rgba(37,99,235,.08)}
+      .cell.threatMove{outline:2px dashed rgba(37,99,235,.42);outline-offset:-5px}
       .threat-dot{position:absolute;bottom:4px;left:4px;width:7px;height:7px;border-radius:50%;background:#2563eb;box-shadow:0 0 8px rgba(37,99,235,.75);pointer-events:none}
-      .マス.bridge-path{animation:bridgeGlow 1050ms ease-out 1 forwards}
-      .マス.lock-neighbor{animation:lockNeighborPulse 900ms ease-in-out 1}
+      .cell.bridge-path{animation:bridgeGlow 1050ms ease-out 1 forwards}
+      .cell.lock-neighbor{animation:lockNeighborPulse 900ms ease-in-out 1}
       .bridge-svg{position:absolute;inset:12px;width:calc(100% - 24px);height:calc(100% - 24px);pointer-events:none;z-index:8;overflow:visible}
       .bridge-svg polyline{fill:none;stroke:#f59e0b;stroke-width:.055;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 .06rem rgba(245,158,11,.85));stroke-dasharray:8;animation:drawBridge 1200ms ease-out forwards}
       .board-event-banner{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:24;background:rgba(17,24,39,.92);color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:9px 14px;font-size:13px;font-weight:900;letter-spacing:.15px;box-shadow:0 14px 38px rgba(17,24,39,.22);animation:boardBanner 1550ms ease-out forwards;pointer-events:none;white-space:nowrap;max-width:88%;overflow:hidden;text-overflow:ellipsis}
@@ -2264,7 +2120,7 @@ export default function Home() {
       .tut-bubble{position:absolute;background:#111827;color:#fff;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:900;white-space:nowrap;z-index:45;box-shadow:0 6px 18px rgba(15,23,42,.24);pointer-events:none}
       .tut-lm{top:-18px;left:50%;transform:translateX(-50%)}
       .tut-board{top:-22px;left:50%;transform:translateX(-50%)}
-      .tut-arrow-マス::after,.tut-マス::after{content:"";position:absolute;left:50%;top:-9px;transform:translateX(-50%);border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #111827;z-index:44}
+      .tut-arrow-cell::after,.tut-cell::after{content:"";position:absolute;left:50%;top:-9px;transform:translateX(-50%);border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #111827;z-index:44}
       @keyframes tutPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
 
 
@@ -2276,7 +2132,7 @@ export default function Home() {
       @keyframes drawBridge{0%{stroke-dashoffset:8;opacity:.15}30%{opacity:.96}72%{opacity:.82}100%{stroke-dashoffset:0;opacity:0}}
       @keyframes boardBanner{0%{opacity:0;transform:translate(-50%,-42%) scale(.95)}16%{opacity:1;transform:translate(-50%,-50%) scale(1)}78%{opacity:1}100%{opacity:0;transform:translate(-50%,-58%) scale(.98)}}
 
-      /* ── 文字カード ─────────────────────────────────────────────────── */
+      /* ── Letter Market ─────────────────────────────────────────────────── */
       .lm-panel{background:#fff;border:1.5px solid #e0e0e0;border-radius:14px;padding:10px 14px;margin-bottom:10px}
       .lm-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
       .lm-title{font-size:13px;font-weight:800;color:#333;letter-spacing:.3px}
@@ -2389,9 +2245,9 @@ export default function Home() {
       .pvok-hint{color:#1a7a3c;font-weight:700;font-size:13px;margin-bottom:4px}
 
       /* attack highlighting */
-      .マス{position:relative}
-      .マス.atk{box-shadow:inset 0 0 0 2px rgba(255,140,0,.8);background:rgba(255,140,0,.06)}
-      .マス.inpath{box-shadow:inset 0 0 0 3px #e65c00 !important;background:rgba(255,100,0,.25) !important;animation:ainpath .5s ease infinite alternate}
+      .cell{position:relative}
+      .cell.atk{box-shadow:inset 0 0 0 2px rgba(255,140,0,.8);background:rgba(255,140,0,.06)}
+      .cell.inpath{box-shadow:inset 0 0 0 3px #e65c00 !important;background:rgba(255,100,0,.25) !important;animation:ainpath .5s ease infinite alternate}
       .atk-dot{position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:50%;background:rgba(255,140,0,.9);pointer-events:none}
       .pvcap{color:#e65c00;font-weight:800;font-size:13px}
       @keyframes ainpath{0%{box-shadow:inset 0 0 0 3px #e65c00}100%{box-shadow:inset 0 0 0 3px #ff8c00}}
@@ -2538,7 +2394,7 @@ export default function Home() {
       @media(max-width:900px){
         .layout{grid-template-columns:1fr}
         .board{grid-template-columns:repeat(7,44px);gap:4px}
-        .マス-slot,.マス{width:44px;height:44px;font-size:15px;border-radius:7px}
+        .cell-slot,.cell{width:44px;height:44px;font-size:15px;border-radius:7px}
         .bwrap{padding:10px}
         .hdr-l h1{font-size:18px}
         .hdr-r{width:100%;justify-content:flex-end;flex-wrap:wrap;gap:6px}
@@ -2573,7 +2429,7 @@ export default function Home() {
           min-width:unset;
           width:100%;
         }
-        .マス{
+        .cell{
           width:calc((100vw - 32px) / 7);
           height:calc((100vw - 32px) / 7);
           font-size:clamp(11px,3vw,16px);
@@ -2613,7 +2469,7 @@ export default function Home() {
         .almost-box{font-size:12px}
         .almost-chip{font-size:11px;padding:2px 7px}
 
-        /* 履歴 compact */
+        /* History compact */
         .hist{max-height:160px}
         .hi{padding:6px 8px}
         .hw{font-size:13px}
@@ -2628,7 +2484,7 @@ export default function Home() {
       /* ── Responsive: Very small (≤360px) ─────────────────────────────── */
       @media(max-width:360px){
         .board{grid-template-columns:repeat(7,calc((100vw - 20px) / 7));gap:2px}
-        .マス{
+        .cell{
           width:calc((100vw - 20px) / 7);
           height:calc((100vw - 20px) / 7);
           font-size:10px;
@@ -2658,13 +2514,13 @@ export default function Home() {
           border-radius:18px;
         }
         .board{
-          --マス:56px;
+          --cell:56px;
           --gap:7px;
-          grid-template-columns:repeat(7,var(--マス));
+          grid-template-columns:repeat(7,var(--cell));
           gap:var(--gap);
           padding:12px;
         }
-        .マス-slot,.マス{width:var(--マス);height:var(--マス)}
+        .cell-slot,.cell{width:var(--cell);height:var(--cell)}
         .lm-panel,.mpanel{max-width:1040px;margin-left:auto;margin-right:auto}
       }
 
@@ -2713,8 +2569,8 @@ export default function Home() {
         .hdr{padding-top:4px}
         .hdr-l h1{margin:0 0 3px;line-height:1.05}
         .bwrap{width:max-content;max-width:100%;margin:0 auto 10px;padding:10px;border-radius:16px}
-        .board{--マス:min(10.6vw,52px);--gap:5px;grid-template-columns:repeat(7,var(--マス))!important;gap:var(--gap);padding:9px}
-        .マス-slot,.マス{width:var(--マス)!important;height:var(--マス)!important}
+        .board{--cell:min(10.6vw,52px);--gap:5px;grid-template-columns:repeat(7,var(--cell))!important;gap:var(--gap);padding:9px}
+        .cell-slot,.cell{width:var(--cell)!important;height:var(--cell)!important}
         .lm-panel,.mpanel{max-width:100%;margin-left:auto;margin-right:auto}
         .lm-tile{min-width:68px;min-height:54px}
       }
@@ -2726,17 +2582,17 @@ export default function Home() {
         .tagline{font-size:11px}
         .board-wrap{padding:0}
         .board{
-          --マス:calc((100vw - 48px) / 7);
+          --cell:calc((100vw - 48px) / 7);
           --gap:4px;
-          grid-template-columns:repeat(7,var(--マス))!important;
+          grid-template-columns:repeat(7,var(--cell))!important;
           width:max-content;
           max-width:100%;
           gap:var(--gap);
           padding:7px;
         }
-        .マス-slot,.マス{
-          width:var(--マス)!important;
-          height:var(--マス)!important;
+        .cell-slot,.cell{
+          width:var(--cell)!important;
+          height:var(--cell)!important;
           font-size:clamp(12px,3.3vw,16px);
           border-radius:8px;
         }
@@ -2748,7 +2604,7 @@ export default function Home() {
       }
 
       @media(max-width:360px){
-        .board{--マス:calc((100vw - 36px) / 7);--gap:3px}
+        .board{--cell:calc((100vw - 36px) / 7);--gap:3px}
         .lm-tile{min-width:52px}
       }
 
@@ -2766,4 +2622,3 @@ export default function Home() {
     `}</style>
   </>;
 }
-

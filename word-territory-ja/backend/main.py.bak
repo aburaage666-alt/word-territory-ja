@@ -341,7 +341,7 @@ def auto_move(game_id: str, demo: bool = False):
         if legal:
             try:
                 row, col = random.choice(legal)
-                letter = random.choice(list('あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ'))
+                letter = random.choice(list("???????????????????????????????????????????????????????????????????????"))
                 next_state = apply_seed_move(state, row, col, letter)
             except Exception:
                 next_state = _safe_turn_fallback(state)
@@ -537,7 +537,7 @@ def use_free_letter(game_id: str, req: dict):
     if source != "wild" and state.freeLetterUsed:
         raise HTTPException(status_code=400, detail="Free letter already used this game")
     letter = str(req.get("letter", "")).strip() # WT_JA_FREE_LETTER_KANA_FIX_20260606
-    if not letter or len(letter) != 1 or not (("\u3041" <= letter <= "\u3096") or letter == "\u30fc"): raise HTTPException(status_code=400, detail="ひらがな1文字を入力してください")
+    if not letter or len(letter) != 1 or not (("\u3041" <= letter <= "\u3096") or letter == "\u30fc"): raise HTTPException(status_code=400, detail="????1???????????")
     # Add letter to active market temporarily. WILD replaces the * slot and marks a pending cost.
     if source == "wild":
         state.synergyState = dict(state.synergyState or {})

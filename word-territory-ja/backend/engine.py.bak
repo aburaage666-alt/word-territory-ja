@@ -1017,7 +1017,7 @@ def _score_all_letters(state: GameState) -> dict:
     import heapq as _hq
     excluded = set(state.usedWords)
     board_letters = board_letters_set(state)
-    VOWELS = set("あいうえお") if _LANG == "ja" else set("AEIOU")
+    VOWELS = set("?????") if _LANG == "ja" else set("AEIOU")
 
     # Candidate set: Almost letters + top 12 by frequency, minus board letters
     try:
@@ -1170,7 +1170,7 @@ def generate_letter_market(state: GameState) -> tuple[list[str], list[str]]:
     import random as _r
 
     RARE  = {'Q','X','Z','J'} if _LANG == 'en' else set()
-    VOWELS = set("あいうえお") if _LANG == "ja" else set("AEIOU")
+    VOWELS = set("?????") if _LANG == "ja" else set("AEIOU")
     board_letters = board_letters_set(state)
 
     scores = _score_all_letters(state)
@@ -3288,36 +3288,3 @@ try:
         return _wt_ja_final_clean_pair_no_ascii(_wt_orig_advance_market_final_no_ascii(*args, **kwargs))
 except Exception:
     pass
-
-# WT_JA_DEFINITIVE_MARKET_KANA_ONLY_20260606
-def _wt_ja_def_pool():
-    return list('あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ')
-def _wt_ja_def_is_kana(x):
-    return isinstance(x,str) and len(x)==1 and ((0x3041 <= ord(x) <= 0x3096) or x == "\u30fc")
-def _wt_ja_def_clean_seq(seq, existing=None, offset=0):
-    if globals().get("_LANG") != "ja": return seq
-    existing=set(existing or []); pool=_wt_ja_def_pool(); out=[]
-    for x in seq or []:
-        if _wt_ja_def_is_kana(x) and x not in out: out.append(x)
-    i=offset
-    while len(out)<3:
-        c=pool[i % len(pool)]; i+=1
-        if c not in out and c not in existing: out.append(c)
-    return out[:3]
-def _wt_ja_def_clean_pair(pair):
-    if globals().get("_LANG") != "ja": return pair
-    try: active, preview = pair
-    except Exception: return pair
-    active2=_wt_ja_def_clean_seq(active, offset=0)
-    preview2=_wt_ja_def_clean_seq(preview, existing=set(active2), offset=7)
-    return active2, preview2
-try:
-    _wt_ja_orig_create_initial_market_def = create_initial_market
-    def create_initial_market(*args, **kwargs):
-        return _wt_ja_def_clean_pair(_wt_ja_orig_create_initial_market_def(*args, **kwargs))
-except Exception: pass
-try:
-    _wt_ja_orig_advance_market_def = advance_market
-    def advance_market(*args, **kwargs):
-        return _wt_ja_def_clean_pair(_wt_ja_orig_advance_market_def(*args, **kwargs))
-except Exception: pass

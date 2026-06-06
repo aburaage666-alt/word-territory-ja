@@ -1,60 +1,3 @@
-﻿// ?? Hand generator ???????????????????????????????????????????????????????????
-// WT_JA_HAND_GENERATOR_FINAL_NO_MOJIBAKE_20260606
-const VOWELS = "\u3042\u3044\u3046\u3048\u304a".split("");
-const CONSONANTS = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d".split("").filter(c => !VOWELS.includes(c));
-
-function randomLetter(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function isKanaVowel(c) {
-  return VOWELS.includes(c);
-}
-
-function sanitizeKanaTile(c) {
-  return /^[\u3041-\u3096\u30fc]$/.test(c) ? c : randomLetter(CONSONANTS);
-}
-
-function dealHand(size = 5) {
-  const tiles = [];
-  tiles.push(randomLetter(VOWELS));
-  tiles.push(randomLetter(VOWELS));
-
-  for (let i = 2; i < size; i++) {
-    tiles.push(Math.random() < 0.30 ? randomLetter(VOWELS) : randomLetter(CONSONANTS));
-  }
-
-  for (let i = tiles.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
-  }
-
-  return tiles.map(sanitizeKanaTile);
-}
-
-function replaceCard(hand, usedLetter) {
-  const cleanHand = (hand || []).map(sanitizeKanaTile);
-  const idx = cleanHand.findIndex(c => c === usedLetter);
-
-  if (idx === -1) {
-    const next = [
-      ...cleanHand.slice(1),
-      Math.random() < 0.30 ? randomLetter(VOWELS) : randomLetter(CONSONANTS)
-    ];
-    return next.map(sanitizeKanaTile);
-  }
-
-  const next = [...cleanHand];
-  const vowelCount = next.filter((c, i) => i !== idx && isKanaVowel(c)).length;
-
-  next[idx] = vowelCount < 2
-    ? randomLetter(VOWELS)
-    : (Math.random() < 0.30 ? randomLetter(VOWELS) : randomLetter(CONSONANTS));
-
-  return next.map(sanitizeKanaTile);
-}
-
-
 import Head from "next/head";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -67,27 +10,6 @@ import {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const asKey = (r, c) => `${r}-${c}`;
-
-// WT_JA_自由_INPUT_AND_UI_FINAL_20260606
-const WT_JA_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
-
-function wtJaKatakanaToHiragana(value) {
-  return String(value || "").replace(/[\u30a1-\u30f6]/g, ch =>
-    String.fromCharCode(ch.charCodeAt(0) - 0x60)
-  );
-}
-
-function wtJaNormalizeKanaInput(value) {
-  const raw = String(value || "").normalize("NFKC");
-  const hira = wtJaKatakanaToHiragana(raw);
-  const chars = Array.from(hira).filter(ch => /^[\u3041-\u3096\u30fc]$/.test(ch));
-  return chars.length ? chars[chars.length - 1] : "";
-}
-
-function wtJaHasKana(value) {
-  return !!wtJaNormalizeKanaInput(value);
-}
-
 
 // WT_JA_自由_INPUT_AND_UI_FINAL_20260606
 const WT_JA_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
@@ -609,26 +531,6 @@ function LeaderboardModal({ onClose, dailyInfo, myRank }) {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
-// WT_JA_FREE_INPUT_AND_UI_FINAL_20260606
-const WT_JA_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
-
-function wtJaKatakanaToHiragana(value) {
-  return String(value || "").replace(/[\u30a1-\u30f6]/g, ch =>
-    String.fromCharCode(ch.charCodeAt(0) - 0x60)
-  );
-}
-
-function wtJaNormalizeKanaInput(value) {
-  const raw = String(value || "").normalize("NFKC");
-  const hira = wtJaKatakanaToHiragana(raw);
-  const chars = Array.from(hira).filter(ch => /^[\u3041-\u3096\u30fc]$/.test(ch));
-  return chars.length ? chars[chars.length - 1] : "";
-}
-
-function wtJaHasKana(value) {
-  return !!wtJaNormalizeKanaInput(value);
-}
-
 export default function Home() {
   const [gameId, setGameId]     = useState("");
   const [state,  setState]      = useState(null);
@@ -1337,7 +1239,7 @@ export default function Home() {
   }
   async function seed() {
     if (!placed) { setError("Tap a green square first."); return; }
-    if (!letter) { setError("ひらがな1文字 in the input box."); return; }
+    if (!letter) { setError("Type one letter in the input box."); return; }
     try {
       const payload = {row:placed.row,col:placed.col,letter};
       const next = asyncMode ? await seedAsyncMove(gameId, asyncToken, payload) : await seedMove(gameId,payload);
@@ -1824,7 +1726,7 @@ export default function Home() {
       lang="ja"
       inputMode="text"
       autoComplete="off"
-      placeholder={"\u3072\u3089\u304c\u306a"}
+      placeholder="????"
       disabled={!human()}
       onChange={e => {
         const v = e.target.value;
@@ -2766,4 +2668,3 @@ export default function Home() {
     `}</style>
   </>;
 }
-
