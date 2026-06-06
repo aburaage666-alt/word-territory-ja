@@ -86,11 +86,13 @@ class CreateGameResponse(BaseModel):
 
 
 class MoveRequest(BaseModel):
-    game_id: str
+    # WT_JA_FIELD_REQUIRED_FIX_20260606
+    # game_id is optional here because /games/{game_id}/move already has it in the URL.
+    game_id: Optional[str] = None
     row: int
     col: int
     letter: str
-    path: List[Coord]
+    path: List[Coord] = []
 
 
 class SeedMoveRequest(BaseModel):
@@ -100,10 +102,11 @@ class SeedMoveRequest(BaseModel):
 
 
 class PreviewMoveRequest(BaseModel):
+    # WT_JA_PREVIEW_PATH_DEFAULT_FIX_20260606
     row: int
     col: int
     letter: str
-    path: List[Coord]
+    path: List[Coord] = []
 
 
 class PreviewMoveResponse(BaseModel):
