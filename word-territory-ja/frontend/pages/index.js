@@ -10,6 +10,79 @@ import {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const asKey = (r, c) => `${r}-${c}`;
+// WT_JA_PLAYABILITY_FIX_20260606
+// Normalize API shapes so frontend code never calls .forEach/.map on an object.
+const asArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+  if (Array.isArray(value.threats)) return value.threats;
+  if (Array.isArray(value.moves)) return value.moves;
+  if (Array.isArray(value.items)) return value.items;
+  if (Array.isArray(value.results)) return value.results;
+  if (Array.isArray(value.data)) return value.data;
+  if (Array.isArray(value.threat_moves)) return value.threat_moves;
+  if (
+    Array.isArray(value.cells) ||
+    Array.isArray(value.path) ||
+    Array.isArray(value.threat_cells) ||
+    Array.isArray(value.affected_cells) ||
+    Array.isArray(value.captured_cells)
+  ) return [value];
+  return [];
+};
+
+const toCell = (value) => {
+  if (!value || typeof value !== "object") return null;
+  const row = Number(value.row ?? value.r ?? value.y);
+  const col = Number(value.col ?? value.c ?? value.x);
+  if (!Number.isFinite(row) || !Number.isFinite(col)) return null;
+  return { row, col };
+};
+
+const normalizeThreats = (value) => {
+  return asArray(value)
+    .map((item) => {
+      const cellSource =
+        item?.cells ??
+        item?.path ??
+        item?.threat_cells ??
+        item?.affected_cells ??
+        item?.captured_cells ??
+        [];
+      const cells = asArray(cellSource).map(toCell).filter(Boolean);
+      const mainCell = toCell(item) || toCell(item?.move) || toCell(item?.target) || cells[0] || null;
+      return {
+        ...(item || {}),
+        row: mainCell?.row,
+        col: mainCell?.col,
+        cells
+      };
+    })
+    .filter((item) => {
+      const hasMain = Number.isFinite(Number(item.row)) && Number.isFinite(Number(item.col));
+      const hasCells = Array.isArray(item.cells) && item.cells.length > 0;
+      return hasMain || hasCells;
+    });
+};
+
+const normalizeStringError = (error, fallback = "エラーが発生しました。") => {
+  if (!error) return fallback;
+  if (typeof error === "string") return error;
+  if (error instanceof Error && error.message) return error.message;
+  if (Array.isArray(error)) return error.map(x => normalizeStringError(x, "")).filter(Boolean).join(" / ") || fallback;
+  if (typeof error === "object") {
+    const detail = error.detail ?? error.error ?? error.message;
+    if (detail) return normalizeStringError(detail, fallback);
+    try { return JSON.stringify(error); } catch { return fallback; }
+  }
+  return String(error || fallback);
+};
+
+const isGameNotFoundError = (error) => {
+  const msg = normalizeStringError(error, "").toLowerCase();
+  return msg.includes("game not found") || msg.includes("ゲームが切れました") || msg.includes("ゲームidがありません");
+};
+
 const adj    = (a, b) => Math.abs(a.row - b.row) + Math.abs(a.col - b.col) === 1;
 // 案4: territory count is primary victory condition (Othello-style)
 const tScore = (st, p) => {
@@ -99,51 +172,6 @@ function moveInsightLines(m) {
   return lines;
 }
 
-function comboHas(m, needle) {
-  if (!m) return false;
-  const n = String(needle || "").toUpperCase();
-  return (m.comboLabels || []).some(x => String(x || "").toUpperCase().includes(n));
-}
-
-function boardComboBadges(m) {
-  if (!m) return [];
-  const out = [];
-  if ((m.captureCount || 0) > 0) out.push({ key: "capture", label: `CAPTURE ${m.captureCount}マス奪取`, icon: "⚔️" });
-  if (comboHas(m, "CUT")) out.push({ key: "cut", label: "CUT 切断", icon: "✂️" });
-  if (comboHas(m, "BRIDGE")) out.push({ key: "bridge", label: "BRIDGE 接続", icon: "🌉" });
-  if (comboHas(m, "ENCIRCLE")) out.push({ key: "encircle", label: "ENCIRCLE 包囲", icon: "◎" });
-  if (comboHas(m, "SWING MOVE") || (m.territoryGained || 0) >= 5) out.push({ key: "swing", label: "SWING MOVE 反転", icon: "↔" });
-  if (comboHas(m, "SYNERGY")) out.push({ key: "synergy", label: "SYNERGY 発火", icon: "✦" });
-  return out;
-}
-
-function signedDelta(n) {
-  const v = Number(n || 0);
-  if (v > 0) return `+${v}`;
-  if (v < 0) return `${v}`;
-  return "±0";
-}
-
-function effectGlyph({ cutPath, bridgePath, encirclePath, swingPath }) {
-  if (cutPath) return { text: "CUT", cls: "fx-cut" };
-  if (bridgePath) return { text: "BRIDGE", cls: "fx-bridge" };
-  if (encirclePath) return { text: "RING", cls: "fx-encircle" };
-  if (swingPath) return { text: "SWING", cls: "fx-swing" };
-  return null;
-}
-
-function boardEffectSentence(badges) {
-  if (!badges || !badges.length) return "";
-  const has = k => badges.some(b => b.key === k);
-  const parts = [];
-  if (has("capture")) parts.push("取ったマスを黄色で表示");
-  if (has("cut")) parts.push("CUT: 相手の接続を切断");
-  if (has("bridge")) parts.push("BRIDGE: 自陣を接続");
-  if (has("encircle")) parts.push("ENCIRCLE: 包囲圧を形成");
-  if (has("swing")) parts.push("SWING: 盤面を反転");
-  return parts.join(" / ");
-}
-
 function compactMoveTitle(m) {
   if (!m) return "";
   if (m.moveType === "SEED") return `${m.player} seeded ${m.placedLetter || ""}`.trim();
@@ -211,40 +239,80 @@ function buildShare(num, ds, r) {
 // ── Hand generator ───────────────────────────────────────────────────────────
 // Frequencies loosely based on English letter frequency.
 // Always guarantees ≥2 vowels in a 5-card hand.
-const VOWELS     = "AAAEEEIIOOUU".split("");
-const CONSONANTS = "BBCCDDFFGGHHHJKLLMMNNPPQRRRSSSTTTVVWWXYZ".split("");
+// ?? Hand generator ???????????????????????????????????????????????????????????
+// Japanese kana-only hand generator.
+// WT_JA_KANA_GENERATOR_FIX_20260606
+// Never emit A-Z in the Japanese version.
+const VOWELS = "?????".split("");
+const CONSONANTS = (
+  "?????" +
+  "?????" +
+  "?????" +
+  "?????" +
+  "?????" +
+  "?????" +
+  "???" +
+  "?????" +
+  "???" +
+  "?????" +
+  "?????" +
+  "?????" +
+  "?????" +
+  "?????"
+).split("");
 
 function randomLetter(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function isKanaVowel(c) {
+  return VOWELS.includes(c);
+}
+
+function sanitizeKanaTile(c) {
+  return /^[?-??]$/.test(c) ? c : randomLetter(CONSONANTS);
+}
+
 function dealHand(size = 5) {
   const tiles = [];
-  // Guarantee 2 vowels
+
+  // Keep at least two vowel-like kana to make word construction easier.
   tiles.push(randomLetter(VOWELS));
   tiles.push(randomLetter(VOWELS));
-  // Fill rest with mix (may be vowel or consonant)
+
   for (let i = 2; i < size; i++) {
-    tiles.push(Math.random() < 0.38 ? randomLetter(VOWELS) : randomLetter(CONSONANTS));
+    tiles.push(Math.random() < 0.30 ? randomLetter(VOWELS) : randomLetter(CONSONANTS));
   }
-  // Shuffle
+
   for (let i = tiles.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
   }
-  return tiles;
+
+  return tiles.map(sanitizeKanaTile);
 }
 
 function replaceCard(hand, usedLetter) {
-  // Replace the first matching tile with a new random one
   const idx = hand.findIndex(c => c === usedLetter);
-  if (idx === -1) return [...hand.slice(1), Math.random() < 0.38 ? randomLetter(VOWELS) : randomLetter(CONSONANTS)];
+
+  if (idx === -1) {
+    const next = [
+      ...hand.slice(1),
+      Math.random() < 0.30 ? randomLetter(VOWELS) : randomLetter(CONSONANTS)
+    ];
+    return next.map(sanitizeKanaTile);
+  }
+
   const next = [...hand];
-  // Ensure replacement keeps vowel balance
-  const vowelCount = next.filter((c,i) => i !== idx && "AEIOU".includes(c)).length;
-  next[idx] = vowelCount < 2 ? randomLetter(VOWELS) : (Math.random() < 0.38 ? randomLetter(VOWELS) : randomLetter(CONSONANTS));
-  return next;
+  const vowelCount = next.filter((c, i) => i !== idx && isKanaVowel(c)).length;
+
+  next[idx] = vowelCount < 2
+    ? randomLetter(VOWELS)
+    : (Math.random() < 0.30 ? randomLetter(VOWELS) : randomLetter(CONSONANTS));
+
+  return next.map(sanitizeKanaTile);
 }
+
 
 // ── StreakTracker (③) ─────────────────────────────────────────────────────────
 function getStreak() {
@@ -264,18 +332,17 @@ function updateStreak(dateStr) {
 }
 
 // ── Cell ──────────────────────────────────────────────────────────────────────
-function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePath, cutPath, encirclePath, swingPath, lockNeighbor, tutorialPlace, tutorialPath, disabled, gen, attack, inPath, threat, threatMove, captureOrder, lockOrder, onClick }) {
+function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePath, lockNeighbor, tutorialPlace, tutorialPath, disabled, gen, attack, inPath, threat, threatMove, captureOrder, lockOrder, onClick }) {
   const cls = ["cell",
     cell.owner === "RED" ? "cr" : cell.owner === "BLUE" ? "cb" : "",
     cell.fortified ? "ft" : "", sel ? "sl" : "", placed ? "pl" : "",
     legal ? "lg" : "", disabled && !sel ? "dm" : "",
     attack ? "atk" : "",   // opponent cell that can be attacked
     threat ? "threat" : "", threatMove ? "threatMove" : "",
-    bridgePath ? "bridge-path" : "", cutPath ? "cut-path" : "", encirclePath ? "encircle-path" : "", swingPath ? "swing-path" : "", lockNeighbor ? "lock-neighbor" : "",
+    bridgePath ? "bridge-path" : "", lockNeighbor ? "lock-neighbor" : "",
     tutorialPlace ? "tut-pulse tut-cell" : "", tutorialPath ? "tut-arrow-cell" : "",
     inPath ? "inpath" : "", // opponent cell currently in selected path (will be captured)
   ].filter(Boolean).join(" ");
-  const fx = effectGlyph({ cutPath, bridgePath, encirclePath, swingPath });
   const animStyle = {
     "--cap-order": captureOrder != null ? captureOrder : 0,
     "--cap-delay": captureOrder != null ? `${captureOrder * 80}ms` : "0ms",
@@ -289,9 +356,6 @@ function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePa
       data-cap={captured ? gen : null}
       data-lk={lockedNow ? gen : null}>
       {cell.letter || ""}
-      {captured && <span className="capture-stamp" title="この手で取ったマス">奪取</span>}
-      {changed && !captured && <span className="claim-stamp" title="この手で領地が変化">+1</span>}
-      {fx && <span className={`effect-token ${fx.cls}`}>{fx.text}</span>}
       {cell.fortified && <span className="lock-shield" title="Fortified ground">🛡</span>}
       {attack && !inPath && <span className="atk-dot"/>}
       {threat && !inPath && <span className="threat-dot" title="Capture threat"/>}
@@ -394,7 +458,9 @@ export default function Home() {
   const [synergyOpts, setSynergyOpts] = useState([]);
   const [synergy,     setSynergy]     = useState("");
   const [valuePrev,   setValuePrev]   = useState([]); // Territory Preview candidates
-  const [threats,     setThreats]     = useState([]); // opponent capture threats
+  const [threatsRaw,  _setThreats]    = useState([]); // opponent capture threats, raw API payload
+  const threats = useMemo(() => normalizeThreats(threatsRaw), [threatsRaw]);
+  const setThreats = (value) => _setThreats(normalizeThreats(value));
   const [asyncMode,   setAsyncMode]   = useState(false);
   const [asyncToken,  setAsyncToken]  = useState("");
   const [asyncRole,   setAsyncRole]   = useState("");
@@ -414,10 +480,6 @@ export default function Home() {
   const battleSoundRef = useRef(null);
   const audioCtxRef = useRef(null);
   const [animGen,  setAnimGen]    = useState(0);
-  const [territoryFlash, setTerritoryFlash] = useState(null);
-  const territoryFlashTimer = useRef(null);
-  const lastTerritoryRef = useRef(null);
-  const lastTerritoryKeyRef = useRef("");
 
   function playSfx(type = "click", delayMs = 0) {
     if (!soundOn || typeof window === "undefined") return;
@@ -528,7 +590,14 @@ export default function Home() {
   const [wildMode, setWildMode] = useState(false);
   // Tutorial UX: track how many turns have been played
   const tutTurns = (state?.moveHistory?.length || 0);
-  const isTutorial = tutTurns < 3;  // first 3 turns = beginner mode
+  const isTutorial = tutTurns < 3;
+  const WT_JA_LAST_STAND_FIX_20260606 = true;
+  const lastStand = Boolean(
+    state?.lastStand ||
+    state?.last_stand ||
+    state?.lastStandAvailable ||
+    state?.last_stand_available
+  );  // first 3 turns = beginner mode
   const [streak,      setStreak]      = useState(0);
 
   const summaryFired = useRef(false);
@@ -1018,8 +1087,26 @@ export default function Home() {
   }
 
   // ── move actions ─────────────────────────────────────────────────────────
-  async function syncThreats(id=gameId) {
-    try { setThreats(await getThreat(id)); } catch { setThreats([]); }
+  async function syncThreats(id = gameId) {
+    if (!id) {
+      setThreats([]);
+      return [];
+    }
+    try {
+      const data = await getThreat(id);
+      setThreats(data);
+      return normalizeThreats(data);
+    } catch {
+      setThreats([]);
+      return [];
+    }
+  }
+  async function recoverIfGameGone(error) {
+    if (!isGameNotFoundError(error)) return false;
+    setError("サーバー側のゲームが切れました。新しいゲームを開始します。");
+    reset();
+    await boot(mode);
+    return true;
   }
   const refresh = async (id=gameId) => {
     try { setSugg(await getSuggestions(id)); } catch { setSugg([]); }
@@ -1041,7 +1128,10 @@ export default function Home() {
 
       reset(); await refresh();
       getAlmost(gameId).then(setAlmost).catch(()=>{});
-    } catch(e) { setError(e.message||"Move failed"); }
+    } catch(e) {
+      if (await recoverIfGameGone(e)) return;
+      setError(normalizeStringError(e, "Move failed"));
+    }
   }
   async function seed() {
     if (!placed) { setError("Tap a green square first."); return; }
@@ -1054,11 +1144,17 @@ export default function Home() {
 
       reset(); await refresh();
       getAlmost(gameId).then(setAlmost).catch(()=>{});
-    } catch(e) { setError(e.message||"Seed failed"); }
+    } catch(e) {
+      if (await recoverIfGameGone(e)) return;
+      setError(normalizeStringError(e, "Seed failed"));
+    }
   }
   async function pass() {
     try { const next = asyncMode ? await passAsyncTurn(gameId, asyncToken) : await passTurn(gameId); setState(next); reset(); await refresh(); }
-    catch(e) { setError(e.message||"Pass failed"); }
+    catch(e) {
+      if (await recoverIfGameGone(e)) return;
+      setError(normalizeStringError(e, "Pass failed"));
+    }
   }
 
   // ④ Submit daily score to leaderboard
@@ -1098,34 +1194,42 @@ export default function Home() {
     .slice(0,3);
   const bestMove = topMoves[0] || null;
   const moveLabel = terrainMoveLabel;
+  const threatList = useMemo(() => normalizeThreats(threats), [JSON.stringify(threats || [])]);
   const threatCellSet = useMemo(() => {
     const s = new Set();
-    (threats||[]).forEach(t => (t.cells||[]).forEach(c => s.add(asKey(c.row,c.col))));
+    threatList.forEach(t => {
+      asArray(t?.cells).forEach(c0 => {
+        const c = toCell(c0);
+        if (c) s.add(asKey(c.row, c.col));
+      });
+    });
     return s;
-  }, [JSON.stringify(threats||[])]);
-  const threatMoveSet = useMemo(() => new Set((threats||[]).map(t => asKey(t.row,t.col))), [JSON.stringify(threats||[])]);
+  }, [JSON.stringify(threatList)]);
+  const threatMoveSet = useMemo(() => {
+    const s = new Set();
+    threatList.forEach(t => {
+      const c = toCell(t);
+      if (c) s.add(asKey(c.row, c.col));
+    });
+    return s;
+  }, [JSON.stringify(threatList)]);
   const lastMove = (state?.moveHistory || [])[Math.max((state?.moveHistory?.length || 0) - 1, 0)] || null;
   const lastMoveInsights = moveInsightLines(lastMove);
   const lastMoveIsSwing = !!lastMove && (
     (lastMove.captureCount || 0) > 0 ||
     (lastMove.fortifiedCellsGained || 0) > 0 ||
     (lastMove.territoryGained || 0) >= 5 ||
-    (lastMove.comboLabels || []).some(x => {
-      const y = String(x);
-      return y.includes("BRIDGE") || y.includes("SYNERGY") || y.includes("CAPTURE") || y.includes("CUT") || y.includes("ENCIRCLE") || y.includes("SWING MOVE");
-    })
+    (lastMove.comboLabels || []).some(x => String(x).includes("BRIDGE") || String(x).includes("SYNERGY") || String(x).includes("CAPTURE"))
   );
 
   const boardOpeningClass = `opening-${String(state?.openingName || "plain").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-opening$/,"").replace(/^-|-$/g,"") || "plain"}`;
-  const lastMoveBadges = boardComboBadges(lastMove);
-  const lastMoveEffectSentence = boardEffectSentence(lastMoveBadges);
-  const lastMoveCaptureCount = Number(lastMove?.captureCount || 0);
-  const lastMoveTerritoryGain = Number(lastMove?.territoryGained || 0);
-  const lastMoveBigNumber = lastMoveCaptureCount > 0 ? lastMoveCaptureCount : Math.max(0, lastMoveTerritoryGain);
-  const lastMoveBigLabel = lastMoveCaptureCount > 0 ? "マス奪取" : "陣地変化";
-  const lastMoveHasCut = comboHas(lastMove, "CUT");
-  const lastMoveHasEncircle = comboHas(lastMove, "ENCIRCLE");
-  const lastMoveHasSwingCombo = comboHas(lastMove, "SWING MOVE") || lastMoveTerritoryGain >= 5;
+  const boardBannerText = lastMoveIsSwing && lastMove ? [
+    (lastMove.captureCount||0)>0 ? `Captured ${lastMove.captureCount} cell${lastMove.captureCount===1?"":"s"}` : null,
+    (lastMove.comboLabels||[]).some(x=>String(x).includes("BRIDGE")) ? "Bridge connected zones" : null,
+    (lastMove.fortifiedCellsGained||0)>0 ? `Locked ${lastMove.fortifiedCellsGained} cell${lastMove.fortifiedCellsGained===1?"":"s"}` : null,
+    (lastMove.comboLabels||[]).some(x=>String(x).startsWith("SYNERGY:")) ? "Synergy activated" : null,
+    (lastMove.territoryGained||0)>=5 ? `Territory Swing +${lastMove.territoryGained}` : null,
+  ].filter(Boolean).join(" · ") : "";
 
   const lastMoveHasBridge = !!lastMove && (lastMove.comboLabels || []).some(x => String(x).includes("BRIDGE"));
   const bridgePathSet = useMemo(() => {
@@ -1147,42 +1251,6 @@ export default function Home() {
     });
     return s;
   }, [JSON.stringify(state?.lastFortifiedCells || [])]);
-
-  const cutPathSet = useMemo(() => {
-    const s = new Set();
-    if (lastMoveHasCut) (lastMove?.path || []).forEach(p => s.add(asKey(p.row, p.col)));
-    return s;
-  }, [lastMove?.turn, lastMove?.word, lastMoveHasCut]);
-  const encirclePathSet = useMemo(() => {
-    const s = new Set();
-    if (lastMoveHasEncircle) (lastMove?.path || []).forEach(p => s.add(asKey(p.row, p.col)));
-    return s;
-  }, [lastMove?.turn, lastMove?.word, lastMoveHasEncircle]);
-  const swingPathSet = useMemo(() => {
-    const s = new Set();
-    if (lastMoveHasSwingCombo) (lastMove?.path || []).forEach(p => s.add(asKey(p.row, p.col)));
-    return s;
-  }, [lastMove?.turn, lastMove?.word, lastMoveHasSwingCombo]);
-
-  useEffect(() => {
-    if (!state?.scores) return;
-    const current = { red: redT, blue: blueT };
-    const key = lastMove ? `${lastMove.turn || 0}-${lastMove.player || ""}-${lastMove.word || lastMove.moveType || ""}` : `init-${redT}-${blueT}`;
-    const prev = lastTerritoryRef.current;
-    if (prev && lastMove && key !== lastTerritoryKeyRef.current) {
-      const flash = {
-        redBefore: prev.red, blueBefore: prev.blue,
-        redAfter: current.red, blueAfter: current.blue,
-        redDelta: current.red - prev.red, blueDelta: current.blue - prev.blue,
-        player: lastMove.player, word: lastMove.word || "", turn: lastMove.turn || 0,
-      };
-      setTerritoryFlash(flash);
-      if (territoryFlashTimer.current) clearTimeout(territoryFlashTimer.current);
-      territoryFlashTimer.current = setTimeout(() => setTerritoryFlash(null), 2400);
-    }
-    lastTerritoryRef.current = current;
-    lastTerritoryKeyRef.current = key;
-  }, [lastMove?.turn, lastMove?.word, lastMove?.moveType, redT, blueT]);
 
   const tutorialPlaceKey = useMemo(() => {
     if (!showTutorial || tutorialStep !== 1 || !state?.board) return "";
@@ -1414,7 +1482,7 @@ export default function Home() {
                     sel={isSel(cell.row,cell.col)} placed={placed?.row===cell.row&&placed?.col===cell.col}
                     legal={!placed&&isLegal(cell.row,cell.col)}
                     changed={changedS.has(k)} captured={capturedS.has(k)} lockedNow={lockedS.has(k)}
-                    bridgePath={bridgePathSet.has(k)} cutPath={cutPathSet.has(k)} encirclePath={encirclePathSet.has(k)} swingPath={swingPathSet.has(k)} lockNeighbor={lockNeighborSet.has(k)}
+                    bridgePath={bridgePathSet.has(k)} lockNeighbor={lockNeighborSet.has(k)}
                     tutorialPlace={tutorialPlaceKey === k} tutorialPath={tutorialPathKey === k}
                     captureOrder={capturedOrderMap.get(k)} lockOrder={lockedOrderMap.get(k)}
                     disabled={isDim(cell.row,cell.col)} gen={animGen}
@@ -1433,35 +1501,8 @@ export default function Home() {
                   <polyline points={bridgeSvgPoints} />
                 </svg>
               )}
-              {lastMoveBadges.length > 0 && (
-                <div className={`board-effect-ribbon ${lastMove.player === "RED" ? "ribbon-red" : "ribbon-blue"}`} key={`ribbon-${lastMove?.turn}-${lastMove?.word}`}>
-                  <div className="ribbon-row">{lastMoveBadges.map(b => <span key={b.key} className={`ribbon-badge ribbon-${b.key}`}>{b.icon} {b.label}</span>)}</div>
-                  {lastMoveEffectSentence && <div className="ribbon-help">{lastMoveEffectSentence}</div>}
-                </div>
-              )}
-              {lastMoveIsSwing && lastMove && (
-                <div className={`territory-event-card ${lastMove.player === "RED" ? "event-red" : "event-blue"}`} key={`event-${lastMove.turn}-${lastMove.word}`}>
-                  <div className="event-kicker">この手で盤面が動いた</div>
-                  <div className="event-main"><span className="event-word">{lastMove.word}</span><span className="event-big">+{lastMoveBigNumber}</span><span className="event-unit">{lastMoveBigLabel}</span></div>
-                  <div className="event-sub">Territory Swing +{lastMoveTerritoryGain} · Word +{lastMove.wordScoreGained || 0}</div>
-                  {lastMoveCaptureCount > 0 && <div className="event-help">黄色に光ったセルが、この手で取ったマスです。</div>}
-                  {lastMoveBadges.length > 0 && <div className="event-badges">{lastMoveBadges.map(b => <span key={b.key} className={`event-badge badge-${b.key}`}>{b.icon} {b.label}</span>)}</div>}
-                </div>
-              )}
+              {boardBannerText && <div className="board-event-banner">{boardBannerText}</div>}
             </div>
-          </div>
-          <div className="territory-score-delta" key={territoryFlash ? `td-${territoryFlash.turn}-${territoryFlash.word}` : `td-static-${redT}-${blueT}`}>
-            <div className="delta-topline">ターン後の領地変化{territoryFlash?.word ? <strong> · {territoryFlash.word}</strong> : null}</div>
-            <div className="delta-grid">
-              <div className="delta-side red-side"><span className="delta-label">RED領地</span><strong>{redT}</strong>{territoryFlash && <em>{signedDelta(territoryFlash.redDelta)}</em>}</div>
-              <div className="delta-vs">AFTER</div>
-              <div className="delta-side blue-side"><span className="delta-label">BLUE領地</span><strong>{blueT}</strong>{territoryFlash && <em>{signedDelta(territoryFlash.blueDelta)}</em>}</div>
-            </div>
-            <div className="delta-bar2" aria-hidden="true">
-              <span className="delta-bar-red" style={{width:`${Math.max(0, Math.min(100, (redT / Math.max(1, redT + blueT)) * 100))}%`}} />
-              <span className="delta-bar-blue" style={{width:`${Math.max(0, Math.min(100, (blueT / Math.max(1, redT + blueT)) * 100))}%`}} />
-            </div>
-            {territoryFlash && <div className="delta-before-after">前: RED {territoryFlash.redBefore} / BLUE {territoryFlash.blueBefore} → 後: RED {territoryFlash.redAfter} / BLUE {territoryFlash.blueAfter}</div>}
           </div>
 
           {/* ── Winner Banner ── */}
@@ -1712,7 +1753,7 @@ export default function Home() {
             </div>
             {showThreatPanel&&(
               <div className="threat-list">
-                {threats && threats.length ? threats.slice(0,5).map((t,i)=>(
+                {threatList && threatList.length ? threatList.slice(0,5).map((t,i)=>(
                   <div className="threat-row" key={i}>
                     <strong>{t.word || "Capture threat"}</strong>
                     <span>{(t.cells||[]).length} cell{(t.cells||[]).length===1?"":"s"} exposed</span>
@@ -1976,21 +2017,6 @@ export default function Home() {
       .bridge-svg{position:absolute;inset:12px;width:calc(100% - 24px);height:calc(100% - 24px);pointer-events:none;z-index:8;overflow:visible}
       .bridge-svg polyline{fill:none;stroke:#f59e0b;stroke-width:.055;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 .06rem rgba(245,158,11,.85));stroke-dasharray:8;animation:drawBridge 1200ms ease-out forwards}
       .board-event-banner{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:24;background:rgba(17,24,39,.92);color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:9px 14px;font-size:13px;font-weight:900;letter-spacing:.15px;box-shadow:0 14px 38px rgba(17,24,39,.22);animation:boardBanner 1550ms ease-out forwards;pointer-events:none;white-space:nowrap;max-width:88%;overflow:hidden;text-overflow:ellipsis}
-      .territory-event-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:32;min-width:230px;max-width:88%;background:rgba(15,23,42,.94);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:18px;padding:12px 14px;box-shadow:0 20px 54px rgba(15,23,42,.30);pointer-events:none;text-align:center;animation:territoryEvent 2100ms ease-out forwards}
-      .territory-event-card.event-red{box-shadow:0 20px 54px rgba(220,38,38,.28),0 0 0 3px rgba(220,38,38,.14)}
-      .territory-event-card.event-blue{box-shadow:0 20px 54px rgba(37,99,235,.28),0 0 0 3px rgba(37,99,235,.14)}
-      .event-kicker{font-size:11px;font-weight:900;color:#fde68a;letter-spacing:.08em;text-transform:uppercase}
-      .event-main{display:flex;align-items:baseline;justify-content:center;gap:8px;margin-top:2px}
-      .event-word{font-size:18px;font-weight:950;letter-spacing:.02em}
-      .event-big{font-size:42px;line-height:.95;font-weight:1000;color:#fef3c7;text-shadow:0 0 20px rgba(251,191,36,.52)}
-      .event-unit{font-size:13px;font-weight:900;color:#e5e7eb}
-      .event-sub{font-size:12px;color:#cbd5e1;font-weight:800;margin-top:4px}
-      .event-badges{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin-top:8px}
-      .event-badge{border-radius:999px;padding:3px 7px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);font-size:11px;font-weight:900;white-space:nowrap}
-      .badge-cut{background:rgba(248,113,113,.18)}.badge-bridge{background:rgba(245,158,11,.20)}.badge-encircle{background:rgba(168,85,247,.20)}.badge-swing{background:rgba(34,197,94,.18)}
-      .territory-score-delta{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin:10px auto 0;max-width:560px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:8px 10px;box-shadow:0 8px 22px rgba(15,23,42,.07)}
-      .delta-side{display:flex;align-items:baseline;gap:7px;border-radius:12px;padding:7px 9px;font-weight:900}.delta-label{font-size:12px;color:#64748b}.delta-side strong{font-size:22px}.delta-side em{font-style:normal;border-radius:999px;padding:2px 7px;font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;animation:deltaPop 1200ms ease both}.red-side{background:rgba(220,38,38,.08);color:#991b1b}.blue-side{background:rgba(37,99,235,.08);color:#1d4ed8}.delta-vs{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#64748b;font-weight:900;text-align:center}
-      .cell.cut-path{animation:cutSlash 950ms ease-out 1 forwards}.cell.encircle-path{animation:encircleRing 1150ms ease-out 1 forwards}.cell.swing-path{animation:swingCell 1100ms ease-out 1 forwards}
       .what-title{font-size:15px;font-weight:900;margin-top:2px}
       .what-summary{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
       .what-summary span{background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;color:#334155}
@@ -2016,38 +2042,12 @@ export default function Home() {
 
 
 
-      .capture-stamp{position:absolute;right:-6px;top:-8px;z-index:12;background:#facc15;color:#713f12;border:2px solid #fff;border-radius:999px;padding:1px 5px;font-size:10px;font-weight:1000;box-shadow:0 4px 12px rgba(250,204,21,.45);animation:captureStamp 1450ms ease-out both;pointer-events:none;white-space:nowrap}
-      .claim-stamp{position:absolute;right:-5px;bottom:-7px;z-index:10;background:#dcfce7;color:#166534;border:1px solid #fff;border-radius:999px;padding:1px 5px;font-size:10px;font-weight:1000;box-shadow:0 4px 10px rgba(22,163,74,.24);animation:claimStamp 1150ms ease-out both;pointer-events:none}
-      .effect-token{position:absolute;left:50%;top:2px;transform:translateX(-50%);z-index:11;border-radius:999px;padding:1px 4px;font-size:8px;line-height:1.1;font-weight:1000;letter-spacing:.02em;border:1px solid rgba(255,255,255,.75);box-shadow:0 2px 9px rgba(15,23,42,.18);pointer-events:none;white-space:nowrap;animation:fxToken 1300ms ease-out both}
-      .fx-cut{background:#fee2e2;color:#991b1b}.fx-bridge{background:#fef3c7;color:#92400e}.fx-encircle{background:#f3e8ff;color:#6b21a8}.fx-swing{background:#dcfce7;color:#166534}
-      .cell.cut-path::before{content:"";position:absolute;left:8px;right:8px;top:50%;height:3px;background:#ef4444;border-radius:999px;transform:rotate(-32deg);box-shadow:0 0 12px rgba(239,68,68,.72);z-index:9;animation:slashMark 1050ms ease-out both;pointer-events:none}
-      .cell.encircle-path::before{content:"";position:absolute;inset:4px;border:3px solid rgba(168,85,247,.80);border-radius:14px;box-shadow:0 0 16px rgba(168,85,247,.44);z-index:8;animation:ringMark 1200ms ease-out both;pointer-events:none}
-      .cell.swing-path::after{content:"↔";position:absolute;left:50%;bottom:2px;transform:translateX(-50%);z-index:10;font-size:11px;font-weight:1000;color:#166534;text-shadow:0 1px 0 #fff;animation:swingArrow 1100ms ease-out both;pointer-events:none}
-      .board-effect-ribbon{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:34;max-width:92%;background:rgba(255,255,255,.94);border:1px solid rgba(15,23,42,.12);border-radius:16px;padding:6px 8px;box-shadow:0 12px 30px rgba(15,23,42,.16);pointer-events:none;text-align:center;animation:ribbonIn 2100ms ease-out forwards}
-      .board-effect-ribbon.ribbon-red{box-shadow:0 12px 30px rgba(220,38,38,.18)}.board-effect-ribbon.ribbon-blue{box-shadow:0 12px 30px rgba(37,99,235,.18)}
-      .ribbon-row{display:flex;gap:5px;align-items:center;justify-content:center;flex-wrap:wrap}.ribbon-badge{font-size:10px;font-weight:1000;border-radius:999px;padding:3px 6px;background:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;white-space:nowrap}.ribbon-cut{background:#fee2e2;color:#991b1b}.ribbon-bridge{background:#fef3c7;color:#92400e}.ribbon-encircle{background:#f3e8ff;color:#6b21a8}.ribbon-swing{background:#dcfce7;color:#166534}.ribbon-capture{background:#fef9c3;color:#854d0e}.ribbon-help{font-size:10px;color:#475569;font-weight:900;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .event-help{font-size:11px;font-weight:900;color:#fde68a;margin-top:3px}
-      .territory-score-delta{display:block;margin:10px auto 0;max-width:560px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:8px 10px;box-shadow:0 8px 22px rgba(15,23,42,.07)}
-      .delta-topline{text-align:center;font-size:12px;font-weight:1000;color:#334155;margin-bottom:6px}.delta-topline strong{color:#0f172a}.delta-grid{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}.delta-bar2{display:flex;height:10px;border-radius:999px;overflow:hidden;background:#e2e8f0;margin:7px 2px 4px}.delta-bar-red{display:block;background:rgba(220,38,38,.62);transition:width .45s ease}.delta-bar-blue{display:block;background:rgba(37,99,235,.62);transition:width .45s ease}.delta-before-after{text-align:center;font-size:11px;color:#64748b;font-weight:800;margin-top:3px}
-      @keyframes captureStamp{0%{opacity:0;transform:translateY(6px) scale(.65) rotate(-8deg)}22%{opacity:1;transform:translateY(0) scale(1.12) rotate(-4deg)}70%{opacity:1}100%{opacity:.96;transform:translateY(0) scale(1) rotate(-4deg)}}
-      @keyframes claimStamp{0%{opacity:0;transform:translateY(4px) scale(.8)}30%{opacity:1;transform:translateY(0) scale(1.08)}100%{opacity:.9;transform:translateY(0) scale(1)}}
-      @keyframes fxToken{0%{opacity:0;transform:translate(-50%,-4px) scale(.84)}18%{opacity:1;transform:translate(-50%,0) scale(1.06)}72%{opacity:1}100%{opacity:.85;transform:translate(-50%,0) scale(1)}}
-      @keyframes slashMark{0%{opacity:0;transform:rotate(-32deg) scaleX(.2)}35%{opacity:1;transform:rotate(-32deg) scaleX(1.1)}100%{opacity:.85;transform:rotate(-32deg) scaleX(1)}}
-      @keyframes ringMark{0%{opacity:0;transform:scale(.76)}40%{opacity:1;transform:scale(1.08)}100%{opacity:.85;transform:scale(1)}}
-      @keyframes swingArrow{0%{opacity:0;transform:translateX(-50%) scale(.65)}35%{opacity:1;transform:translateX(-50%) scale(1.18)}100%{opacity:.88;transform:translateX(-50%) scale(1)}}
-      @keyframes ribbonIn{0%{opacity:0;transform:translate(-50%,-8px) scale(.94)}12%{opacity:1;transform:translate(-50%,0) scale(1.02)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-10px) scale(.98)}}
-
       @keyframes acap{0%{transform:scale(.93);background:var(--opp-color);box-shadow:0 0 0 0 rgba(250,204,21,0)}35%{transform:scale(1.19);background:#fbbf24;box-shadow:0 0 0 8px rgba(251,191,36,.28)}65%{transform:scale(1.05);background:#fde68a}100%{transform:scale(1);background:var(--my-color);box-shadow:0 0 0 0 rgba(250,204,21,0)}}38%{transform:scale(1.17);background:#fde68a;filter:saturate(2.15);box-shadow:0 0 0 7px rgba(250,204,21,.28),0 0 22px rgba(250,204,21,.50)}100%{transform:scale(1);background:var(--my-color);filter:saturate(1.10);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 2px 8px rgba(31,41,51,.10)}}
       @keyframes alk{0%{box-shadow:0 0 0 8px #111827 inset,0 0 0 0 rgba(17,24,39,.60);transform:scale(1.08)}50%{box-shadow:0 0 0 3px #111827 inset,0 0 0 12px rgba(17,24,39,.16);transform:scale(.98)}100%{transform:scale(1)}}
       @keyframes bridgeGlow{0%{box-shadow:0 0 0 0 rgba(245,158,11,.0);filter:brightness(1)}35%{box-shadow:0 0 0 4px rgba(245,158,11,.34),0 0 18px rgba(245,158,11,.42);filter:brightness(1.16)}100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 2px 7px rgba(31,41,51,.08);filter:brightness(1)}}
       @keyframes lockNeighborPulse{0%{box-shadow:0 0 0 0 rgba(17,24,39,.0)}45%{box-shadow:0 0 0 5px rgba(17,24,39,.12)}100%{box-shadow:0 0 0 0 rgba(17,24,39,.0)}}
       @keyframes drawBridge{0%{stroke-dashoffset:8;opacity:.15}30%{opacity:.96}72%{opacity:.82}100%{stroke-dashoffset:0;opacity:0}}
       @keyframes boardBanner{0%{opacity:0;transform:translate(-50%,-42%) scale(.95)}16%{opacity:1;transform:translate(-50%,-50%) scale(1)}78%{opacity:1}100%{opacity:0;transform:translate(-50%,-58%) scale(.98)}}
-      @keyframes territoryEvent{0%{opacity:0;transform:translate(-50%,-42%) scale(.88)}14%{opacity:1;transform:translate(-50%,-50%) scale(1.03)}24%{transform:translate(-50%,-50%) scale(1)}78%{opacity:1}100%{opacity:0;transform:translate(-50%,-59%) scale(.96)}}
-      @keyframes deltaPop{0%{opacity:0;transform:translateY(4px) scale(.92)}20%{opacity:1;transform:translateY(0) scale(1.05)}100%{opacity:1;transform:translateY(0) scale(1)}}
-      @keyframes cutSlash{0%{box-shadow:inset 0 0 0 0 rgba(239,68,68,0),0 0 0 0 rgba(239,68,68,0)}45%{box-shadow:inset 0 0 0 4px rgba(239,68,68,.48),0 0 0 5px rgba(239,68,68,.12);filter:saturate(1.45)}100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 2px 7px rgba(31,41,51,.08);filter:saturate(1)}}
-      @keyframes encircleRing{0%{box-shadow:0 0 0 0 rgba(168,85,247,0)}45%{box-shadow:0 0 0 6px rgba(168,85,247,.22),0 0 18px rgba(168,85,247,.34)}100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 2px 7px rgba(31,41,51,.08)}}
-      @keyframes swingCell{0%{transform:scale(1);filter:brightness(1)}40%{transform:scale(1.10);filter:brightness(1.15) saturate(1.35)}100%{transform:scale(1);filter:brightness(1)}}
 
       /* ── Letter Market ─────────────────────────────────────────────────── */
       .lm-panel{background:#fff;border:1.5px solid #e0e0e0;border-radius:14px;padding:10px 14px;margin-bottom:10px}
@@ -2175,27 +2175,6 @@ export default function Home() {
       @keyframes abridge{0%{box-shadow:inset 0 0 0 0 rgba(245,158,11,0)}40%{box-shadow:inset 0 0 0 7px rgba(245,158,11,.45)}100%{box-shadow:inset 0 0 0 0 rgba(245,158,11,0)}}
       .board-bridge{animation:abridge 950ms ease forwards}}
       @keyframes boardpulse{0%{transform:scale(1);filter:saturate(1)}35%{transform:scale(1.018);filter:saturate(1.28)}100%{transform:scale(1);filter:saturate(1)}}
-      .capture-stamp{position:absolute;right:-6px;top:-8px;z-index:12;background:#facc15;color:#713f12;border:2px solid #fff;border-radius:999px;padding:1px 5px;font-size:10px;font-weight:1000;box-shadow:0 4px 12px rgba(250,204,21,.45);animation:captureStamp 1450ms ease-out both;pointer-events:none;white-space:nowrap}
-      .claim-stamp{position:absolute;right:-5px;bottom:-7px;z-index:10;background:#dcfce7;color:#166534;border:1px solid #fff;border-radius:999px;padding:1px 5px;font-size:10px;font-weight:1000;box-shadow:0 4px 10px rgba(22,163,74,.24);animation:claimStamp 1150ms ease-out both;pointer-events:none}
-      .effect-token{position:absolute;left:50%;top:2px;transform:translateX(-50%);z-index:11;border-radius:999px;padding:1px 4px;font-size:8px;line-height:1.1;font-weight:1000;letter-spacing:.02em;border:1px solid rgba(255,255,255,.75);box-shadow:0 2px 9px rgba(15,23,42,.18);pointer-events:none;white-space:nowrap;animation:fxToken 1300ms ease-out both}
-      .fx-cut{background:#fee2e2;color:#991b1b}.fx-bridge{background:#fef3c7;color:#92400e}.fx-encircle{background:#f3e8ff;color:#6b21a8}.fx-swing{background:#dcfce7;color:#166534}
-      .cell.cut-path::before{content:"";position:absolute;left:8px;right:8px;top:50%;height:3px;background:#ef4444;border-radius:999px;transform:rotate(-32deg);box-shadow:0 0 12px rgba(239,68,68,.72);z-index:9;animation:slashMark 1050ms ease-out both;pointer-events:none}
-      .cell.encircle-path::before{content:"";position:absolute;inset:4px;border:3px solid rgba(168,85,247,.80);border-radius:14px;box-shadow:0 0 16px rgba(168,85,247,.44);z-index:8;animation:ringMark 1200ms ease-out both;pointer-events:none}
-      .cell.swing-path::after{content:"↔";position:absolute;left:50%;bottom:2px;transform:translateX(-50%);z-index:10;font-size:11px;font-weight:1000;color:#166534;text-shadow:0 1px 0 #fff;animation:swingArrow 1100ms ease-out both;pointer-events:none}
-      .board-effect-ribbon{position:absolute;left:50%;top:8px;transform:translateX(-50%);z-index:34;max-width:92%;background:rgba(255,255,255,.94);border:1px solid rgba(15,23,42,.12);border-radius:16px;padding:6px 8px;box-shadow:0 12px 30px rgba(15,23,42,.16);pointer-events:none;text-align:center;animation:ribbonIn 2100ms ease-out forwards}
-      .board-effect-ribbon.ribbon-red{box-shadow:0 12px 30px rgba(220,38,38,.18)}.board-effect-ribbon.ribbon-blue{box-shadow:0 12px 30px rgba(37,99,235,.18)}
-      .ribbon-row{display:flex;gap:5px;align-items:center;justify-content:center;flex-wrap:wrap}.ribbon-badge{font-size:10px;font-weight:1000;border-radius:999px;padding:3px 6px;background:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;white-space:nowrap}.ribbon-cut{background:#fee2e2;color:#991b1b}.ribbon-bridge{background:#fef3c7;color:#92400e}.ribbon-encircle{background:#f3e8ff;color:#6b21a8}.ribbon-swing{background:#dcfce7;color:#166534}.ribbon-capture{background:#fef9c3;color:#854d0e}.ribbon-help{font-size:10px;color:#475569;font-weight:900;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .event-help{font-size:11px;font-weight:900;color:#fde68a;margin-top:3px}
-      .territory-score-delta{display:block;margin:10px auto 0;max-width:560px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:8px 10px;box-shadow:0 8px 22px rgba(15,23,42,.07)}
-      .delta-topline{text-align:center;font-size:12px;font-weight:1000;color:#334155;margin-bottom:6px}.delta-topline strong{color:#0f172a}.delta-grid{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}.delta-bar2{display:flex;height:10px;border-radius:999px;overflow:hidden;background:#e2e8f0;margin:7px 2px 4px}.delta-bar-red{display:block;background:rgba(220,38,38,.62);transition:width .45s ease}.delta-bar-blue{display:block;background:rgba(37,99,235,.62);transition:width .45s ease}.delta-before-after{text-align:center;font-size:11px;color:#64748b;font-weight:800;margin-top:3px}
-      @keyframes captureStamp{0%{opacity:0;transform:translateY(6px) scale(.65) rotate(-8deg)}22%{opacity:1;transform:translateY(0) scale(1.12) rotate(-4deg)}70%{opacity:1}100%{opacity:.96;transform:translateY(0) scale(1) rotate(-4deg)}}
-      @keyframes claimStamp{0%{opacity:0;transform:translateY(4px) scale(.8)}30%{opacity:1;transform:translateY(0) scale(1.08)}100%{opacity:.9;transform:translateY(0) scale(1)}}
-      @keyframes fxToken{0%{opacity:0;transform:translate(-50%,-4px) scale(.84)}18%{opacity:1;transform:translate(-50%,0) scale(1.06)}72%{opacity:1}100%{opacity:.85;transform:translate(-50%,0) scale(1)}}
-      @keyframes slashMark{0%{opacity:0;transform:rotate(-32deg) scaleX(.2)}35%{opacity:1;transform:rotate(-32deg) scaleX(1.1)}100%{opacity:.85;transform:rotate(-32deg) scaleX(1)}}
-      @keyframes ringMark{0%{opacity:0;transform:scale(.76)}40%{opacity:1;transform:scale(1.08)}100%{opacity:.85;transform:scale(1)}}
-      @keyframes swingArrow{0%{opacity:0;transform:translateX(-50%) scale(.65)}35%{opacity:1;transform:translateX(-50%) scale(1.18)}100%{opacity:.88;transform:translateX(-50%) scale(1)}}
-      @keyframes ribbonIn{0%{opacity:0;transform:translate(-50%,-8px) scale(.94)}12%{opacity:1;transform:translate(-50%,0) scale(1.02)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-10px) scale(.98)}}
-
       @keyframes acap{0%{transform:scale(.95);background:var(--opp-color);filter:saturate(1);box-shadow:0 0 0 0 rgba(250,204,21,0)}45%{transform:scale(1.16);background:#fde68a;filter:saturate(2.2);box-shadow:0 0 0 6px rgba(250,204,21,.32),0 0 18px rgba(250,204,21,.52)}100%{transform:scale(1);background:var(--my-color);filter:saturate(1.15)}}35%{transform:scale(1.18);background:#fde68a;filter:saturate(1.9);box-shadow:0 0 0 6px rgba(250,204,21,.28)}70%{transform:scale(.96);box-shadow:0 0 0 2px rgba(250,204,21,.14)}100%{transform:scale(1)}}
       @keyframes alk{0%{box-shadow:0 0 0 8px #111 inset,0 0 0 0 rgba(17,17,17,.7);transform:scale(1.08)}45%{box-shadow:0 0 0 3px #111 inset,0 0 0 8px rgba(17,17,17,.12);transform:scale(.98)}100%{transform:scale(1)}}
 
