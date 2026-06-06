@@ -2063,6 +2063,8 @@ def validate_and_apply_move(state: GameState, row: int, col: int, letter: str, p
     base_bonus = bonus
     synergy_bonus = apply_synergy_bonus(temp, combos, player, word, letter, path=path, row=row, col=col, territory_gain=delta["territory_gain"], lock_gain=len(delta["newly_locked"]))
     bonus_uncapped = base_bonus + synergy_bonus
+    # WT_JA_T2_BONUS_CAP_CALL_20260607
+    bonus_uncapped = _wt_ja_cap_early_t2_bonus_20260607(state, temp, player, combos, bonus_uncapped, word)
 
     # ── Anti-snowball: cap bonus when player is already winning by 10+ cells ──
     bonus = bonus_uncapped
@@ -3476,6 +3478,152 @@ try:
             idx = min(len(scored) - 1, max(0, len(scored) // 2))
 
         return scored[idx][1]
+
+except Exception:
+    pass
+
+
+# WT_JA_EASY_BOT_AND_T2_CAP_20260607
+# Adds EASY bot and caps early T2-style bonus stacking.
+
+def _wt_ja_cap_early_t2_bonus_20260607(before_state, temp_state, player, combos, bonus_uncapped, word):
+    try:
+        if globals().get("_LANG") != "ja":
+            return bonus_uncapped
+
+        turn = int(getattr(before_state, "turn", 0) or 0)
+        labels = set(combos or [])
+
+        # Opening COMEBACK suppression.
+        if turn <= 6 and "COMEBACK" in labels:
+            try:
+                combos[:] = [c for c in combos if c != "COMEBACK"]
+            except Exception:
+                pass
+            bonus_uncapped = max(0, int(bonus_uncapped) - 1)
+
+        labels = set(combos or [])
+        stacked = sum(1 for x in (
+            "COMEBACK",
+            "SECOND PLAYER INITIATIVE",
+            "MEGA TERRITORY",
+            "FIRST CAPTURE",
+            "EDGE REACH",
+        ) if x in labels)
+
+        if turn <= 4 and stacked >= 2:
+            return min(int(bonus_uncapped), 2)
+        if turn <= 8 and stacked >= 3:
+            return min(int(bonus_uncapped), 3)
+        if stacked >= 4:
+            return min(int(bonus_uncapped), 4)
+
+        return int(bonus_uncapped)
+    except Exception:
+        return bonus_uncapped
+
+
+def _wt_ja_easy_move_penalty_20260607(state, move, player):
+    try:
+        ns = simulate_move(state, move)
+        last = ns.moveHistory[-1]
+        labels = set(last.comboLabels or [])
+        word = _norm_word(move.get("word", ""))
+        n = len(word)
+
+        penalty = 0.0
+
+        # Easy prefers simple 3-kana words and avoids tactical bursts.
+        if n <= 2:
+            penalty += 2.0
+        elif n == 3:
+            penalty += 0.0
+        elif n == 4:
+            penalty += 1.5
+        else:
+            penalty += 5.0
+
+        terr = max(0, int(last.territoryGained or 0))
+        cap = max(0, int(last.captureCount or 0))
+
+        penalty += terr * 2.0
+        penalty += cap * 8.0
+
+        if "BRIDGE" in labels:
+            penalty += 7.0
+        if "CUT" in labels:
+            penalty += 7.0
+        if "MEGA TERRITORY" in labels:
+            penalty += 9.0
+        if "FIRST CAPTURE" in labels:
+            penalty += 4.0
+        if "SECOND PLAYER INITIATIVE" in labels:
+            penalty += 4.0
+        if "COMEBACK" in labels:
+            penalty += 5.0
+
+        # If current player is already ahead, become gentler.
+        try:
+            lead = -get_score_gap(state, player)
+            if lead >= 3:
+                penalty += terr * 1.5
+                penalty += cap * 6.0
+                if "BRIDGE" in labels or "CUT" in labels:
+                    penalty += 6.0
+        except Exception:
+            pass
+
+        import random as _r
+        penalty += _r.random() * 0.75
+        return penalty
+    except Exception:
+        return 99.0
+
+
+def _wt_ja_choose_easy_bot_move_20260607(state):
+    moves = generate_normal_moves(state)
+    if not moves:
+        return None
+
+    player = state.currentPlayer
+    scored = []
+
+    for m in moves:
+        try:
+            ns = simulate_move(state, m)
+            last = ns.moveHistory[-1]
+            labels = set(last.comboLabels or [])
+            aggressive = (
+                (last.captureCount or 0) > 0
+                or "BRIDGE" in labels
+                or "CUT" in labels
+                or "MEGA TERRITORY" in labels
+            )
+            scored.append((_wt_ja_easy_move_penalty_20260607(state, m, player), aggressive, m))
+        except Exception:
+            scored.append((99.0, True, m))
+
+    pool = [x for x in scored if not x[1]]
+    if not pool:
+        pool = scored
+
+    pool = sorted(pool, key=lambda x: x[0])
+
+    import random as _r
+    top_n = min(len(pool), 4)
+    return _r.choice(pool[:top_n])[2]
+
+
+try:
+    _wt_ja_choose_bot_move_before_easy_20260607 = choose_bot_move
+
+    def choose_bot_move(state):
+        level = str(getattr(state, "botLevel", "normal") or "normal").lower()
+
+        if level == "easy":
+            return _wt_ja_choose_easy_bot_move_20260607(state)
+
+        return _wt_ja_choose_bot_move_before_easy_20260607(state)
 
 except Exception:
     pass

@@ -518,7 +518,7 @@ export default function Home() {
   const [letter, setLetter]     = useState("");
   const [error,  setError]      = useState("");
   const [suggestions, setSugg]  = useState([]);
-  const [mode,   setMode]       = useState("normal");
+  const [mode,   setMode]       = useState("easy");
   const [thinking, setThinking] = useState(false);
   const [preview, setPreview]   = useState(null);
   const [showSummary, setSum]   = useState(false);
@@ -1468,7 +1468,7 @@ export default function Home() {
             <div className="mode-box">
               <label>Bot</label>
               <select value={mode} onChange={e=>setMode(e.target.value)}>
-                <option value="normal">Normal</option>
+                <option value="easy">Easy</option><option value="normal">Normal</option>
                 <option value="strong">Strong</option>
               </select>
             </div>
@@ -2622,5 +2622,6 @@ export default function Home() {
     `}</style>
   </>;
 }
+
 
 
