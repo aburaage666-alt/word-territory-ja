@@ -510,24 +510,6 @@ function LeaderboardModal({ onClose, dailyInfo, myRank }) {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
-// WT_JA_SAFE_FREE_INPUT_20260606
-function wtJaKatakanaToHiragana(value) {
-  return String(value || "").replace(/[\u30a1-\u30f6]/g, ch =>
-    String.fromCharCode(ch.charCodeAt(0) - 0x60)
-  );
-}
-
-function wtJaNormalizeKanaInput(value) {
-  const raw = String(value || "").normalize("NFKC");
-  const hira = wtJaKatakanaToHiragana(raw);
-  const chars = Array.from(hira).filter(ch => /^[\u3041-\u3096\u30fc]$/.test(ch));
-  return chars.length ? chars[chars.length - 1] : "";
-}
-
-function wtJaHasKana(value) {
-  return !!wtJaNormalizeKanaInput(value);
-}
-
 export default function Home() {
   const [gameId, setGameId]     = useState("");
   const [state,  setState]      = useState(null);
@@ -543,7 +525,7 @@ export default function Home() {
   const [copied, setCopied]     = useState(false);
 
   // UI panels
-  const [showルール,   setルール]   = useState(false);
+  const [showRules,   setRules]   = useState(false);
   const [showHistory, setHistory] = useState(true);
   const [showSuggest, setSuggest] = useState(false);
   const [showAlmost,  setAlmostOpen] = useState(true);
@@ -572,13 +554,13 @@ export default function Home() {
   const [showIntro, setShowIntro] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
-  const [soundOn, set音On] = useState(true);
+  const [soundOn, setSoundOn] = useState(true);
   const comboTimer = useRef(null);
   const soundTurnRef = useRef(null);
-  const capture音Ref = useRef(null);
-  const bridge音Ref = useRef(null);
-  const lock音Ref = useRef(null);
-  const battle音Ref = useRef(null);
+  const captureSoundRef = useRef(null);
+  const bridgeSoundRef = useRef(null);
+  const lockSoundRef = useRef(null);
+  const battleSoundRef = useRef(null);
   const audioCtxRef = useRef(null);
   const [animGen,  setAnimGen]    = useState(0);
 
@@ -1387,16 +1369,16 @@ export default function Home() {
     const key = `${lastMove.turn}-${lastMove.player}-${lastMove.word}`;
     const labels = (lastMove.comboLabels || []).map(x => String(x));
 
-    if ((lastMove.captureCount || 0) > 0 && capture音Ref.current !== key) {
-      capture音Ref.current = key;
+    if ((lastMove.captureCount || 0) > 0 && captureSoundRef.current !== key) {
+      captureSoundRef.current = key;
       playSfx("capture", 0);
     }
-    if (labels.some(x => x.includes("BRIDGE")) && bridge音Ref.current !== key) {
-      bridge音Ref.current = key;
+    if (labels.some(x => x.includes("BRIDGE")) && bridgeSoundRef.current !== key) {
+      bridgeSoundRef.current = key;
       playSfx("bridge", (lastMove.captureCount || 0) > 0 ? 130 : 0);
     }
-    if ((lastMove.fortifiedCellsGained || 0) > 0 && lock音Ref.current !== key) {
-      lock音Ref.current = key;
+    if ((lastMove.fortifiedCellsGained || 0) > 0 && lockSoundRef.current !== key) {
+      lockSoundRef.current = key;
       playSfx("lock", labels.some(x => x.includes("BRIDGE")) ? 250 : 120);
     }
     if (labels.some(x => x.startsWith("SYNERGY:")) && soundTurnRef.current !== key) {
@@ -1408,8 +1390,8 @@ export default function Home() {
   useEffect(() => {
     if (!state?.winner) return;
     const key = `${gameId}-${state?.winner}-${state?.turn}`;
-    if (battle音Ref.current === key) return;
-    battle音Ref.current = key;
+    if (battleSoundRef.current === key) return;
+    battleSoundRef.current = key;
     playSfx("battle", 120);
   }, [state?.winner, gameId, state?.turn, soundOn]);
 
@@ -1459,7 +1441,7 @@ export default function Home() {
               <span>4. Watch territory change</span>
             </div>
             <div className="intro-btns">
-              <button className="bprim" onClick={()=>dismissIntro(true)}>▶ デモを見る</button>
+              <button className="bprim" onClick={()=>dismissIntro(true)}>▶ Watch Demo</button>
               <button className="bsm" onClick={()=>dismissIntro(false)}>Start Playing</button>
             </div>
           </div>
@@ -1481,7 +1463,7 @@ export default function Home() {
           <p className="tagline">Words become territory. Each move reshapes the map.</p>
         </div>
         <div className="hdr-r">
-          <button className="bsm sound-toggle" onClick={()=>set音On(v=>!v)} title="Toggle sound">{soundOn ? "🔊 音" : "🔇 Muted"}</button>
+          <button className="bsm sound-toggle" onClick={()=>setSoundOn(v=>!v)} title="Toggle sound">{soundOn ? "🔊 Sound" : "🔇 Muted"}</button>
           {!dailyMode&&(
             <div className="mode-box">
               <label>Bot</label>
@@ -1503,14 +1485,14 @@ export default function Home() {
               </div>
             </div>
           )}
-          <button className="bsm" onClick={()=>setルール(v=>!v)}>{showルール?"✕ ルール":"? ルール"}</button>
-          <Link href="/about" className="bsm" style={{textDecoration:"none",color:"#111"}}>概要</Link>
+          <button className="bsm" onClick={()=>setRules(v=>!v)}>{showRules?"✕ Rules":"? Rules"}</button>
+          <Link href="/about" className="bsm" style={{textDecoration:"none",color:"#111"}}>About</Link>
           {dailyMode
             ?<button className="bprim" onClick={()=>boot(mode)}>← Free Play</button>
-            :<button className="bprim" onClick={()=>boot(mode)}>新規ゲーム</button>
+            :<button className="bprim" onClick={()=>boot(mode)}>New Game</button>
           }
-          <button className="bsm demo-btn" onClick={startSpectatorDemo}>▶ デモを見る</button>
-          {spectatorMode&&<button className="bsm" onClick={()=>{setSpectatorMode(false); setSpectatorNote("Demo paused. Press 新規ゲーム to play.");}}>Stop Demo</button>}
+          <button className="bsm demo-btn" onClick={startSpectatorDemo}>▶ Watch Demo</button>
+          {spectatorMode&&<button className="bsm" onClick={()=>{setSpectatorMode(false); setSpectatorNote("Demo paused. Press New Game to play.");}}>Stop Demo</button>}
           <button className="bsm" onClick={async()=>{try{const d=await createAsyncMatch({botLevel:mode}); setAsyncMode(true); setSpectatorMode(false); setAsyncToken(d.redToken); setAsyncRole('RED'); setGameId(d.game_id); setState(d.state); setDailyMode(false); setInviteUrl(`${window.location.origin}${d.blueUrl}`); setMarket({active:d.state.marketLetters||[], preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed}); await refresh(d.game_id);}catch(e){setError(e.message||'Could not create async match');}}}>Async PvP</button>
           {asyncMode&&<button className="bsm" onClick={async()=>{try{const d=await getAsyncMatch(gameId, asyncToken); setState(d.state); await refresh(gameId);}catch(e){setError(e.message||'Could not refresh match');}}}>Refresh Match</button>}
         </div>
@@ -1520,7 +1502,7 @@ export default function Home() {
       {tutTurns === 0 && human() && (
         <div className="firstmove-banner">
           <strong>How to play:</strong>{" "}
-          Tap a <span className="fm-green">green square</span> → type a letter → connect letters to make a word → press <strong>領地を取る</strong>
+          Tap a <span className="fm-green">green square</span> → type a letter → connect letters to make a word → press <strong>Claim Territory</strong>
         </div>
       )}
       {/* ── score bar ── */}
@@ -1536,11 +1518,11 @@ export default function Home() {
       </div>
 
       {/* ── rules ── */}
-      {showルール&&(
+      {showRules&&(
         <div className="rules">
           <strong>Build words from a shared draft. Place letters. Capture territory.</strong>
           <ol>
-            <li>Tap a <em>green square</em> → type any letter → connect letters to make a 3–6 letter word → press <strong>領地を取る ⚔</strong>.</li>
+            <li>Tap a <em>green square</em> → type any letter → connect letters to make a 3–6 letter word → press <strong>Claim Territory ⚔</strong>.</li>
             <li>Example: board has D–S–T, place U → select D→U→S→T → DUST! Your letter can go anywhere in the path.</li>
             <li>Enclose opponent cells to <strong>capture</strong> them. Surrounded own cells become 🏰 <strong>Fortified</strong>.</li>
             <li><strong>Role Bonuses</strong> — earn extra territory: BRIDGE +3T · CUT +2T · CROSS WORD +2T · LONG PATH +1T</li>
@@ -1639,11 +1621,11 @@ export default function Home() {
             </>
           )}
 
-          {/* ── 文字カード ── */}
+          {/* ── Letter Market ── */}
           {!state.winner && (
             <div className="lm-panel" style={{display: market.active.length > 0 ? 'block' : 'none'}}>
               <div className="lm-header">
-                <span className="lm-title">🎴 文字カード {comebackChance && <b className="come-badge">★ Reclaim</b>}</span>
+                <span className="lm-title">🎴 Letter Market {comebackChance && <b className="come-badge">★ Reclaim</b>}</span>
                 <span className="lm-preview">
                   Next: {(market.preview||[]).map((l,i) => <span key={i} className="lm-prev-chip">{l}</span>)}
                 </span>
@@ -1716,43 +1698,26 @@ export default function Home() {
               </div>
               {showFreeInput && (
                 <div className="lm-free-row">
-                  <input
-      className="freeType"
-      value={freeLetter}
-      maxLength={8}
-      lang="ja"
-      inputMode="text"
-      autoComplete="off"
-      placeholder={"ひらがな"}
-      disabled={!human()}
-      onChange={e => {
-        const v = e.target.value;
-        if (e.nativeEvent?.isComposing) {
-          setFreeLetter(v);
-          return;
-        }
-        setFreeLetter(wtJaNormalizeKanaInput(v));
-      }}
-      onCompositionEnd={e => setFreeLetter(wtJaNormalizeKanaInput(e.currentTarget.value))}
-      onKeyDown={e => {
-        if (e.key === "Enter" && wtJaHasKana(freeLetter)) {
-          const chosen = wtJaNormalizeKanaInput(freeLetter);
-          useFreeLetter(gameId, { letter: chosen, source: wildMode ? "wild" : "free" }).then(r => {
-            setMarket(m => ({...m, ...r}));
-            setLetter(chosen);
-            setFreeLetter("");
-            setShowFreeInput(false);
-            setWildMode(false);
-            setPath([]);
-            setPlaced(null);
-          }).catch(e => setError(e.message));
-        }
-      }}
-    />
+                  <input className="lm-free-input" maxLength={1}
+                    placeholder={wildMode ? "WILD: type any letter" : "Type any letter"}
+                    value={freeLetter}
+                    onChange={e => setFreeLetter(e.target.value.toUpperCase().replace(/[^A-Z]/g,''))}
+                    onKeyDown={e => {
+                      if(e.key==='Enter' && freeLetter) {
+                        useFreeLetter(gameId, freeLetter, wildMode ? "wild" : "free").then(r => {
+                          setMarket(m => ({...m, ...r}));
+                          setLetter(chosenFreeLetter);
+                          setShowFreeInput(false);
+                          setWildMode(false);
+                          setPath([]); setPlaced(null);
+                        }).catch(e => setError(e.message));
+                      }
+                    }}
+                  />
                   <button className="lm-free-confirm"
                     onClick={() => {
                       if(!freeLetter) return;
-                      useFreeLetter(gameId, { letter: wtJaNormalizeKanaInput(freeLetter), source: wildMode ? "wild" : "free" }).then(r => {
+                      useFreeLetter(gameId, freeLetter, wildMode ? "wild" : "free").then(r => {
                         setMarket(m => ({...m, ...r}));
                         setLetter(chosenFreeLetter);
                         setShowFreeInput(false);
@@ -1760,7 +1725,7 @@ export default function Home() {
                         setPath([]); setPlaced(null);
                       }).catch(e => setError(e.message));
                     }}
-                  >{wildMode ? "Use ★ Wild" : "使う"}</button>
+                  >{wildMode ? "Use ★ Wild" : "Use ⭐"}</button>
                 </div>
               )}
             </div>
@@ -1769,7 +1734,7 @@ export default function Home() {
           {/* move controls */}
           {!state.winner && <div className="mpanel">
             <div className="mrow">
-              <label className="mlbl">{market.active.length > 0 ? "選択中" : "Letter"}</label>
+              <label className="mlbl">{market.active.length > 0 ? "Selected" : "Letter"}</label>
               <input ref={letterRef}
                 className={`minput${market.active.length > 0 && !letter ? ' minput-empty' : ''}`}
                 value={letter} maxLength={8} lang="ja" inputMode="text" autoComplete="off"
@@ -1804,7 +1769,7 @@ export default function Home() {
                 ):(
                   <div className="pvhint">
                     {!placed
-                      ? (market.active.length > 0 ? (thinking ? "Bot is thinking..." : state?.winner ? "Battle Report" : "上の文字カードを選び、領地プレビューを確認してください。") : "Tap a green square to place a letter.")
+                      ? (market.active.length > 0 ? (thinking ? "Bot is thinking..." : state?.winner ? "Battle Report" : "Choose a tile from Letter Market above ↑ then read the Territory Preview.") : "Tap a green square to place a letter.")
                       : !letter
                       ? "Type one letter."
                       : path.length < 2
@@ -1817,11 +1782,11 @@ export default function Home() {
               </div>
             </div>
             <div className="brow">
-              <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={submit} disabled={!human()}>{showTutorial && tutorialStep===3 ? "Capture Word ⚔" : ok ? "領地を取る ⚔" : "Submit"}</button>
+              <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={submit} disabled={!human()}>{showTutorial && tutorialStep===3 ? "Capture Word ⚔" : ok ? "Claim Territory ⚔" : "Submit"}</button>
               {!isTutorial && <button className="ba bseed" onClick={seed} disabled={!human()} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "Seed (free — +3T next word)" : "Seed costs 1 territory"}>
               <span className="seed-label">{lastStand ? "Reclaim" : "Seed"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "Free" : "Cost -1"}</span>}
             </button>}
-              <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); }} disabled={!human()}>取消</button>
+              <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); }} disabled={!human()}>Clear</button>
               {!isTutorial && <button className="ba" onClick={pass} disabled={!human()}>Pass</button>}
             </div>
           </div>}
@@ -1829,9 +1794,9 @@ export default function Home() {
 
         {/* side panel */}
         <div className="mobile-tabs">
-          <button className={mobileTab==="hints" ? "active" : ""} onClick={()=>setMobileTab("hints")}>ヒント</button>
-          <button className={mobileTab==="threat" ? "active" : ""} onClick={()=>setMobileTab("threat")}>脅威</button>
-          <button className={mobileTab==="history" ? "active" : ""} onClick={()=>setMobileTab("history")}>履歴</button>
+          <button className={mobileTab==="hints" ? "active" : ""} onClick={()=>setMobileTab("hints")}>Hints</button>
+          <button className={mobileTab==="threat" ? "active" : ""} onClick={()=>setMobileTab("threat")}>Threat</button>
+          <button className={mobileTab==="history" ? "active" : ""} onClick={()=>setMobileTab("history")}>History</button>
         </div>
         <div className={`scol tab-${mobileTab}`}>
           {synergy && (() => { const sc = synergyOpts.find(c=>c.key===synergy); return sc ? (
@@ -1857,7 +1822,7 @@ export default function Home() {
           )}
           <div className="panel panel-suggest">
             <div className="ph" onClick={()=>setSuggest(v=>!v)}>
-              <span>💡 候補</span><span className="ci">{showSuggest?"▲":"▼"}</span>
+              <span>💡 Suggested</span><span className="ci">{showSuggest?"▲":"▼"}</span>
             </div>
             {showSuggest&&(
               <div className="chips sc">
@@ -1867,7 +1832,7 @@ export default function Home() {
           </div>
                     <div className="panel panel-threat">
             <div className="ph" onClick={()=>setThreatPanel(v=>!v)}>
-              <span>⚠ 脅威</span><span className="ci">{showThreatPanel?"▲":"▼"}</span>
+              <span>⚠ Threat</span><span className="ci">{showThreatPanel?"▲":"▼"}</span>
             </div>
             {showThreatPanel&&(
               <div className="threat-list">
@@ -1882,11 +1847,11 @@ export default function Home() {
           </div>
 <div className="panel panel-history">
             <div className="ph" onClick={()=>setHistory(v=>!v)}>
-              <span>📋 履歴</span><span className="ci">{showHistory?"▲":"▼"}</span>
+              <span>📋 History</span><span className="ci">{showHistory?"▲":"▼"}</span>
             </div>
             {showHistory&&(
               <div className="hist" ref={histRef}>
-                {!state.moveHistory.length&&<div className="muted">まだ履歴はありません</div>}
+                {!state.moveHistory.length&&<div className="muted">No moves yet</div>}
                 {state.moveHistory.map((m,i)=><HistItem key={i} m={m}/>)}
               </div>
             )}
@@ -1911,7 +1876,7 @@ export default function Home() {
       {showSynergy && !synergy && (
         <div className="modal-bg" onClick={e => e.target===e.currentTarget&&setShowSynergy(false)}>
           <div className="modal syn-modal">
-            <h2 style={{marginBottom:6}}>🎴 作戦を選ぶ</h2>
+            <h2 style={{marginBottom:6}}>🎴 Choose Your Strategy</h2>
             <p style={{fontSize:13,color:'#888',marginBottom:20}}>Pick one card. It stays active the whole game.</p>
             <div className="syn-cards">
               {(synergyOpts||[]).map(card => (
@@ -1999,7 +1964,7 @@ export default function Home() {
                 {bestMove && <div className="best-move-card"><strong>Best Territorial Swing:</strong> {moveLabel(bestMove)}</div>}
                 {topMoves.length>0&&<><h3>Top Territorial Swings</h3>{topMoves.map((m,i)=><HistItem key={i} m={m}/>)}</>}
                 <div className="modal-btns">
-                  <button className="bprim" onClick={()=>boot(mode)}>新規ゲーム</button>
+                  <button className="bprim" onClick={()=>boot(mode)}>New Game</button>
                   {dailyInfo&&!dailyResult&&<button onClick={()=>{setSum(false);bootDaily();}}>Daily Challenge</button>}
                   <button onClick={()=>setSum(false)}>Close</button>
                 </div>
@@ -2167,7 +2132,7 @@ export default function Home() {
       @keyframes drawBridge{0%{stroke-dashoffset:8;opacity:.15}30%{opacity:.96}72%{opacity:.82}100%{stroke-dashoffset:0;opacity:0}}
       @keyframes boardBanner{0%{opacity:0;transform:translate(-50%,-42%) scale(.95)}16%{opacity:1;transform:translate(-50%,-50%) scale(1)}78%{opacity:1}100%{opacity:0;transform:translate(-50%,-58%) scale(.98)}}
 
-      /* ── 文字カード ─────────────────────────────────────────────────── */
+      /* ── Letter Market ─────────────────────────────────────────────────── */
       .lm-panel{background:#fff;border:1.5px solid #e0e0e0;border-radius:14px;padding:10px 14px;margin-bottom:10px}
       .lm-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
       .lm-title{font-size:13px;font-weight:800;color:#333;letter-spacing:.3px}
@@ -2657,6 +2622,5 @@ export default function Home() {
     `}</style>
   </>;
 }
-
 
 
