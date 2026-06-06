@@ -3167,3 +3167,65 @@ try:
         return _wt_ja_clean_market_pair_v2(_wt_ja_orig_advance_market_v2(*args, **kwargs))
 except Exception:
     pass
+
+
+# WT_JA_FINAL_STABLE_MARKET_FIX_20260606
+# Japanese Letter Market must be stable and kana-only.
+# It should change only when a move consumes a card or the backend advances the market.
+
+def _wt_ja_final_pool():
+    return list('あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ')
+
+def _wt_ja_final_is_kana(x):
+    if not isinstance(x, str) or len(x) != 1:
+        return False
+    o = ord(x)
+    return (0x3041 <= o <= 0x3096) or x == "\u30fc"
+
+def _wt_ja_final_clean_seq(seq, existing=None, offset=0):
+    if globals().get("_LANG") != "ja":
+        return seq
+
+    existing = set(existing or [])
+    pool = _wt_ja_final_pool()
+    out = []
+
+    for x in seq or []:
+        if _wt_ja_final_is_kana(x) and x not in out:
+            out.append(x)
+
+    i = offset
+    while len(out) < 3:
+        c = pool[i % len(pool)]
+        i += 1
+        if c not in out and c not in existing:
+            out.append(c)
+
+    return out[:3]
+
+def _wt_ja_final_clean_pair(pair):
+    if globals().get("_LANG") != "ja":
+        return pair
+
+    try:
+        active, preview = pair
+    except Exception:
+        return pair
+
+    active2 = _wt_ja_final_clean_seq(active, offset=0)
+    preview2 = _wt_ja_final_clean_seq(preview, existing=set(active2), offset=7)
+    return active2, preview2
+
+try:
+    _wt_ja_orig_create_initial_market_final = create_initial_market
+    def create_initial_market(*args, **kwargs):
+        return _wt_ja_final_clean_pair(_wt_ja_orig_create_initial_market_final(*args, **kwargs))
+except Exception:
+    pass
+
+try:
+    _wt_ja_orig_advance_market_final = advance_market
+    def advance_market(*args, **kwargs):
+        return _wt_ja_final_clean_pair(_wt_ja_orig_advance_market_final(*args, **kwargs))
+except Exception:
+    pass
