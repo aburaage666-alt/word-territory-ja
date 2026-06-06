@@ -1017,7 +1017,7 @@ def _score_all_letters(state: GameState) -> dict:
     import heapq as _hq
     excluded = set(state.usedWords)
     board_letters = board_letters_set(state)
-    VOWELS = set("AEIOU")
+    VOWELS = set("?????") if _LANG == "ja" else set("AEIOU")
 
     # Candidate set: Almost letters + top 12 by frequency, minus board letters
     try:
@@ -1169,8 +1169,8 @@ def generate_letter_market(state: GameState) -> tuple[list[str], list[str]]:
     """
     import random as _r
 
-    RARE  = {'Q','X','Z','J'}
-    VOWELS = set("AEIOU")
+    RARE  = {'Q','X','Z','J'} if _LANG == 'en' else set()
+    VOWELS = set("?????") if _LANG == "ja" else set("AEIOU")
     board_letters = board_letters_set(state)
 
     scores = _score_all_letters(state)
@@ -3036,3 +3036,65 @@ def apply_bot_move(state: GameState):
             pass
     # Last resort: pass
     return pass_turn(state)
+
+
+# WT_JA_ENGINE_MARKET_RUNTIME_SANITIZER_20260606
+# Safety net: Japanese version must never emit A-Z or FREE in the letter market.
+def _wt_ja_is_kana_tile(x):
+    return isinstance(x, str) and len(x) == 1 and ("?" <= x <= "?" or x == "?")
+
+def _wt_ja_clean_market_seq(seq, existing=None):
+    if globals().get("_LANG") != "ja":
+        return seq
+
+    import random as _r
+
+    existing = set(existing or [])
+    pool = []
+    try:
+        pool = [x for x in _ALL_LETTERS if _wt_ja_is_kana_tile(x)]
+    except Exception:
+        pool = []
+
+    if not pool:
+        pool = list("???????????????????????????????????????????????????????????????????????")
+
+    out = []
+    for x in seq or []:
+        if _wt_ja_is_kana_tile(x) and x not in out:
+            out.append(x)
+
+    while len(out) < 3:
+        choices = [x for x in pool if x not in existing and x not in out]
+        if not choices:
+            choices = pool
+        out.append(_r.choice(choices))
+
+    return out[:3]
+
+def _wt_ja_clean_market_pair(pair):
+    if globals().get("_LANG") != "ja":
+        return pair
+
+    try:
+        active, preview = pair
+    except Exception:
+        return pair
+
+    active2 = _wt_ja_clean_market_seq(active)
+    preview2 = _wt_ja_clean_market_seq(preview, existing=set(active2))
+    return active2, preview2
+
+try:
+    _wt_orig_create_initial_market = create_initial_market
+    def create_initial_market(*args, **kwargs):
+        return _wt_ja_clean_market_pair(_wt_orig_create_initial_market(*args, **kwargs))
+except Exception:
+    pass
+
+try:
+    _wt_orig_advance_market = advance_market
+    def advance_market(*args, **kwargs):
+        return _wt_ja_clean_market_pair(_wt_orig_advance_market(*args, **kwargs))
+except Exception:
+    pass

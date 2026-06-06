@@ -2,6 +2,47 @@
 // Fixes: game_id / gameId mismatch, payload-vs-positional calls, readable errors, threat response normalization.
 export const WT_JA_API_GAMEID_HOTFIX_20260606_V2 = true;
 
+
+const WT_JA_API_MARKET_SANITIZER_20260606 = true;
+const WT_JA_KANA_POOL = "???????????????????????????????????????????????????????????????????????".split("");
+
+function wtJaRandomKana() {
+  return WT_JA_KANA_POOL[Math.floor(Math.random() * WT_JA_KANA_POOL.length)];
+}
+
+function wtJaIsBadMarketToken(value) {
+  return (
+    typeof value === "string" &&
+    (
+      /^[A-Za-z]$/.test(value) ||
+      value === "FREE" ||
+      value === "Free" ||
+      value === "*"
+    )
+  );
+}
+
+function wtJaSanitizeApiData(value) {
+  if (wtJaIsBadMarketToken(value)) {
+    return wtJaRandomKana();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(wtJaSanitizeApiData);
+  }
+
+  if (value && typeof value === "object") {
+    const out = {};
+    Object.entries(value).forEach(([k, v]) => {
+      out[k] = wtJaSanitizeApiData(v);
+    });
+    return out;
+  }
+
+  return value;
+}
+
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
   "https://word-territory-ja.onrender.com";
@@ -46,7 +87,7 @@ async function request(path, options = {}) {
   if (!res.ok) {
     throw new Error(normalizeErrorMessage(data, res.status));
   }
-  return data;
+  return wtJaSanitizeApiData(data);
 }
 
 function normalizeList(value) {

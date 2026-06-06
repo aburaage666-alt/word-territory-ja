@@ -102,3 +102,33 @@ def is_ui_word(word: str | None) -> bool:
 
 def is_demo_word(word: str | None) -> bool:
     return is_valid_kana_word(word)
+
+
+# WT_JA_PROFILE_NO_ASCII_MARKET_20260606
+# Force Japanese market pools to kana only.
+_WT_JA_KANA_POOL = list("???????????????????????????????????????????????????????????????????????")
+_WT_JA_KANA_SET = set(_WT_JA_KANA_POOL)
+
+try:
+    LETTERS = [x for x in LETTERS if isinstance(x, str) and x in _WT_JA_KANA_SET]
+    if not LETTERS:
+        LETTERS = list(_WT_JA_KANA_POOL)
+except Exception:
+    LETTERS = list(_WT_JA_KANA_POOL)
+
+try:
+    LETTER_WEIGHTS = {
+        k: v for k, v in LETTER_WEIGHTS.items()
+        if isinstance(k, str) and k in _WT_JA_KANA_SET
+    }
+    if not LETTER_WEIGHTS:
+        LETTER_WEIGHTS = {k: 1 for k in _WT_JA_KANA_POOL}
+except Exception:
+    LETTER_WEIGHTS = {k: 1 for k in _WT_JA_KANA_POOL}
+
+try:
+    LETTER_BAG = [x for x in LETTER_BAG if isinstance(x, str) and x in _WT_JA_KANA_SET]
+    if not LETTER_BAG:
+        LETTER_BAG = list(_WT_JA_KANA_POOL)
+except Exception:
+    pass
