@@ -1,3 +1,5 @@
+export const WT_API_THREAT_NORMALIZE_V1 = true;
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
   "https://word-territory-ja.onrender.com";
@@ -24,6 +26,82 @@ async function request(path, options = {}) {
   }
 
   return data;
+}
+
+function normalizeList(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+
+  if (Array.isArray(value.threats)) return value.threats;
+  if (Array.isArray(value.moves)) return value.moves;
+  if (Array.isArray(value.items)) return value.items;
+  if (Array.isArray(value.results)) return value.results;
+  if (Array.isArray(value.data)) return value.data;
+  if (Array.isArray(value.threat_moves)) return value.threat_moves;
+
+  if (
+    Array.isArray(value.cells) ||
+    Array.isArray(value.path) ||
+    Array.isArray(value.threat_cells) ||
+    Array.isArray(value.affected_cells)
+  ) {
+    return [value];
+  }
+
+  return [];
+}
+
+function toCell(value) {
+  if (!value || typeof value !== "object") return null;
+
+  const row = Number(value.row ?? value.r ?? value.y);
+  const col = Number(value.col ?? value.c ?? value.x);
+
+  if (!Number.isFinite(row) || !Number.isFinite(col)) return null;
+
+  return { row, col };
+}
+
+function normalizeThreatPayload(value) {
+  return normalizeList(value)
+    .map((item) => {
+      const cellSource =
+        item?.cells ??
+        item?.path ??
+        item?.threat_cells ??
+        item?.affected_cells ??
+        item?.captured_cells ??
+        [];
+
+      const cells = normalizeList(cellSource)
+        .map(toCell)
+        .filter(Boolean);
+
+      const mainCell =
+        toCell(item) ||
+        toCell(item?.move) ||
+        toCell(item?.target) ||
+        cells[0] ||
+        null;
+
+      return {
+        ...(item || {}),
+        row: mainCell?.row,
+        col: mainCell?.col,
+        cells
+      };
+    })
+    .filter((item) => {
+      const hasMainCell =
+        Number.isFinite(Number(item.row)) &&
+        Number.isFinite(Number(item.col));
+
+      const hasCells =
+        Array.isArray(item.cells) &&
+        item.cells.length > 0;
+
+      return hasMainCell || hasCells;
+    });
 }
 
 export async function createGame(payload = {}) {
@@ -121,7 +199,8 @@ export async function useFreeLetter(gameId, payload) {
 }
 
 export async function getThreat(gameId) {
-  return request(`/games/${gameId}/threat`);
+  const data = await request(`/games/${gameId}/threat`);
+  return normalizeThreatPayload(data);
 }
 
 export async function createAsyncMatch(payload = {}) {
