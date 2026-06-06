@@ -1,5 +1,17 @@
 export const WT_JA_API_UNICODE_SAFE_V2 = true;
 
+
+const WT_JA_FREE_API_FIX_20260606 = true;
+
+function wtJaNormalizeFreeLetterForApi(value) {
+  const raw = String(value || "").normalize("NFKC");
+  const hira = raw.replace(/[\u30a1-\u30f6]/g, ch =>
+    String.fromCharCode(ch.charCodeAt(0) - 0x60)
+  );
+  const chars = Array.from(hira).filter(ch => /^[\u3041-\u3096\u30fc]$/.test(ch));
+  return chars.length ? chars[chars.length - 1] : "";
+}
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
   "https://word-territory-ja.onrender.com";
@@ -216,10 +228,28 @@ export async function getLetterPreview(gameId, letter) {
   return request(`/games/${gameId}/letter-preview/${encodeURIComponent(letter)}`);
 }
 
-export async function useFreeLetter(gameId, payload) {
+export async function useFreeLetter(gameId, payload, source = "free") {
+  let body = {};
+
+  if (typeof payload === "string") {
+    body = { letter: payload, source };
+  } else if (payload && typeof payload === "object") {
+    body = { ...payload };
+  }
+
+  if (body.mode && !body.source) {
+    body.source = body.mode;
+  }
+
+  body.letter = wtJaNormalizeFreeLetterForApi(body.letter);
+
+  if (!body.letter) {
+    throw new Error("????1????????????");
+  }
+
   return request(`/games/${gameId}/free-letter`, {
     method: "POST",
-    body: JSON.stringify(payload)
+    body: JSON.stringify(body)
   });
 }
 

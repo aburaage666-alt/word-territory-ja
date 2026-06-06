@@ -536,9 +536,8 @@ def use_free_letter(game_id: str, req: dict):
     source = req.get("source", "free")
     if source != "wild" and state.freeLetterUsed:
         raise HTTPException(status_code=400, detail="Free letter already used this game")
-    letter = req.get("letter", "").upper()
-    if not letter or len(letter) != 1 or not letter.isalpha():
-        raise HTTPException(status_code=400, detail="Invalid letter")
+    letter = str(req.get("letter", "")).strip() # WT_JA_FREE_LETTER_KANA_FIX_20260606
+    if not letter or len(letter) != 1 or not (("\u3041" <= letter <= "\u3096") or letter == "\u30fc"): raise HTTPException(status_code=400, detail="????1???????????")
     # Add letter to active market temporarily. WILD replaces the * slot and marks a pending cost.
     if source == "wild":
         state.synergyState = dict(state.synergyState or {})
