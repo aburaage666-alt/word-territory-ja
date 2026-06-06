@@ -149,7 +149,7 @@ def choose_opening():
 
 BOT_STYLES = ["Builder", "Raider", "Defender"] if _LANG == "ja" else ["Builder", "Raider", "Cutter", "Expander", "Defender"]
 
-def choose_bot_style(bot_level: str = "easy") -> str:
+def choose_bot_style(bot_level: str = "normal") -> str:
     """Pick a visible bot personality for the match.
 
     This is primarily a UX/positioning layer: it makes the opponent feel like
@@ -161,7 +161,7 @@ def choose_bot_style(bot_level: str = "easy") -> str:
     return random.choice(BOT_STYLES)
 
 
-def build_initial_state(bot_level: str = "easy", opening_idx: int | None = None) -> GameState:
+def build_initial_state(bot_level: str = "normal", opening_idx: int | None = None) -> GameState:
     board = [[Cell(row=r, col=c) for c in range(BOARD_SIZE)] for r in range(BOARD_SIZE)]
     openings = JP_OPENINGS if _LANG == 'ja' else OPENINGS
     if opening_idx is not None:
@@ -3627,6 +3627,5 @@ try:
 
 except Exception:
     pass
-
 
 

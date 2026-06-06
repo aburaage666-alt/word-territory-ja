@@ -1,4 +1,4 @@
-# BALANCE_TEST_V18_ACTIVE3_AND_ALLCARDS
+﻿# BALANCE_TEST_V18_ACTIVE3_AND_ALLCARDS
 # BALANCE_TEST_V19_2PI2_BLUE_EXPANDER_BUILDER
 # BALANCE_TEST_V20_V19_RECURSION_FIX
 # BALANCE_TEST_V21_BORDER_LORD_UNDERDOG
@@ -244,7 +244,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--games", type=int, default=30)
     parser.add_argument("--mode", choices=["demo", "normal"], default="normal")
-    parser.add_argument("--bot-level", choices=["normal", "strong"], default="normal")
+    parser.add_argument("--bot-level", choices=["easy", "normal", "strong"], default="normal")
     parser.add_argument("--max-turns", type=int, default=60)
     parser.add_argument("--seed", type=int, default=1000)
     parser.add_argument("--force-synergy", default="active3",
@@ -305,3 +305,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
