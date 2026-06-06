@@ -1,4 +1,4 @@
-# JP_V28_FULL_ENGINE_CLEAN_V18_RELEASE
+﻿# JP_V28_FULL_ENGINE_CLEAN_V18_RELEASE
 # JP_PROTOTYPE_V1_SAFE_FOLDER
 # JP_PROTOTYPE_V2_SEED_REDUCTION
 # JP_PROTOTYPE_V3_BOT_VALID_DICTIONARY
@@ -3321,3 +3321,163 @@ try:
     def advance_market(*args, **kwargs):
         return _wt_ja_def_clean_pair(_wt_ja_orig_advance_market_def(*args, **kwargs))
 except Exception: pass
+
+
+# WT_JA_STABLE_MARKET_AND_SOFT_BOT_20260607
+# Purpose:
+# 1) Letter Market should not feel like it reshuffles every operation.
+#    On a successful human move, replace only the consumed tile.
+# 2) Normal bot should be playable for humans, not maximizer-level.
+#    Strong bot remains unchanged.
+
+def _wt_ja_soft_pool_20260607():
+    return list("あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ")
+
+def _wt_ja_is_kana_20260607(x):
+    return isinstance(x, str) and len(x) == 1 and ((0x3041 <= ord(x) <= 0x3096) or x == "\u30fc")
+
+def _wt_ja_pick_fill_20260607(existing, seed_offset=0):
+    pool = _wt_ja_soft_pool_20260607()
+    existing = set(existing or [])
+    for i in range(len(pool)):
+        c = pool[(i + seed_offset) % len(pool)]
+        if c not in existing:
+            return c
+    return pool[seed_offset % len(pool)]
+
+try:
+    _wt_ja_orig_advance_market_20260607 = advance_market
+
+    def advance_market(state, used_letter):
+        if globals().get("_LANG") != "ja":
+            return _wt_ja_orig_advance_market_20260607(state, used_letter)
+
+        active = list(getattr(state, "marketLetters", []) or [])
+        preview = list(getattr(state, "previewLetters", []) or [])
+
+        active = [x for x in active if _wt_ja_is_kana_20260607(x) or x == "*"][:3]
+        preview = [x for x in preview if _wt_ja_is_kana_20260607(x) and x not in active][:3]
+
+        while len(active) < 3:
+            active.append(_wt_ja_pick_fill_20260607(active, seed_offset=len(active)))
+
+        while len(preview) < 3:
+            preview.append(_wt_ja_pick_fill_20260607(active + preview, seed_offset=7 + len(preview)))
+
+        # Replace only the consumed tile.
+        new_active = active[:3]
+        try:
+            idx = new_active.index(used_letter)
+        except ValueError:
+            idx = 0
+
+        replacement = preview[0] if preview else _wt_ja_pick_fill_20260607(new_active, seed_offset=11)
+        new_active[idx] = replacement
+
+        new_preview = [x for x in preview[1:] if x not in new_active]
+        while len(new_preview) < 3:
+            new_preview.append(_wt_ja_pick_fill_20260607(new_active + new_preview, seed_offset=17 + len(new_preview)))
+
+        return new_active[:3], new_preview[:3]
+
+except Exception:
+    pass
+
+
+try:
+    _wt_ja_orig_choose_bot_move_20260607 = choose_bot_move
+
+    def _wt_ja_soft_score_move_20260607(state, move, player):
+        try:
+            ns = simulate_move(state, move)
+            last = ns.moveHistory[-1]
+            labels = set(last.comboLabels or [])
+
+            word = _norm_word(move.get("word", ""))
+            n = len(word)
+
+            score = 0.0
+            score += word_score(word) * 0.8
+            score += len(move.get("path", []) or []) * 0.2
+            score += max(0, (last.territoryGained or 0)) * 0.45
+
+            # Normal bot should not crush humans with tactical bursts.
+            score -= (last.captureCount or 0) * 2.8
+            if "BRIDGE" in labels:
+                score -= 2.5
+            if "CUT" in labels:
+                score -= 2.5
+            if "FORTIFY CHAIN" in labels:
+                score -= 1.8
+
+            # Very long words are impressive, but Normal should not always prefer them.
+            if globals().get("_LANG") == "ja":
+                if n >= 5:
+                    score -= 2.0
+                elif n == 4:
+                    score += 0.5
+                elif n <= 2:
+                    score -= 2.0
+
+            # If bot/current player is already ahead, become gentler.
+            try:
+                gap = get_score_gap(state, player)  # positive = player is behind
+                if gap < -3:
+                    score -= (last.captureCount or 0) * 4.0
+                    score -= max(0, (last.territoryGained or 0) - 2) * 1.5
+                    if "BRIDGE" in labels or "CUT" in labels:
+                        score -= 3.0
+                elif gap > 5:
+                    # If bot is losing badly, allow a reasonable comeback.
+                    score += max(0, (last.territoryGained or 0)) * 0.35
+            except Exception:
+                pass
+
+            return score
+        except Exception:
+            try:
+                return word_score(move.get("word", "")) * 0.5
+            except Exception:
+                return 0.0
+
+    def choose_bot_move(state):
+        # Strong bot remains unchanged.
+        if getattr(state, "botLevel", "normal") != "normal":
+            return _wt_ja_orig_choose_bot_move_20260607(state)
+
+        moves = generate_normal_moves(state)
+        if not moves:
+            return None
+
+        player = state.currentPlayer
+        scored = sorted(
+            [(_wt_ja_soft_score_move_20260607(state, m, player), m) for m in moves],
+            key=lambda x: x[0],
+            reverse=True
+        )
+
+        if not scored:
+            return None
+
+        # Do not pick the best move. Pick upper-middle / middle.
+        # This keeps the bot active but beatable.
+        try:
+            gap = get_score_gap(state, player)
+        except Exception:
+            gap = 0
+
+        if gap > 6:
+            # Bot/current player is losing: allow slightly stronger move.
+            idx = min(len(scored) - 1, max(0, len(scored) // 4))
+        elif gap < -3:
+            # Bot/current player is ahead: choose weaker move.
+            idx = min(len(scored) - 1, max(0, (len(scored) * 2) // 3))
+        else:
+            idx = min(len(scored) - 1, max(0, len(scored) // 2))
+
+        return scored[idx][1]
+
+except Exception:
+    pass
+
+
