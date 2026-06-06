@@ -3229,3 +3229,62 @@ try:
         return _wt_ja_final_clean_pair(_wt_ja_orig_advance_market_final(*args, **kwargs))
 except Exception:
     pass
+
+
+# WT_JA_FINAL_MARKET_STABLE_NO_ASCII_20260606
+# Final guard: Japanese Letter Market must emit kana only, never A-Z or "?".
+
+def _wt_ja_final_pool_no_ascii():
+    return list('あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ')
+
+def _wt_ja_final_is_kana_no_ascii(x):
+    if not isinstance(x, str) or len(x) != 1:
+        return False
+    o = ord(x)
+    return (0x3041 <= o <= 0x3096) or x == "\u30fc"
+
+def _wt_ja_final_clean_seq_no_ascii(seq, existing=None, offset=0):
+    if globals().get("_LANG") != "ja":
+        return seq
+
+    existing = set(existing or [])
+    pool = _wt_ja_final_pool_no_ascii()
+    out = []
+
+    for x in seq or []:
+        if _wt_ja_final_is_kana_no_ascii(x) and x not in out:
+            out.append(x)
+
+    i = offset
+    while len(out) < 3:
+        c = pool[i % len(pool)]
+        i += 1
+        if c not in out and c not in existing:
+            out.append(c)
+
+    return out[:3]
+
+def _wt_ja_final_clean_pair_no_ascii(pair):
+    if globals().get("_LANG") != "ja":
+        return pair
+    try:
+        active, preview = pair
+    except Exception:
+        return pair
+    active2 = _wt_ja_final_clean_seq_no_ascii(active, offset=0)
+    preview2 = _wt_ja_final_clean_seq_no_ascii(preview, existing=set(active2), offset=7)
+    return active2, preview2
+
+try:
+    _wt_orig_create_initial_market_final_no_ascii = create_initial_market
+    def create_initial_market(*args, **kwargs):
+        return _wt_ja_final_clean_pair_no_ascii(_wt_orig_create_initial_market_final_no_ascii(*args, **kwargs))
+except Exception:
+    pass
+
+try:
+    _wt_orig_advance_market_final_no_ascii = advance_market
+    def advance_market(*args, **kwargs):
+        return _wt_ja_final_clean_pair_no_ascii(_wt_orig_advance_market_final_no_ascii(*args, **kwargs))
+except Exception:
+    pass

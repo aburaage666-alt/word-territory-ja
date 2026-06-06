@@ -1,4 +1,4 @@
-export const WT_JA_API_FINAL_STABLE_MARKET_20260606 = true;
+export const WT_JA_API_FINAL_FREE_UI_20260606 = true;
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
@@ -37,7 +37,6 @@ function sanitizeMarketData(value) {
 
   if (value && typeof value === "object") {
     const out = {};
-
     Object.entries(value).forEach(([k, v]) => {
       out[k] = sanitizeMarketData(v);
     });
@@ -123,10 +122,7 @@ function payloadArgs(args) {
   }
 
   const [gameId, row, col, letter, path] = args;
-  return {
-    gameId,
-    body: { row, col, letter, path: path || [] }
-  };
+  return { gameId, body: { row, col, letter, path: path || [] } };
 }
 
 function listFrom(value, key) {
@@ -144,10 +140,7 @@ function listFrom(value, key) {
 }
 
 export async function createGame(payload = {}) {
-  return request("/games", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+  return request("/games", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export async function createDailyGame() {
@@ -163,19 +156,13 @@ export async function getDailyLeaderboard() {
 }
 
 export async function submitDailyScore(payload) {
-  return request("/daily/scores", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+  return request("/daily/scores", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export async function submitMove(...args) {
   const { gameId, body } = payloadArgs(args);
-  if (!gameId) throw new Error("???ID???????New Game?????????");
-  return request(`/games/${gameId}/move`, {
-    method: "POST",
-    body: JSON.stringify(body)
-  });
+  if (!gameId) throw new Error("???ID?????????????????????");
+  return request(`/games/${gameId}/move`, { method: "POST", body: JSON.stringify(body) });
 }
 
 export async function seedMove(...args) {
@@ -192,21 +179,14 @@ export async function seedMove(...args) {
     body = { row: args[1], col: args[2], letter: args[3] };
   }
 
-  if (!gameId) throw new Error("???ID???????New Game?????????");
-
-  return request(`/games/${gameId}/seed-move`, {
-    method: "POST",
-    body: JSON.stringify(body)
-  });
+  if (!gameId) throw new Error("???ID?????????????????????");
+  return request(`/games/${gameId}/seed-move`, { method: "POST", body: JSON.stringify(body) });
 }
 
 export async function previewMove(...args) {
   const { gameId, body } = payloadArgs(args);
-  if (!gameId) return { errorMessage: "???ID???????New Game?????????" };
-  return request(`/games/${gameId}/preview-move`, {
-    method: "POST",
-    body: JSON.stringify(body)
-  });
+  if (!gameId) return { errorMessage: "???ID?????????????????????" };
+  return request(`/games/${gameId}/preview-move`, { method: "POST", body: JSON.stringify(body) });
 }
 
 export async function passTurn(gameId) {
@@ -237,10 +217,7 @@ export async function getSynergyOptions(gameId) {
 }
 
 export async function selectSynergy(gameId, card) {
-  return request(`/games/${gameId}/select-synergy`, {
-    method: "POST",
-    body: JSON.stringify({ card })
-  });
+  return request(`/games/${gameId}/select-synergy`, { method: "POST", body: JSON.stringify({ card }) });
 }
 
 export async function getMarket(gameId) {
@@ -261,12 +238,9 @@ export async function useFreeLetter(gameId, payload, source = "free") {
   }
 
   if (body.mode && !body.source) body.source = body.mode;
-
   body.letter = normalizeKanaInput(body.letter);
 
-  if (!body.letter) {
-    throw new Error("????1????????????");
-  }
+  if (!body.letter) throw new Error("????1????????????");
 
   return request(`/games/${gameId}/free-letter`, {
     method: "POST",
@@ -280,10 +254,7 @@ export async function getThreat(gameId) {
 }
 
 export async function createAsyncMatch(payload = {}) {
-  return request("/async/games", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+  return request("/async/games", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export async function getAsyncMatch(gameId, token) {
@@ -300,11 +271,8 @@ export async function submitAsyncMove(gameId, token, ...args) {
 
 export async function seedAsyncMove(gameId, token, ...args) {
   let body;
-  if (args.length === 1 && args[0] && typeof args[0] === "object") {
-    body = args[0];
-  } else {
-    body = { row: args[0], col: args[1], letter: args[2] };
-  }
+  if (args.length === 1 && args[0] && typeof args[0] === "object") body = args[0];
+  else body = { row: args[0], col: args[1], letter: args[2] };
 
   return request(`/async/games/${gameId}/seed-move?token=${encodeURIComponent(token)}`, {
     method: "POST",
@@ -313,14 +281,9 @@ export async function seedAsyncMove(gameId, token, ...args) {
 }
 
 export async function passAsyncTurn(gameId, token) {
-  return request(`/async/games/${gameId}/pass?token=${encodeURIComponent(token)}`, {
-    method: "POST"
-  });
+  return request(`/async/games/${gameId}/pass?token=${encodeURIComponent(token)}`, { method: "POST" });
 }
 
 export async function joinWaitlist(email) {
-  return request("/waitlist", {
-    method: "POST",
-    body: JSON.stringify({ email })
-  });
+  return request("/waitlist", { method: "POST", body: JSON.stringify({ email }) });
 }
