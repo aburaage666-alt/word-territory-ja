@@ -1875,7 +1875,7 @@ export default function Home() {
   </div>
 )}
 
-{/* move controls */}}
+{/* move controls */}
           {!state.winner && <div className="mpanel">
             <div className="mrow">
               <label className="mlbl">{market.active.length > 0 ? "選択中" : "Letter"}</label>
@@ -2766,4 +2766,5 @@ export default function Home() {
     `}</style>
   </>;
 }
+
 
