@@ -1,8 +1,36 @@
-export const WT_API_THREAT_NORMALIZE_V1 = true;
+// Word Territory JA frontend API hotfix
+// Fixes: payload/positional argument mismatch, readable API errors, threat array normalization.
+
+export const WT_JA_API_HOTFIX_20260606 = true;
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
   "https://word-territory-ja.onrender.com";
+
+function normalizeErrorMessage(data, status) {
+  const detail = data?.detail ?? data?.error ?? data?.message;
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (!item || typeof item !== "object") return String(item);
+        const loc = Array.isArray(item.loc) ? item.loc.join(".") : item.loc;
+        const msg = item.msg || item.message || JSON.stringify(item);
+        return loc ? `${loc}: ${msg}` : msg;
+      })
+      .join(" / ");
+  }
+
+  if (detail && typeof detail === "object") {
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return String(detail);
+    }
+  }
+
+  return detail ? String(detail) : `HTTP ${status}`;
+}
 
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -21,8 +49,7 @@ async function request(path, options = {}) {
   }
 
   if (!res.ok) {
-    const message = data?.detail || data?.error || `HTTP ${res.status}`;
-    throw new Error(message);
+    throw new Error(normalizeErrorMessage(data, res.status));
   }
 
   return data;
@@ -43,7 +70,8 @@ function normalizeList(value) {
     Array.isArray(value.cells) ||
     Array.isArray(value.path) ||
     Array.isArray(value.threat_cells) ||
-    Array.isArray(value.affected_cells)
+    Array.isArray(value.affected_cells) ||
+    Array.isArray(value.captured_cells)
   ) {
     return [value];
   }
@@ -58,7 +86,6 @@ function toCell(value) {
   const col = Number(value.col ?? value.c ?? value.x);
 
   if (!Number.isFinite(row) || !Number.isFinite(col)) return null;
-
   return { row, col };
 }
 
@@ -96,12 +123,33 @@ function normalizeThreatPayload(value) {
         Number.isFinite(Number(item.row)) &&
         Number.isFinite(Number(item.col));
 
-      const hasCells =
-        Array.isArray(item.cells) &&
-        item.cells.length > 0;
-
+      const hasCells = Array.isArray(item.cells) && item.cells.length > 0;
       return hasMainCell || hasCells;
     });
+}
+
+function movePayloadFromArgs(args) {
+  if (args.length === 1 && args[0] && typeof args[0] === "object") {
+    return args[0];
+  }
+
+  const [gameId, row, col, letter, path] = args;
+  return {
+    game_id: gameId,
+    row,
+    col,
+    letter,
+    path: Array.isArray(path) ? path : []
+  };
+}
+
+function seedPayloadFromArgs(args) {
+  if (args.length >= 2 && args[1] && typeof args[1] === "object") {
+    return args[1];
+  }
+
+  const [, row, col, letter] = args;
+  return { row, col, letter };
 }
 
 export async function createGame(payload = {}) {
@@ -130,76 +178,100 @@ export async function submitDailyScore(payload) {
   });
 }
 
-export async function submitMove(gameId, row, col, letter, path) {
-  return request(`/games/${gameId}/move`, {
+export async function submitMove(...args) {
+  const payload = movePayloadFromArgs(args);
+  const gameId = payload.game_id || args[0];
+
+  if (!gameId) throw new Error("ゲームIDがありません。New Gameを押してからもう一度試してください。");
+
+  return request(`/games/${encodeURIComponent(gameId)}/move`, {
     method: "POST",
-    body: JSON.stringify({ row, col, letter, path })
+    body: JSON.stringify(payload)
   });
 }
 
-export async function seedMove(gameId, row, col, letter) {
-  return request(`/games/${gameId}/seed-move`, {
+export async function seedMove(gameId, ...args) {
+  const payload = seedPayloadFromArgs([gameId, ...args]);
+
+  if (!gameId) throw new Error("ゲームIDがありません。New Gameを押してからもう一度試してください。");
+
+  return request(`/games/${encodeURIComponent(gameId)}/seed-move`, {
     method: "POST",
-    body: JSON.stringify({ row, col, letter })
+    body: JSON.stringify(payload)
   });
 }
 
-export async function previewMove(gameId, row, col, letter, path) {
-  return request(`/games/${gameId}/preview-move`, {
+export async function previewMove(gameId, ...args) {
+  const payload = args.length === 1 && args[0] && typeof args[0] === "object"
+    ? args[0]
+    : movePayloadFromArgs([gameId, ...args]);
+
+  if (!gameId) return { errorMessage: "ゲームIDがありません。" };
+
+  return request(`/games/${encodeURIComponent(gameId)}/preview-move`, {
     method: "POST",
-    body: JSON.stringify({ row, col, letter, path })
+    body: JSON.stringify(payload)
   });
 }
 
 export async function passTurn(gameId) {
-  return request(`/games/${gameId}/pass`, { method: "POST" });
+  return request(`/games/${encodeURIComponent(gameId)}/pass`, { method: "POST" });
 }
 
 export async function botMove(gameId) {
-  return request(`/games/${gameId}/bot-move`, { method: "POST" });
+  return request(`/games/${encodeURIComponent(gameId)}/bot-move`, { method: "POST" });
 }
 
 export async function autoMove(gameId, demo = false) {
   const q = demo ? "?demo=true" : "";
-  return request(`/games/${gameId}/auto-move${q}`, { method: "POST" });
+  return request(`/games/${encodeURIComponent(gameId)}/auto-move${q}`, { method: "POST" });
 }
 
 export async function getSuggestions(gameId) {
-  return request(`/games/${gameId}/suggestions`);
+  const data = await request(`/games/${encodeURIComponent(gameId)}/suggestions`);
+  return normalizeList(data?.suggestions ?? data);
 }
 
 export async function getAlmost(gameId) {
-  return request(`/games/${gameId}/almost`);
+  const data = await request(`/games/${encodeURIComponent(gameId)}/almost`);
+  return normalizeList(data?.almost ?? data);
 }
 
 export async function getSynergyOptions(gameId) {
-  return request(`/games/${gameId}/synergy-options`);
+  return request(`/games/${encodeURIComponent(gameId)}/synergy-options`);
 }
 
 export async function selectSynergy(gameId, card) {
-  return request(`/games/${gameId}/select-synergy`, {
+  return request(`/games/${encodeURIComponent(gameId)}/select-synergy`, {
     method: "POST",
     body: JSON.stringify({ card })
   });
 }
 
 export async function getMarket(gameId) {
-  return request(`/games/${gameId}/market`);
+  return request(`/games/${encodeURIComponent(gameId)}/market`);
 }
 
 export async function getLetterPreview(gameId, letter) {
-  return request(`/games/${gameId}/letter-preview/${encodeURIComponent(letter)}`);
+  if (!gameId || !letter) return { letter: letter || "", moves: [] };
+  return request(`/games/${encodeURIComponent(gameId)}/letter-preview/${encodeURIComponent(letter)}`);
 }
 
-export async function useFreeLetter(gameId, payload) {
-  return request(`/games/${gameId}/free-letter`, {
+export async function useFreeLetter(gameId, payloadOrLetter, source = "free") {
+  const payload =
+    payloadOrLetter && typeof payloadOrLetter === "object"
+      ? payloadOrLetter
+      : { letter: payloadOrLetter, source };
+
+  return request(`/games/${encodeURIComponent(gameId)}/free-letter`, {
     method: "POST",
     body: JSON.stringify(payload)
   });
 }
 
 export async function getThreat(gameId) {
-  const data = await request(`/games/${gameId}/threat`);
+  if (!gameId) return [];
+  const data = await request(`/games/${encodeURIComponent(gameId)}/threat`);
   return normalizeThreatPayload(data);
 }
 
@@ -211,25 +283,30 @@ export async function createAsyncMatch(payload = {}) {
 }
 
 export async function getAsyncMatch(gameId, token) {
-  return request(`/async/games/${gameId}?token=${encodeURIComponent(token)}`);
+  return request(`/async/games/${encodeURIComponent(gameId)}?token=${encodeURIComponent(token)}`);
 }
 
-export async function submitAsyncMove(gameId, token, row, col, letter, path) {
-  return request(`/async/games/${gameId}/move?token=${encodeURIComponent(token)}`, {
+export async function submitAsyncMove(gameId, token, ...args) {
+  const payload = movePayloadFromArgs(args);
+  if (!payload.game_id) payload.game_id = gameId;
+
+  return request(`/async/games/${encodeURIComponent(gameId)}/move?token=${encodeURIComponent(token)}`, {
     method: "POST",
-    body: JSON.stringify({ row, col, letter, path })
+    body: JSON.stringify(payload)
   });
 }
 
-export async function seedAsyncMove(gameId, token, row, col, letter) {
-  return request(`/async/games/${gameId}/seed-move?token=${encodeURIComponent(token)}`, {
+export async function seedAsyncMove(gameId, token, ...args) {
+  const payload = seedPayloadFromArgs([gameId, ...args]);
+
+  return request(`/async/games/${encodeURIComponent(gameId)}/seed-move?token=${encodeURIComponent(token)}`, {
     method: "POST",
-    body: JSON.stringify({ row, col, letter })
+    body: JSON.stringify(payload)
   });
 }
 
 export async function passAsyncTurn(gameId, token) {
-  return request(`/async/games/${gameId}/pass?token=${encodeURIComponent(token)}`, {
+  return request(`/async/games/${encodeURIComponent(gameId)}/pass?token=${encodeURIComponent(token)}`, {
     method: "POST"
   });
 }
