@@ -99,6 +99,68 @@ const normalizeStringError = (error, fallback = "エラーが発生しました�
   return String(error || fallback);
 };
 
+
+// WT_JA_PANEL_LIST_FIX_20260606
+function wtJaToArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+
+  if (Array.isArray(value.suggestions)) return value.suggestions;
+  if (Array.isArray(value.threats)) return value.threats;
+  if (Array.isArray(value.almost)) return value.almost;
+  if (Array.isArray(value.moves)) return value.moves;
+  if (Array.isArray(value.items)) return value.items;
+  if (Array.isArray(value.results)) return value.results;
+  if (Array.isArray(value.data)) return value.data;
+
+  return [];
+}
+
+function wtJaToTextList(value) {
+  const raw = wtJaToArray(value);
+  const out = [];
+
+  raw.forEach((item) => {
+    let s = "";
+
+    if (typeof item === "string") {
+      s = item;
+    } else if (item && typeof item === "object") {
+      s = item.word || item.text || item.label || item.name || "";
+    }
+
+    s = String(s || "").trim();
+    if (s && !out.includes(s)) out.push(s);
+  });
+
+  return out;
+}
+
+function wtJaToThreatList(value) {
+  const raw = wtJaToArray(value);
+
+  return raw.map((item) => {
+    const obj = item && typeof item === "object" ? item : {};
+    const cellsRaw = wtJaToArray(obj.cells || obj.path || obj.threat_cells || obj.affected_cells);
+
+    const cells = cellsRaw
+      .map((c) => {
+        if (!c || typeof c !== "object") return null;
+        const row = Number(c.row ?? c.r ?? c.y);
+        const col = Number(c.col ?? c.c ?? c.x);
+        if (!Number.isFinite(row) || !Number.isFinite(col)) return null;
+        return { row, col };
+      })
+      .filter(Boolean);
+
+    return {
+      ...obj,
+      word: String(obj.word || obj.text || obj.label || "Capture threat"),
+      cells
+    };
+  });
+}
+
 const isGameNotFoundError = (error) => {
   const msg = normalizeStringError(error, "").toLowerCase();
   return msg.includes("game not found") || msg.includes("ゲームが切れました") || msg.includes("ゲームidがありません");
@@ -645,8 +707,8 @@ export default function Home() {
           try { localStorage.setItem(LS_ASYNC, JSON.stringify({ match: mid, token: tok })); } catch {}
           setGameId(mid); setState(d.state); setDailyMode(false); setBootMsg("");
           if (d.state?.marketLetters?.length > 0) setMarket({ active:d.state.marketLetters, preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed });
-          getSuggestions(mid).then(setSugg).catch(()=>setSugg([]));
-          getThreat(mid).then(setThreats).catch(()=>setThreats([]));
+          getSuggestions(mid).then(x => setSugg(wtJaToTextList(x))).catch(()=>setSugg([]));
+          getThreat(mid).then(x => setThreats(wtJaToThreatList(x))).catch(()=>setThreats([]));
         }).catch(e => setError(e.message || "Could not load async match"));
       } else if (typeof window !== "undefined" && localStorage.getItem(LS_INTRO) !== "1") {
         setShowIntro(true);
@@ -660,8 +722,8 @@ export default function Home() {
             setAsyncMode(true); setAsyncToken(saved.token); setAsyncRole(d.role || "");
             setGameId(saved.match); setState(d.state); setDailyMode(false); setBootMsg("");
             if (d.state?.marketLetters?.length > 0) setMarket({ active:d.state.marketLetters, preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed });
-            getSuggestions(saved.match).then(setSugg).catch(()=>setSugg([]));
-            getThreat(saved.match).then(setThreats).catch(()=>setThreats([]));
+            getSuggestions(saved.match).then(d=>setSugg(wtJaToTextList(d))).catch(()=>setSugg([]));
+            getThreat(saved.match).then(d=>setThreats(wtJaToThreatList(d))).catch(()=>setThreats([]));
           }).catch(()=>{ try { localStorage.removeItem(LS_ASYNC); } catch {} });
         }
       }
@@ -696,8 +758,8 @@ export default function Home() {
           // Fetch stats non-blocking — failure must NOT trigger game retry
           try { const mk = await getMarket(d.game_id); setMarket(mk); } catch(_) {}
         }
-        getSuggestions(d.game_id).then(setSugg).catch(() => setSugg([]));
-        getThreat(d.game_id).then(setThreats).catch(() => setThreats([]));
+        getSuggestions(d.game_id).then(x => setSugg(wtJaToTextList(x))).catch(() => setSugg([]));
+        getThreat(d.game_id).then(x => setThreats(wtJaToThreatList(x))).catch(() => setThreats([]));
         // Show synergy card selection
         getSynergyOptions(d.game_id).then(r => {
           setSynergyOpts(r.options||[]);
@@ -734,7 +796,7 @@ export default function Home() {
         setSynergy(r.selected||"");
         if (!r.selected && r.options?.length > 0) setShowSynergy(true);
       }).catch(() => {});
-    getSuggestions(d.game_id).then(setSugg).catch(() => setSugg([]));
+    getSuggestions(d.game_id).then(x => setSugg(wtJaToTextList(x))).catch(() => setSugg([]));
   }
 
   async function startSpectatorDemo() {
@@ -1130,7 +1192,7 @@ export default function Home() {
     return true;
   }
   const refresh = async (id=gameId) => {
-    try { setSugg(await getSuggestions(id)); } catch { setSugg([]); }
+    try { setSugg(wtJaToTextList(await getSuggestions(id))); } catch { setSugg([]); }
     await syncThreats(id);
   };
   async function submit() {
@@ -1215,7 +1277,7 @@ export default function Home() {
     .slice(0,3);
   const bestMove = topMoves[0] || null;
   const moveLabel = terrainMoveLabel;
-  const threatList = useMemo(() => normalizeThreats(threats), [JSON.stringify(threats || [])]);
+  const suggestionList = useMemo(() => wtJaToTextList(suggestions), [JSON.stringify(suggestions || [])]); const threatList = useMemo(() => normalizeThreats(threats), [JSON.stringify(threats || [])]);
   const threatCellSet = useMemo(() => {
     const s = new Set();
     threatList.forEach(t => {
@@ -1764,7 +1826,7 @@ export default function Home() {
             </div>
             {showSuggest&&(
               <div className="chips sc">
-                {[...new Set(suggestions)].length?[...new Set(suggestions)].map(w=><span key={w} className="chip">{w}</span>):<div className="no-word-hint">No playable word found.<br/>Use <strong>Seed</strong> to place a tile without capturing.</div>}
+                {suggestionList.length ? suggestionList.map(w=><span key={w} className="chip">{w}</span>):<div className="no-word-hint">No playable word found.<br/>Use <strong>Seed</strong> to place a tile without capturing.</div>}
               </div>
             )}
           </div>

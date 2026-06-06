@@ -12,6 +12,22 @@ function wtJaNormalizeFreeLetterForApi(value) {
   return chars.length ? chars[chars.length - 1] : "";
 }
 
+
+// WT_JA_API_LIST_FIX_20260606
+function wtJaApiArray(value, key) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+  if (key && Array.isArray(value[key])) return value[key];
+  if (Array.isArray(value.suggestions)) return value.suggestions;
+  if (Array.isArray(value.threats)) return value.threats;
+  if (Array.isArray(value.almost)) return value.almost;
+  if (Array.isArray(value.moves)) return value.moves;
+  if (Array.isArray(value.items)) return value.items;
+  if (Array.isArray(value.results)) return value.results;
+  if (Array.isArray(value.data)) return value.data;
+  return [];
+}
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ||
   "https://word-territory-ja.onrender.com";
@@ -201,13 +217,9 @@ export async function autoMove(gameId, demo = false) {
   return request(`/games/${gameId}/auto-move${q}`, { method: "POST" });
 }
 
-export async function getSuggestions(gameId) {
-  return request(`/games/${gameId}/suggestions`);
-}
+export async function getSuggestions(gameId) { const data = await request(`/games/${gameId}/suggestions`); return wtJaApiArray(data, "suggestions"); }
 
-export async function getAlmost(gameId) {
-  return request(`/games/${gameId}/almost`);
-}
+export async function getAlmost(gameId) { const data = await request(`/games/${gameId}/almost`); return wtJaApiArray(data, "almost"); }
 
 export async function getSynergyOptions(gameId) {
   return request(`/games/${gameId}/synergy-options`);
@@ -253,10 +265,7 @@ export async function useFreeLetter(gameId, payload, source = "free") {
   });
 }
 
-export async function getThreat(gameId) {
-  const data = await request(`/games/${gameId}/threat`);
-  return normalizeList(data);
-}
+export async function getThreat(gameId) { const data = await request(`/games/${gameId}/threat`); return wtJaApiArray(data, "threats"); }
 
 export async function createAsyncMatch(payload = {}) {
   return request("/async/games", {
