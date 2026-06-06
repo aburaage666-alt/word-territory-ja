@@ -3098,3 +3098,72 @@ try:
         return _wt_ja_clean_market_pair(_wt_orig_advance_market(*args, **kwargs))
 except Exception:
     pass
+
+
+# WT_JA_UNICODE_SAFE_MARKET_FIX_20260606_V2
+# Final safety net: Japanese Letter Market must never emit ASCII or mojibake "?".
+
+def _wt_ja_unicode_pool_v2():
+    try:
+        from language_profiles import ja as _ja
+        pool = [x for x in getattr(_ja, "ALL_KANA", []) if isinstance(x, str) and len(x) == 1]
+        if pool:
+            return pool
+    except Exception:
+        pass
+    return list('あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ')
+
+def _wt_ja_is_kana_tile_v2(x):
+    if not isinstance(x, str) or len(x) != 1:
+        return False
+    o = ord(x)
+    return (0x3041 <= o <= 0x3096) or x == "\u30fc"
+
+def _wt_ja_clean_market_seq_v2(seq, existing=None):
+    if globals().get("_LANG") != "ja":
+        return seq
+
+    import random as _r
+
+    existing = set(existing or [])
+    pool = _wt_ja_unicode_pool_v2()
+    out = []
+
+    for x in seq or []:
+        if _wt_ja_is_kana_tile_v2(x) and x not in out:
+            out.append(x)
+
+    while len(out) < 3:
+        choices = [x for x in pool if x not in existing and x not in out]
+        if not choices:
+            choices = pool
+        out.append(_r.choice(choices))
+
+    return out[:3]
+
+def _wt_ja_clean_market_pair_v2(pair):
+    if globals().get("_LANG") != "ja":
+        return pair
+
+    try:
+        active, preview = pair
+    except Exception:
+        return pair
+
+    active2 = _wt_ja_clean_market_seq_v2(active)
+    preview2 = _wt_ja_clean_market_seq_v2(preview, existing=set(active2))
+    return active2, preview2
+
+try:
+    _wt_ja_orig_create_initial_market_v2 = create_initial_market
+    def create_initial_market(*args, **kwargs):
+        return _wt_ja_clean_market_pair_v2(_wt_ja_orig_create_initial_market_v2(*args, **kwargs))
+except Exception:
+    pass
+
+try:
+    _wt_ja_orig_advance_market_v2 = advance_market
+    def advance_market(*args, **kwargs):
+        return _wt_ja_clean_market_pair_v2(_wt_ja_orig_advance_market_v2(*args, **kwargs))
+except Exception:
+    pass
