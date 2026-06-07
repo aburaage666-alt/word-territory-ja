@@ -900,7 +900,7 @@ const [thinking, setThinking] = useState(false);
   const [shareText,   setShareText]   = useState("");
   const [nickname,    setNickname]    = useState("");
   const [myRank,      setMyRank]      = useState(null);
-  const [submitted,   setSubmitted]   = useState(false);
+  const [submitted,   set決定ted]   = useState(false);
   const [almost,      setAlmost]      = useState([]);
   const [market,      setMarket]      = useState({ active:[], preview:[], stats:[], freeLetterUsed:false });
   const [freeLetter,  setFreeLetter]  = useState('');
@@ -975,7 +975,7 @@ const [thinking, setThinking] = useState(false);
   function reset() {
     setPath([]); setPlaced(null); setLetter(""); setError(""); setPreview(null); setValuePrev([]); setDaziMode(false);
     setSum(false); setCopied(false); setShareText(""); setNickname(""); setMyRank(null);
-    setSubmitted(false); summaryFired.current = false;
+    set決定ted(false); summaryFired.current = false;
   }
   async function boot(m = mode) {
     let lastErr;
@@ -1499,7 +1499,7 @@ const [thinking, setThinking] = useState(false);
     }
   }
 
-  // ④ Submit daily score to leaderboard
+  // ④ 決定 daily score to leaderboard
   
 async function swapRelief() {
   try {
@@ -1529,7 +1529,7 @@ async function submitScore() {
         turns: dailyResult.turns,
       });
       setMyRank(res.rank);
-      setSubmitted(true);
+      set決定ted(true);
     } catch { setError("Could not submit score"); }
   }
 
@@ -1780,7 +1780,7 @@ async function submitScore() {
       {tutTurns === 0 && human() && (
         <div className="firstmove-banner">
           <strong>遊び方:</strong>{" "}
-          Tap a <span className="fm-green">green square</span> → type a letter → connect letters to make a word → press <strong>Claim Territory</strong>
+          <span className="fm-green">緑のマス</span>をタップ → 文字を置く → 文字をつないで単語を作る → <strong>領地を確定</strong>
         </div>
       )}
       {/* ── score bar ── */}
@@ -2049,7 +2049,7 @@ async function submitScore() {
                 ):(
                   <div className="pvhint">
                     {!placed
-                      ? (market.active.length > 0 ? (thinking ? "Bot is thinking..." : state?.winner ? "対戦レポート" : "上の文字カードを選ぶと、ここに領地化の見込みが表示されます。") : "Tap a green square to place a letter.")
+                      ? (market.active.length > 0 ? (thinking ? "Bot is thinking..." : state?.winner ? "対戦レポート" : "上の文字カードを選ぶと、ここに領地化の見込みが表示されます。") : "Tap a 緑のマス to place a letter.")
                       : !letter
                       ? "ひらがな1文字・ー・ゃゅょっを入力してください。"
                       : path.length < 2
