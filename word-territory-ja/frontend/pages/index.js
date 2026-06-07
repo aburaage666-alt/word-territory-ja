@@ -14,15 +14,15 @@ const asKey = (r, c) => `${r}-${c}`;
 // WT_JA_FREE_INPUT_FIX_20260606
 const WT_JA_FREE_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
 
-function wtJaKatakanaToHiragana(value) {
-  return String(value || "").replace(/[\u30a1-\u30f6]/g, ch =>
+// WT_JA_SMALL_KANA_FREE_INPUT_V1
+function wtJaKatakanaToHiraganaLongVowel(value) {
+  return String(value || "").normalize("NFKC").replace(/[\u30a1-\u30f6]/g, ch =>
     String.fromCharCode(ch.charCodeAt(0) - 0x60)
   );
 }
 
 function wtJaNormalizeKanaInput(value) {
-  const raw = String(value || "").normalize("NFKC");
-  const hira = wtJaKatakanaToHiragana(raw);
+  const hira = wtJaKatakanaToHiraganaLongVowel(value);
   const chars = Array.from(hira).filter(ch => /^[\u3041-\u3096\u30fc]$/.test(ch));
   return chars.length ? chars[chars.length - 1] : "";
 }
@@ -1718,7 +1718,7 @@ async function submitScore() {
                   <input className="lm-free-input" maxLength={1}
                     placeholder={wildMode ? "WILD: type any letter" : "Type any letter"}
                     value={freeLetter}
-                    onChange={e => setFreeLetter(e.target.value.toUpperCase().replace(/[^A-Z]/g,''))}
+                    onChange={e => setFreeLetter(wtJaNormalizeKanaInput(e.target.value))}
                     onKeyDown={e => {
                       if(e.key==='Enter' && freeLetter) {
                         useFreeLetter(gameId, freeLetter, wildMode ? "wild" : "free").then(r => {
@@ -1758,7 +1758,7 @@ async function submitScore() {
                 disabled={!human()}
                 readOnly={market.active.length > 0}
                 onChange={e=>{ if(market.active.length===0) setLetter(wtJaNormalizeKanaInput(e.target.value)); }}
-                placeholder={market.active.length > 0 ? "—" : "A"}
+                placeholder={market.active.length > 0 ? "—" : "あ/ー/ゃ"}
                 style={market.active.length > 0 && !letter ? {color:'#ccc'} : {}}
               />
               <div className={`pvbox ${ok?"pvok":""}`}>
@@ -1788,7 +1788,7 @@ async function submitScore() {
                     {!placed
                       ? (market.active.length > 0 ? (thinking ? "Bot is thinking..." : state?.winner ? "対戦レポート" : "上の文字カードを選ぶと、ここに領地化の見込みが表示されます。") : "Tap a green square to place a letter.")
                       : !letter
-                      ? "ひらがな1文字を入力してください。"
+                      ? "ひらがな1文字・ー・ゃゅょっを入力してください。"
                       : path.length < 2
                       ? "Now tap connected letters to make a word."
                       : !incPlaced

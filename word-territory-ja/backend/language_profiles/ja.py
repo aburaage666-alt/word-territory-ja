@@ -182,3 +182,91 @@ def is_valid_kana_word(word):
         return _WT_JA_ORIG_IS_VALID_KANA_WORD_V3(w)
     return all(ch in KANA_WEIGHTS for ch in w)
 
+
+# WT_JA_SMALL_KANA_WORD_ONLY_V1
+# Small kana are valid inside dictionary words but are never drawn into Letter Market.
+SMALL_KANA_CHARS = {"ゃ", "ゅ", "ょ", "っ"}
+
+try:
+    LOAN_CHARS
+except NameError:
+    LOAN_CHARS = {"ー"}
+
+SPECIAL_WORD_CHARS = set(LOAN_CHARS) | set(SMALL_KANA_CHARS)
+
+try:
+    ALL_KANA = [ch for ch in ALL_KANA if ch not in SPECIAL_WORD_CHARS]
+except Exception:
+    pass
+
+try:
+    for _ch in SPECIAL_WORD_CHARS:
+        KANA_WEIGHTS.pop(_ch, None)
+except Exception:
+    pass
+
+_YOON_PREV = set("きしちにひみりぎじぢびぴ")
+_SMALL_YOON = set("ゃゅょ")
+
+def _wt_ja_small_kana_structure_ok(word):
+    w = str(word or "")
+    if not w:
+        return False
+
+    for i, ch in enumerate(w):
+        if ch in _SMALL_YOON:
+            if i == 0:
+                return False
+            if w[i - 1] not in _YOON_PREV:
+                return False
+
+        if ch == "っ":
+            if i == 0 or i == len(w) - 1:
+                return False
+            nxt = w[i + 1]
+            if nxt in set("あいうえおんーゃゅょっ"):
+                return False
+
+        if ch == "ー":
+            if i == 0 or i == len(w) - 1:
+                return False
+
+    return True
+
+try:
+    _WT_JA_SMALL_ORIG_NORMALIZE_V1 = normalize
+except Exception:
+    _WT_JA_SMALL_ORIG_NORMALIZE_V1 = None
+
+def normalize(value):
+    import unicodedata
+    raw = unicodedata.normalize("NFKC", str(value or "").strip())
+    out = []
+    for ch in raw:
+        code = ord(ch)
+        if 0x30A1 <= code <= 0x30F6:
+            ch = chr(code - 0x60)
+        if ch in KANA_WEIGHTS or ch in SPECIAL_WORD_CHARS:
+            out.append(ch)
+    return "".join(out)
+
+try:
+    _WT_JA_SMALL_ORIG_IS_VALID_KANA_WORD_V1 = is_valid_kana_word
+except Exception:
+    _WT_JA_SMALL_ORIG_IS_VALID_KANA_WORD_V1 = None
+
+def is_valid_kana_word(word):
+    w = normalize(word)
+    if not w:
+        return False
+
+    if any(ch in SPECIAL_WORD_CHARS for ch in w):
+        if not all((ch in KANA_WEIGHTS or ch in SPECIAL_WORD_CHARS) for ch in w):
+            return False
+        return _wt_ja_small_kana_structure_ok(w)
+
+    if _WT_JA_SMALL_ORIG_IS_VALID_KANA_WORD_V1:
+        return _WT_JA_SMALL_ORIG_IS_VALID_KANA_WORD_V1(w)
+
+    return all(ch in KANA_WEIGHTS for ch in w)
+
