@@ -3,8 +3,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyランキング,
-  getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, getThreat, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, passAsyncTurn,
-  joinWaitlist, passTurn, previewMove, seedMove, submitDailyScore, submitMove,
+  getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, getThreat, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, rotateAsyncBlock, passAsyncTurn,
+  joinWaitlist, passTurn, previewMove, rotateBlock, seedMove, submitDailyScore, submitMove,
   useFreeLetter, swapLetter,
 } from "../lib/api";
 
@@ -415,13 +415,13 @@ function updateStreak(dateStr) {
 }
 
 // ── Cell ──────────────────────────────────────────────────────────────────────
-function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePath, lockNeighbor, tutorialPlace, tutorialPath, disabled, gen, attack, inPath, threat, threatMove, captureOrder, lockOrder, onClick }) {
+function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePath, lockNeighbor, tutorialPlace, tutorialPath, disabled, gen, attack, inPath, threat, threatMove, rotateTarget, captureOrder, lockOrder, onClick }) {
   const cls = ["cell",
     cell.owner === "RED" ? "cr" : cell.owner === "BLUE" ? "cb" : "",
     cell.fortified ? "ft" : "", sel ? "sl" : "", placed ? "pl" : "",
     legal ? "lg" : "", disabled && !sel ? "dm" : "",
     attack ? "atk" : "",   // opponent cell that can be attacked
-    threat ? "threat" : "", threatMove ? "threatMove" : "",
+    threat ? "threat" : "", threatMove ? "threatMove" : "", rotateTarget ? "rotate-target" : "",
     bridgePath ? "bridge-path" : "", lockNeighbor ? "lock-neighbor" : "",
     tutorialPlace ? "tut-pulse tut-cell" : "", tutorialPath ? "tut-arrow-cell" : "",
     inPath ? "inpath" : "", // opponent cell currently in selected path (will be captured)
@@ -788,6 +788,8 @@ export default function Home() {
   const [boardMode, setBoardMode] = useState("standard"); // WT_QUICK5_UI_V2
 const [thinking, setThinking] = useState(false);
   const [preview, setPreview]   = useState(null);
+  const [rotateMode, setRotateMode] = useState(false);
+  const [rotateTarget, setRotateTarget] = useState(null);
   const [showSummary, setSum]   = useState(false);
   const [copied, setCopied]     = useState(false);
 
@@ -1379,8 +1381,32 @@ const [thinking, setThinking] = useState(false);
     return true;
   };
 
+
+  async function performRotateRaid(target = rotateTarget) {
+    if (!target) { setError("2×2ブロックの左上マスを選んでください。ロック済みマスは回転できません。"); return; }
+    try {
+      const payload = { row: target.row, col: target.col };
+      const next = asyncMode ? await rotateAsyncBlock(gameId, asyncToken, payload) : await rotateBlock(gameId, payload);
+      setState(next);
+      setRotateMode(false);
+      setRotateTarget(null);
+      setPath([]); setPlaced(null); setPreview(null); setValuePrev([]);
+      setCombo(["回転侵略", "次の語で打ち込みを狙え"]);
+      try { navigator.vibrate && navigator.vibrate([20, 25, 35]); } catch {}
+      await refresh(gameId);
+    } catch(e) { setError(e.message || "Rotation Raid failed"); }
+  }
+
+  function handleRotateCell(r, c) {
+    const size = state?.boardSize || state?.board?.length || 7;
+    if (r + 1 >= size || c + 1 >= size) { setError("2×2の左上マスを選んでください。"); return; }
+    setRotateTarget({ row:r, col:c });
+    setError("もう一度「回転確定」を押すと、文字だけが回転します。所有権は動きません。");
+  }
+
   function clickCell(r,c) {
     if (!state || !human()) return;
+    if (rotateMode) { handleRotateCell(r,c); return; }
     playSfx("click");
     const cell = state.board[r][c];
 
@@ -1853,7 +1879,7 @@ async function submitScore() {
                     captureOrder={capturedOrderMap.get(k)} lockOrder={lockedOrderMap.get(k)}
                     disabled={isDim(cell.row,cell.col)} gen={animGen}
                     attack={attackableSet.has(k) && !isSel(cell.row,cell.col)}
-                    threat={threatCellSet.has(k)} threatMove={threatMoveSet.has(k)}
+                    threat={threatCellSet.has(k)} threatMove={threatMoveSet.has(k)} rotateTarget={rotateTargetSet.has(k)}
                     inPath={inPathOpponentSet.has(k)}
                     onClick={()=>clickCell(cell.row,cell.col)}/>
                   {showVp && <div className={`vp-overlay vp-${vp.tier || 'basic'}`} title={vp.word ? `${vp.word} · 領地変動 +${vp.gain||0}${vp.synergyPreview ? ' · '+vp.synergyPreview : ''}` : 'Setup'}>
@@ -2375,6 +2401,9 @@ async function submitScore() {
       .cell[data-cap]{animation:acap 1050ms cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(var(--cap-order,0) * 90ms);animation-fill-mode:both}
       .cell[data-lk]{animation:alk 850ms ease forwards;animation-delay:var(--lock-delay,0ms);animation-fill-mode:both}
       .lock-shield{position:absolute;right:3px;bottom:2px;font-size:9px;line-height:1;background:rgba(255,255,255,.90);border:1.5px solid rgba(17,24,39,.72);border-radius:999px;padding:2px 3px;box-shadow:0 1px 4px rgba(0,0,0,.18);pointer-events:none;letter-spacing:0}
+      .cell.rotate-target{outline:3px solid #8b5cf6!important;outline-offset:-3px;box-shadow:0 0 0 4px rgba(139,92,246,.18),0 0 18px rgba(139,92,246,.35)!important;animation:rotatePulse .75s ease-in-out infinite alternate}
+      .brotate.active{background:#ede9fe;border-color:#8b5cf6;color:#4c1d95}
+      @keyframes rotatePulse{from{transform:rotate(-1deg) scale(1)}to{transform:rotate(1deg) scale(1.035)}}
       .cell.threat{box-shadow:inset 0 0 0 2px rgba(37,99,235,.48),0 0 0 3px rgba(37,99,235,.08);background:rgba(37,99,235,.08)}
       .cell.threatMove{outline:2px dashed rgba(37,99,235,.42);outline-offset:-5px}
       .threat-dot{position:absolute;bottom:4px;left:4px;width:7px;height:7px;border-radius:50%;background:#2563eb;box-shadow:0 0 8px rgba(37,99,235,.75);pointer-events:none}

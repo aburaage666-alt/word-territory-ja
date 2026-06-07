@@ -17,6 +17,17 @@ export async function getDailyLeaderboard(){return request("/daily/leaderboard")
 export async function submitDailyScore(payload){return request("/daily/scores",{method:"POST",body:JSON.stringify(payload)});}
 export async function submitMove(...args){const {gameId,body}=payloadArgs(args); if(!gameId)throw new Error("ゲームIDがありません。新規ゲームを押してください。"); return request(`/games/${gameId}/move`,{method:"POST",body:JSON.stringify(body)});}
 export async function seedMove(...args){let gameId,body; if(args.length===2&&args[1]&&typeof args[1]==="object"){gameId=args[0];body=args[1];}else if(args.length===1&&args[0]&&typeof args[0]==="object"){gameId=args[0].gameId||args[0].game_id||args[0].id; body={row:args[0].row,col:args[0].col,letter:args[0].letter};}else{gameId=args[0]; body={row:args[1],col:args[2],letter:args[3]};} if(!gameId)throw new Error("ゲームIDがありません。新規ゲームを押してください。"); return request(`/games/${gameId}/seed-move`,{method:"POST",body:JSON.stringify(body)});}
+
+
+export async function rotateBlock(gameId, payload) {
+  const res = await fetchWithTimeout(`${API_BASE}/games/${gameId}/rotate-block`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return readJson(res);
+}
+
 export async function previewMove(...args){const {gameId,body}=payloadArgs(args); if(!gameId)return {errorMessage:"ゲームIDがありません。新規ゲームを押してください。"}; return request(`/games/${gameId}/preview-move`,{method:"POST",body:JSON.stringify(body)});}
 export async function passTurn(gameId){return request(`/games/${gameId}/pass`,{method:"POST"});}
 export async function botMove(gameId){return request(`/games/${gameId}/bot-move`,{method:"POST"});}
@@ -32,6 +43,17 @@ export async function swapLetter(gameId, letter=""){return request(`/games/${gam
 export async function createAsyncMatch(payload={}){return request("/async/games",{method:"POST",body:JSON.stringify(payload)});}
 export async function getAsyncMatch(gameId,token){return request(`/async/games/${gameId}?token=${encodeURIComponent(token)}`);}
 export async function submitAsyncMove(gameId,token,...args){const {body}=payloadArgs(args); return request(`/async/games/${gameId}/move?token=${encodeURIComponent(token)}`,{method:"POST",body:JSON.stringify(body)});}
+
+
+export async function rotateAsyncBlock(gameId, token, payload) {
+  const res = await fetchWithTimeout(`${API_BASE}/async/games/${gameId}/rotate-block?token=${encodeURIComponent(token)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return readJson(res);
+}
+
 export async function seedAsyncMove(gameId,token,...args){let body; if(args.length===1&&args[0]&&typeof args[0]==="object")body=args[0]; else body={row:args[0],col:args[1],letter:args[2]}; return request(`/async/games/${gameId}/seed-move?token=${encodeURIComponent(token)}`,{method:"POST",body:JSON.stringify(body)});}
 export async function passAsyncTurn(gameId,token){return request(`/async/games/${gameId}/pass?token=${encodeURIComponent(token)}`,{method:"POST"});}
 export async function joinWaitlist(email){return request("/waitlist",{method:"POST",body:JSON.stringify({email})});}
