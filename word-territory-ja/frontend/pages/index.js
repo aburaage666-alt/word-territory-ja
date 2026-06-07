@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyLeaderboard,
+  botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyランキング,
   getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, getThreat, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, passAsyncTurn,
   joinWaitlist, passTurn, previewMove, seedMove, submitDailyScore, submitMove,
   useFreeLetter,
@@ -155,7 +155,7 @@ function wtJaToThreatList(value) {
 
     return {
       ...obj,
-      word: String(obj.word || obj.text || obj.label || "Capture threat"),
+      word: String(obj.word || obj.text || obj.label || "奪取の危険"),
       cells
     };
   });
@@ -192,53 +192,53 @@ const OPENING_NOTES = {
 };
 
 const MARKET_SLOT_LABELS = [
-  { key: "SAFE",  icon: "🛡", copy: "safe play" },
-  { key: "POWER", icon: "⚔", copy: "best swing" },
-  { key: "SETUP", icon: "✨", copy: "future path" },
+  { key: "SAFE",  icon: "🛡", label: "安全", copy: "安全重視" },
+  { key: "POWER", icon: "⚔", label: "攻め", copy: "最大効果" },
+  { key: "SETUP", icon: "✨", label: "準備", copy: "次の布石" },
 ];
 
 const ROLE_META = {
-  WILD:    { icon: "★", label: "Wild" },
-  CAPTURE: { icon: "⚔️", label: "Capture" },
-  BRIDGE:  { icon: "🌉", label: "Bridge" },
-  LOCK:    { icon: "🔒", label: "Lock" },
-  POWER:   { icon: "⚡", label: "Power" },
-  SAFE:    { icon: "🛡", label: "Safe" },
-  SETUP:   { icon: "✨", label: "Setup" },
-  LONG:    { icon: "➜", label: "Long" },
+  WILD:    { icon: "★", label: "自由" },
+  CAPTURE: { icon: "⚔️", label: "奪取" },
+  BRIDGE:  { icon: "🌉", label: "接続" },
+  LOCK:    { icon: "🔒", label: "固定" },
+  POWER:   { icon: "⚡", label: "攻め" },
+  SAFE:    { icon: "🛡", label: "安全" },
+  SETUP:   { icon: "✨", label: "準備" },
+  LONG:    { icon: "➜", label: "長手" },
 };
 
 const TERRAIN_LABELS = {
-  "CAPTURE": "Capture",
-  "DOUBLE CAPTURE": "Double Capture",
-  "BRIDGE": "Bridge",
-  "CUT": "Cut",
-  "FORTIFY CHAIN": "Fortify Chain",
-  "LONG PATH": "Long Path",
-  "MEGA TERRITORY": "Mega Territory Swing",
-  "CROSS WORD": "Cross Path",
-  "FIRST CAPTURE": "First Capture",
-  "EDGE REACH": "Edge Reach",
-  "COMEBACK": "Comeback Swing",
-  "SWING MOVE": "Territory Swing",
+  "CAPTURE": "奪取",
+  "DOUBLE CAPTURE": "連続奪取",
+  "BRIDGE": "接続",
+  "CUT": "分断",
+  "FORTIFY CHAIN": "固定連鎖",
+  "LONG PATH": "長い道",
+  "MEGA TERRITORY": "大領地変動",
+  "CROSS WORD": "交差ルート",
+  "FIRST CAPTURE": "初奪取",
+  "EDGE REACH": "端到達",
+  "COMEBACK": "反撃",
+  "SWING MOVE": "領地変動",
 };
 
 function terrainComboLabel(label, move = null) {
   const raw = String(label || "");
   if (raw.startsWith("SYNERGY:")) return raw.replace("SYNERGY:", "").trim();
-  if (raw === "CAPTURE" && move?.captureCount) return `Captured ${move.captureCount} cell${move.captureCount === 1 ? "" : "s"}`;
-  if (raw === "DOUBLE CAPTURE" && move?.captureCount) return `Double Capture (+${move.captureCount} cells)`;
-  if (raw === "BRIDGE") return "Bridge — connected zones";
-  if (raw === "CUT") return "Cut — split enemy territory";
-  if (raw === "FORTIFY CHAIN") return "Fortify Chain — locked ground";
-  if (raw === "LONG PATH") return "Long Path bonus";
+  if (raw === "CAPTURE" && move?.captureCount) return `${move.captureCount}マス奪取`;
+  if (raw === "DOUBLE CAPTURE" && move?.captureCount) return `連続奪取（+${move.captureCount}マス）`;
+  if (raw === "BRIDGE") return "接続 — 領地をつないだ";
+  if (raw === "CUT") return "分断 — 相手領地を切った";
+  if (raw === "FORTIFY CHAIN") return "固定連鎖 — 守りを固めた";
+  if (raw === "LONG PATH") return "長いルートボーナス";
   return TERRAIN_LABELS[raw] || raw;
 }
 
 function terrainMoveLabel(m) {
   if (!m) return "";
   const labels = (m.comboLabels || []).map(x => terrainComboLabel(x, m));
-  return `${m.word} — Territory Swing +${m.territoryGained}${labels.length ? " · " + labels.join(" · ") : ""}`;
+  return `${m.word} — 領地 +${m.territoryGained}マス${labels.length ? " · " + labels.join(" · ") : ""}`;
 }
 
 function moveInsightLines(m) {
@@ -246,9 +246,9 @@ function moveInsightLines(m) {
   const lines = [];
   if (m.moveType === "SEED") return [`${m.player} seeded ${m.placedLetter || "a letter"} to build future territory.`];
   if (m.word) lines.push(`${m.player} played ${m.word}.`);
-  if ((m.territoryGained || 0) > 0) lines.push(`Territory Swing +${m.territoryGained}.`);
-  if ((m.captureCount || 0) > 0) lines.push(`Captured ${m.captureCount} cell${m.captureCount === 1 ? "" : "s"}.`);
-  if ((m.fortifiedCellsGained || 0) > 0) lines.push(`Locked ${m.fortifiedCellsGained} cell${m.fortifiedCellsGained === 1 ? "" : "s"}.`);
+  if ((m.territoryGained || 0) > 0) lines.push(`領地 +${m.territoryGained}マス。`);
+  if ((m.captureCount || 0) > 0) lines.push(`${m.captureCount}マス奪取。`);
+  if ((m.fortifiedCellsGained || 0) > 0) lines.push(`${m.fortifiedCellsGained}マス固定。`);
   const labels = (m.comboLabels || []).map(x => terrainComboLabel(x, m));
   const terrainLabels = labels.filter(Boolean);
   if (terrainLabels.length) lines.push(terrainLabels.join(" · "));
@@ -307,7 +307,7 @@ function buildShare(num, ds, r) {
   const winner = r.winner || "DRAW";
   const score = `🔴 ${r.redScore} – ${r.blueScore} 🔵`;
   const best = r.bestMove ? `Best Swing: ${r.bestMove}` : null;
-  const opening = r.openingName ? `Opening: ${r.openingName.replace(" OPENING","")}` : null;
+  const opening = r.openingName ? `開始形: ${r.openingName.replace(" OPENING","")}` : null;
   const board = r.emojiBoard || "";
   return [
     `Word Territory #${num}`,
@@ -441,7 +441,7 @@ function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePa
       {cell.letter || ""}
       {cell.fortified && <span className="lock-shield" title="Fortified ground">🛡</span>}
       {attack && !inPath && <span className="atk-dot"/>}
-      {threat && !inPath && <span className="threat-dot" title="Capture threat"/>}
+      {threat && !inPath && <span className="threat-dot" title="奪取の危険"/>}
     </button>
   );
 }
@@ -467,18 +467,18 @@ function HistItem({ m }) {
   );
 }
 
-// ── LeaderboardModal ③④ ───────────────────────────────────────────────────────
-function LeaderboardModal({ onClose, dailyInfo, myRank }) {
+// ── ランキングModal ③④ ───────────────────────────────────────────────────────
+function ランキングModal({ on閉じる, dailyInfo, myRank }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    getDailyLeaderboard().then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+    getDailyランキング().then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
   return (
-    <div className="modal-bg" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-bg" onClick={e => e.target === e.currentTarget && on閉じる()}>
       <div className="modal">
-        <h2>🏆 Daily Leaderboard</h2>
+        <h2>🏆 Daily ランキング</h2>
         {dailyInfo && <p className="muted">Day #{dailyInfo.dayNumber} · {dailyInfo.dateStr}</p>}
         {loading && <p className="muted">Loading…</p>}
         {!loading && !data && <p className="muted">Could not load leaderboard.</p>}
@@ -503,7 +503,7 @@ function LeaderboardModal({ onClose, dailyInfo, myRank }) {
             </table>
           </>
         )}
-        <div className="modal-btns"><button onClick={onClose}>Close</button></div>
+        <div className="modal-btns"><button onClick={on閉じる}>閉じる</button></div>
       </div>
     </div>
   );
@@ -637,7 +637,7 @@ export default function Home() {
         }
 
         if (type === "battle") {
-          // Battle Report: resolving chord.
+          // 対戦レポート: resolving chord.
           env(0.05, 0.02, 0.58);
           tone(330, 0, 0.42, "sine");
           tone(415, 0.03, 0.40, "sine");
@@ -933,7 +933,7 @@ export default function Home() {
     if (!spectatorMode || !state || !gameId) return;
     if (asyncMode) return;
     if (state.winner && state.winner !== "") {
-      setSpectatorNote("Battle Report ready — this is how words became territory.");
+      setSpectatorNote("対戦レポート ready — this is how words became territory.");
       return;
     }
     let cancelled = false;
@@ -1089,7 +1089,7 @@ export default function Home() {
   const isLegal = (r,c) => !!(state?.board?.[r]?.[c]) && !state.board[r][c].letter && hasNbr(r,c);
   const isDim = (r,c) => {
     if (!state) return true;
-    // In Spectator Mode and Battle Report, the board is display-first.
+    // In Spectator Mode and 対戦レポート, the board is display-first.
     // Do not dim it just because the user cannot click.
     if (spectatorMode || state.winner) return false;
     if (!human()) return true;
@@ -1196,9 +1196,9 @@ export default function Home() {
     await syncThreats(id);
   };
   async function submit() {
-    if (!placed) { setError("Tap a green square first."); return; }
+    if (!placed) { setError("先に緑のマスを選んでください。"); return; }
     if (!letter) {
-      setError("Choose a green square on the board first.");
+      setError("先に盤面の緑のマスを選んでください。");
       return;
     }
 
@@ -1217,7 +1217,7 @@ export default function Home() {
     }
   }
   async function seed() {
-    if (!placed) { setError("Tap a green square first."); return; }
+    if (!placed) { setError("先に緑のマスを選んでください。"); return; }
     if (!letter) { setError("Type one letter in the input box."); return; }
     try {
       const payload = {row:placed.row,col:placed.col,letter};
@@ -1414,14 +1414,14 @@ export default function Home() {
     <Head>
       {/* ③ SEO + social meta tags */}
       <title>Word Territory{dailyMode&&dailyInfo?` · Daily #${dailyInfo.dayNumber}`:""}</title>
-      <meta name="description" content="Word Territory is a word-powered territory strategy game where words become the map. Play the Daily Challenge!" />
+      <meta name="description" content="Word Territory is a word-powered territory strategy game where words become the map. Play the デイリーチャレンジ!" />
       <meta property="og:title" content="Word Territory" />
-      <meta property="og:description" content="A spatial strategy word game. Daily Challenge · Combo moves · Territory control." />
+      <meta property="og:description" content="A spatial strategy word game. デイリーチャレンジ · Combo moves · Territory control." />
       <meta property="og:url" content="https://wordterritory.com" />
       <meta property="og:type" content="website" />
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content="Word Territory" />
-      <meta name="twitter:description" content="Strategy meets vocabulary. Play the Daily Challenge!" />
+      <meta name="twitter:description" content="Strategy meets vocabulary. Play the デイリーチャレンジ!" />
       <meta name="theme-color" content="#111111" />
       <link rel="manifest" href="/manifest.json" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1450,7 +1450,7 @@ export default function Home() {
       {showTutorial && !showIntro && !spectatorMode && !state?.winner && (
         <div className="tutorial-mini">
           <strong>First move</strong>
-          <span>{tutorialStep===0 ? "Choose this letter." : tutorialStep===1 ? "Tap a glowing tile." : tutorialStep===2 ? "Connect a word path." : "Capture Word."}</span>
+          <span>{tutorialStep===0 ? "これを選ぶ letter." : tutorialStep===1 ? "Tap a glowing tile." : tutorialStep===2 ? "Connect a word path." : "Capture Word."}</span>
           <button onClick={finishTutorial}>Skip</button>
         </div>
       )}
@@ -1458,7 +1458,7 @@ export default function Home() {
       <div className="hdr">
         <div className="hdr-l">
           <h1>WORD TERRITORY{dailyMode&&dailyInfo&&<span className="dpill">Daily #{dailyInfo.dayNumber}</span>}</h1>
-          <p className="sub">Opening: {state.openingName} · {spectatorMode ? `Spectator Mode · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "Bot vs Bot" : thinking?"Bot thinking…":asyncMode ? (state.currentPlayer===asyncRole?`Your turn (${asyncRole})`:`Waiting for ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"Bot's turn":`Your turn (${state.currentPlayer})`} · Round {state.turn}</p>
+          <p className="sub">開始形: {state.openingName} · {spectatorMode ? `Spectator Mode · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "Bot vs Bot" : thinking?"Bot thinking…":asyncMode ? (state.currentPlayer===asyncRole?`Your turn (${asyncRole})`:`Waiting for ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"Bot's turn":`Your turn (${state.currentPlayer})`} · Round {state.turn}</p>
           <p className="opening-note">{OPENING_NOTES[state.openingName] || "Words become territory. Each move reshapes the map."}</p>
           <p className="tagline">Words become territory. Each move reshapes the map.</p>
         </div>
@@ -1476,23 +1476,23 @@ export default function Home() {
           {dailyInfo&&!dailyMode&&(
             <div className="dcard">
               <span className="dnum">Day #{dailyInfo.dayNumber}</span>
-              <span className="dsub">{streak>1?`🔥 ${streak} day streak`:(dailyResult?"Completed ✓":(state?.openingName || dailyInfo.openingName))}</span>
+              <span className="dsub">{streak>1?`🔥 ${streak} 日連続`:(dailyResult?"Completed ✓":(state?.openingName || dailyInfo.openingName))}</span>
               <div className="dcard-btns">
                 <button className="btn-daily" onClick={dailyResult?()=>{setSum(true);setDailyMode(true);}:bootDaily}>
                   {dailyResult?"View":"Play"}
                 </button>
-                <button className="btn-daily-lb" onClick={()=>setShowLB(true)} title="Leaderboard">🏆</button>
+                <button className="btn-daily-lb" onClick={()=>setShowLB(true)} title="ランキング">🏆</button>
               </div>
             </div>
           )}
           <button className="bsm" onClick={()=>setRules(v=>!v)}>{showRules?"✕ Rules":"? Rules"}</button>
           <Link href="/about" className="bsm" style={{textDecoration:"none",color:"#111"}}>About</Link>
           {dailyMode
-            ?<button className="bprim" onClick={()=>boot(mode)}>← Free Play</button>
-            :<button className="bprim" onClick={()=>boot(mode)}>New Game</button>
+            ?<button className="bprim" onClick={()=>boot(mode)}>← フリープレイ</button>
+            :<button className="bprim" onClick={()=>boot(mode)}>新しいゲーム</button>
           }
           <button className="bsm demo-btn" onClick={startSpectatorDemo}>▶ Watch Demo</button>
-          {spectatorMode&&<button className="bsm" onClick={()=>{setSpectatorMode(false); setSpectatorNote("Demo paused. Press New Game to play.");}}>Stop Demo</button>}
+          {spectatorMode&&<button className="bsm" onClick={()=>{setSpectatorMode(false); setSpectatorNote("Demo paused. Press 新しいゲーム to play.");}}>Stop Demo</button>}
           <button className="bsm" onClick={async()=>{try{const d=await createAsyncMatch({botLevel:mode}); setAsyncMode(true); setSpectatorMode(false); setAsyncToken(d.redToken); setAsyncRole('RED'); setGameId(d.game_id); setState(d.state); setDailyMode(false); setInviteUrl(`${window.location.origin}${d.blueUrl}`); setMarket({active:d.state.marketLetters||[], preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed}); await refresh(d.game_id);}catch(e){setError(e.message||'Could not create async match');}}}>Async PvP</button>
           {asyncMode&&<button className="bsm" onClick={async()=>{try{const d=await getAsyncMatch(gameId, asyncToken); setState(d.state); await refresh(gameId);}catch(e){setError(e.message||'Could not refresh match');}}}>Refresh Match</button>}
         </div>
@@ -1528,13 +1528,13 @@ export default function Home() {
             <li><strong>Role Bonuses</strong> — earn extra territory: BRIDGE +3T · CUT +2T · CROSS WORD +2T · LONG PATH +1T</li>
             <li><strong>Seed</strong> — place a letter without capturing when stuck. Good for setting up future words.</li>
             <li><strong>Goal:</strong> More red cells than blue wins. Territory beats vocabulary.</li>
-            <li><strong>Daily Challenge</strong> — same board worldwide each day. One attempt. Strong bot.</li>
+            <li><strong>デイリーチャレンジ</strong> — same board worldwide each day. One attempt. Strong bot.</li>
           </ol>
         </div>
       )}
 
       {/* ── banners ── */}
-      {dailyMode&&<div className="dbanner">🗓️ Daily #{dailyInfo?.dayNumber} · {dailyInfo?.dateStr} · Strong Bot · {state.botStyle || "Raider"}{streak>1?` · 🔥 ${streak} day streak`:""}</div>}
+      {dailyMode&&<div className="dbanner">🗓️ Daily #{dailyInfo?.dayNumber} · {dailyInfo?.dateStr} · Strong Bot · {state.botStyle || "Raider"}{streak>1?` · 🔥 ${streak} 日連続`:""}</div>}
       {asyncMode&&inviteUrl&&<div className="dbanner async-banner">🔗 Async PvP invite: <button className="link-copy" onClick={async()=>{try{await navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(()=>setCopied(false),2000);}catch{}}}>{copied?'Copied!':'Copy BLUE link'}</button></div>}
       {spectatorMode&&<div className="dbanner demo-banner">🎬 Spectator Mode · Bot vs Bot · {spectatorNote || "Words become territory. Watch the map reshape itself."}</div>}
       {thinking&&<div className="bnr thinking">{spectatorMode?"Spectator bots are moving…":"Bot is thinking…"}</div>}
@@ -1592,30 +1592,30 @@ export default function Home() {
           {state.winner && (
             <>
               <div className="winner-banner">
-                <div className="battle-title">Battle Report</div>
-                {state.winner === "DRAW" ? "🤝 Draw" :
+                <div className="battle-title">対戦レポート</div>
+                {state.winner === "DRAW" ? "🤝 引き分け" :
                  state.winner === "RED"  ? "🔴 RED wins!" :
                                            "🔵 BLUE wins!"}
                 <span className="winner-score">
                   {state.winner !== "DRAW" && ` · ${Math.max(redT,blueT)}–${Math.min(redT,blueT)}`}
                 </span>
-                {bestMove && <div className="best-move-inline">Best Territorial Swing: <strong>{moveLabel(bestMove)}</strong></div>}
+                {bestMove && <div className="best-move-inline">最大領地変動: <strong>{moveLabel(bestMove)}</strong></div>}
               </div>
               <div className="battle-report-card report-polished">
                 <div className="report-head">
-                  <div><span className="report-kicker">Battle Report Card</span><strong>{state.openingName}</strong></div>
+                  <div><span className="report-kicker">対戦レポート</span><strong>{state.openingName}</strong></div>
                   <div className="report-score"><span>🔴 {redT}</span><span>🔵 {blueT}</span></div>
                 </div>
-                {bestMove && <div className="report-best"><span>Best Territorial Swing</span><strong>{moveLabel(bestMove)}</strong></div>}
+                {bestMove && <div className="report-best"><span>最大領地変動</span><strong>{moveLabel(bestMove)}</strong></div>}
                 <div className="report-stats">
-                  <span>Largest capture: {Math.max(0, ...((state.moveHistory||[]).map(m=>m.captureCount||0)))} cells</span>
-                  <span>Top swings: {topMoves.length}</span>
-                  <span>Opening: {state.openingName}</span>
+                  <span>最大奪取: {Math.max(0, ...((state.moveHistory||[]).map(m=>m.captureCount||0)))} cells</span>
+                  <span>大きな変動: {topMoves.length}</span>
+                  <span>開始形: {state.openingName}</span>
                 </div>
                 {state?.board && <pre className="report-emoji">{buildEmojiBoard(state.board)}</pre>}
                 <div className="report-actions">
-                  <button className="bcopy" onClick={async()=>{try{await navigator.clipboard.writeText(buildShare(dailyInfo?.dayNumber || "Free", "", {winner:state.winner, redScore:redT, blueScore:blueT, bestMove:bestMove?moveLabel(bestMove):"", openingName:state.openingName, emojiBoard:buildEmojiBoard(state.board)}));setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}}}>{copied?"✓ Copied":"Copy result"}</button>
-                  <button className="bcopy" onClick={async()=>{try{await navigator.clipboard.writeText(buildEmojiBoard(state.board));setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}}}>Copy board</button>
+                  <button className="bcopy" onClick={async()=>{try{await navigator.clipboard.writeText(buildShare(dailyInfo?.dayNumber || "無料", "", {winner:state.winner, redScore:redT, blueScore:blueT, bestMove:bestMove?moveLabel(bestMove):"", openingName:state.openingName, emojiBoard:buildEmojiBoard(state.board)}));setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}}}>{copied?"✓ コピーしました":"結果をコピー"}</button>
+                  <button className="bcopy" onClick={async()=>{try{await navigator.clipboard.writeText(buildEmojiBoard(state.board));setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}}}>盤面をコピー</button>
                 </div>
               </div>
             </>
@@ -1625,9 +1625,9 @@ export default function Home() {
           {!state.winner && (
             <div className="lm-panel" style={{display: market.active.length > 0 ? 'block' : 'none'}}>
               <div className="lm-header">
-                <span className="lm-title">🎴 Letter Market {comebackChance && <b className="come-badge">★ Reclaim</b>}</span>
+                <span className="lm-title">🎴 文字カード {comebackChance && <b className="come-badge">★ 奪回</b>}</span>
                 <span className="lm-preview">
-                  Next: {(market.preview||[]).map((l,i) => <span key={i} className="lm-prev-chip">{l}</span>)}
+                  次: {(market.preview||[]).map((l,i) => <span key={i} className="lm-prev-chip">{l}</span>)}
                 </span>
               </div>
               <div className="lm-active">
@@ -1661,18 +1661,18 @@ export default function Home() {
                         .catch(()=>setValuePrev([]));
                     }}
                     disabled={!human()}
-                    title={isWildTile ? 'Comeback Wild — choose any letter, then pay Cost -1 after the word' : (s.bestWord ? `Best Swing: ${s.bestWord} · Territory Swing +${s.bestGain}` : 'Setup / no direct word')}
+                    title={isWildTile ? '自由カード — 好きな1文字を選べます。単語確定後にコスト -1' : (s.bestWord ? `最良手: ${s.bestWord} · 領地 +${s.bestGain}` : '準備 / すぐ作れる単語なし')}
                   >
-                    {showTutorial && tutorialStep===0 && i===0 && <span className="tut-bubble tut-lm">Choose this</span>}
-                    <span className={`lm-slot-label slot-${slot.key.toLowerCase()}`}>{slot.icon} {slot.key}</span>
+                    {showTutorial && tutorialStep===0 && i===0 && <span className="tut-bubble tut-lm">これを選ぶ</span>}
+                    <span className={`lm-slot-label slot-${slot.key.toLowerCase()}`}>{slot.icon} {slot.label || slot.key}</span>
                     <span className="lm-letter">{shownLetter}</span>
                     <span className="lm-best-role">{role.icon} {role.label}</span>
                     {isWildTile ? (
-                      <span className="lm-stats"><span className="lm-role">Cost -1</span></span>
+                      <span className="lm-stats"><span className="lm-role">コスト -1</span></span>
                     ) : s.wordCount > 0 ? (
                       <span className="lm-stats">
-                        {s.bestGain > 0 && <span className="lm-gain">Swing +{s.bestGain}</span>}
-                        {s.wordCount > 0 && <span className="lm-count">{s.wordCount}w</span>}
+                        {s.bestGain > 0 && <span className="lm-gain">領地 +{s.bestGain}</span>}
+                        {s.wordCount > 0 && <span className="lm-count">{s.wordCount}語</span>}
                       </span>
                     ) : (
                       <span className="lm-stats"><span className="lm-zero" style={{fontSize:10}}>setup</span></span>
@@ -1769,9 +1769,9 @@ export default function Home() {
                 ):(
                   <div className="pvhint">
                     {!placed
-                      ? (market.active.length > 0 ? (thinking ? "Bot is thinking..." : state?.winner ? "Battle Report" : "Choose a tile from Letter Market above ↑ then read the Territory Preview.") : "Tap a green square to place a letter.")
+                      ? (market.active.length > 0 ? (thinking ? "Bot is thinking..." : state?.winner ? "対戦レポート" : "上の文字カードを選ぶと、ここに領地化の見込みが表示されます。") : "Tap a green square to place a letter.")
                       : !letter
-                      ? "Type one letter."
+                      ? "ひらがな1文字を入力してください。"
                       : path.length < 2
                       ? "Now tap connected letters to make a word."
                       : !incPlaced
@@ -1782,21 +1782,21 @@ export default function Home() {
               </div>
             </div>
             <div className="brow">
-              <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={submit} disabled={!human()}>{showTutorial && tutorialStep===3 ? "Capture Word ⚔" : ok ? "Claim Territory ⚔" : "Submit"}</button>
-              {!isTutorial && <button className="ba bseed" onClick={seed} disabled={!human()} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "Seed (free — +3T next word)" : "Seed costs 1 territory"}>
-              <span className="seed-label">{lastStand ? "Reclaim" : "Seed"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "Free" : "Cost -1"}</span>}
+              <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={submit} disabled={!human()}>{showTutorial && tutorialStep===3 ? "単語確定 ⚔" : ok ? "領地化 ⚔" : "確定"}</button>
+              {!isTutorial && <button className="ba bseed" onClick={seed} disabled={!human()} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "種まき（無料 — 次の単語 +3T）" : "種まきには領地1マスを使います"}>
+              <span className="seed-label">{lastStand ? "奪回" : "種まき"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "無料" : "コスト -1"}</span>}
             </button>}
-              <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); }} disabled={!human()}>Clear</button>
-              {!isTutorial && <button className="ba" onClick={pass} disabled={!human()}>Pass</button>}
+              <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); }} disabled={!human()}>クリア</button>
+              {!isTutorial && <button className="ba" onClick={pass} disabled={!human()}>パス</button>}
             </div>
           </div>}
         </div>
 
         {/* side panel */}
         <div className="mobile-tabs">
-          <button className={mobileTab==="hints" ? "active" : ""} onClick={()=>setMobileTab("hints")}>Hints</button>
-          <button className={mobileTab==="threat" ? "active" : ""} onClick={()=>setMobileTab("threat")}>Threat</button>
-          <button className={mobileTab==="history" ? "active" : ""} onClick={()=>setMobileTab("history")}>History</button>
+          <button className={mobileTab==="hints" ? "active" : ""} onClick={()=>setMobileTab("hints")}>ヒント</button>
+          <button className={mobileTab==="threat" ? "active" : ""} onClick={()=>setMobileTab("threat")}>脅威</button>
+          <button className={mobileTab==="history" ? "active" : ""} onClick={()=>setMobileTab("history")}>履歴</button>
         </div>
         <div className={`scol tab-${mobileTab}`}>
           {synergy && (() => { const sc = synergyOpts.find(c=>c.key===synergy); return sc ? (
@@ -1808,10 +1808,10 @@ export default function Home() {
           {almost.length > 0 && (
             <div className={`panel panel-almost ${comebackChance ? "comeback-box" : ""}`}>
               <div className="ph" onClick={()=>setAlmostOpen(v=>!v)}>
-                <span>{comebackChance ? "🔥 Comeback chance" : "🀄 Almost"}</span><span className="ci">{showAlmost?"▲":"▼"}</span>
+                <span>{comebackChance ? "🔥 反撃チャンス" : "🀄 あと1文字"}</span><span className="ci">{showAlmost?"▲":"▼"}</span>
               </div>
               {showAlmost && <div className="almost-list">
-                <div className="almost-title">{comebackChance ? "One letter can swing the map:" : "Place one letter to make:"}</div>
+                <div className="almost-title">{comebackChance ? "1文字で盤面が動きます:" : "1文字置くと作れます:"}</div>
                 {almost.map((a,i) => (
                   <span key={i} className="almost-chip">
                     +<strong>{a.needs}</strong> → {a.word}
@@ -1822,36 +1822,36 @@ export default function Home() {
           )}
           <div className="panel panel-suggest">
             <div className="ph" onClick={()=>setSuggest(v=>!v)}>
-              <span>💡 Suggested</span><span className="ci">{showSuggest?"▲":"▼"}</span>
+              <span>💡 候補</span><span className="ci">{showSuggest?"▲":"▼"}</span>
             </div>
             {showSuggest&&(
               <div className="chips sc">
-                {suggestionList.length ? suggestionList.map(w=><span key={w} className="chip">{w}</span>):<div className="no-word-hint">No playable word found.<br/>Use <strong>Seed</strong> to place a tile without capturing.</div>}
+                {suggestionList.length ? suggestionList.map(w=><span key={w} className="chip">{w}</span>):<div className="no-word-hint">作れる単語がありません。<br/><strong>種まき</strong>で領地化せずに文字を置けます。</div>}
               </div>
             )}
           </div>
                     <div className="panel panel-threat">
             <div className="ph" onClick={()=>setThreatPanel(v=>!v)}>
-              <span>⚠ Threat</span><span className="ci">{showThreatPanel?"▲":"▼"}</span>
+              <span>⚠ 脅威</span><span className="ci">{showThreatPanel?"▲":"▼"}</span>
             </div>
             {showThreatPanel&&(
               <div className="threat-list">
                 {threatList && threatList.length ? threatList.slice(0,5).map((t,i)=>(
                   <div className="threat-row" key={i}>
-                    <strong>{t.word || "Capture threat"}</strong>
-                    <span>{(t.cells||[]).length} cell{(t.cells||[]).length===1?"":"s"} exposed</span>
+                    <strong>{t.word || "奪取の危険"}</strong>
+                    <span>{(t.cells||[]).length}マスが危険</span>
                   </div>
-                )) : <div className="muted">No immediate capture threat.</div>}
+                )) : <div className="muted">すぐに奪われる危険はありません。</div>}
               </div>
             )}
           </div>
 <div className="panel panel-history">
             <div className="ph" onClick={()=>setHistory(v=>!v)}>
-              <span>📋 History</span><span className="ci">{showHistory?"▲":"▼"}</span>
+              <span>📋 履歴</span><span className="ci">{showHistory?"▲":"▼"}</span>
             </div>
             {showHistory&&(
               <div className="hist" ref={histRef}>
-                {!state.moveHistory.length&&<div className="muted">No moves yet</div>}
+                {!state.moveHistory.length&&<div className="muted">まだ履歴はありません</div>}
                 {state.moveHistory.map((m,i)=><HistItem key={i} m={m}/>)}
               </div>
             )}
@@ -1863,7 +1863,7 @@ export default function Home() {
               <span className="streak-fire">🔥</span>
               <div>
                 <div className="streak-num">{streak}</div>
-                <div className="streak-lbl">day streak</div>
+                <div className="streak-lbl">日連続</div>
               </div>
             </div>
           )}
@@ -1916,57 +1916,57 @@ export default function Home() {
                   <div className="scres">{(dailyResult?.winner??state.winner)==="RED"?"✅ WIN":(dailyResult?.winner??state.winner)===null?"🤝 DRAW":"❌ LOSS"}</div>
                   <div className="muted tac">{(dailyResult?.turns??state.turn-1)} turns · Territory ×1.5 + Words</div>
                 </div>
-                {bestMove && <div className="best-move-card"><strong>Best Territorial Swing:</strong> {moveLabel(bestMove)}</div>}
-                {topMoves.length>0&&<><h3>Top Territorial Swings</h3>{topMoves.map((m,i)=><HistItem key={i} m={m}/>)}</>}
-                {state?.board && <div className="emoji-board-card"><div className="muted">Emoji Board</div><pre>{buildEmojiBoard(state.board)}</pre><button className="bcopy" onClick={async()=>{try{await navigator.clipboard.writeText(buildEmojiBoard(state.board));setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}}}>{copied?"✓ Copied":"Copy board"}</button></div>}
+                {bestMove && <div className="best-move-card"><strong>最大領地変動:</strong> {moveLabel(bestMove)}</div>}
+                {topMoves.length>0&&<><h3>大きな領地変動</h3>{topMoves.map((m,i)=><HistItem key={i} m={m}/>)}</>}
+                {state?.board && <div className="emoji-board-card"><div className="muted">絵文字盤面</div><pre>{buildEmojiBoard(state.board)}</pre><button className="bcopy" onClick={async()=>{try{await navigator.clipboard.writeText(buildEmojiBoard(state.board));setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}}}>{copied?"✓ コピーしました":"盤面をコピー"}</button></div>}
 
                 {/* Share card */}
                 {shareText&&(
                   <div className="swrap">
                     <pre className="spre">{shareText}</pre>
                     <button className="bcopy" onClick={async()=>{try{await navigator.clipboard.writeText(shareText);setCopied(true);setTimeout(()=>setCopied(false),2500);}catch{}}}>
-                      {copied?"✓ Copied!":"Copy & Share"}
+                      {copied?"✓ コピーしました!":"コピーして共有"}
                     </button>
                   </div>
                 )}
 
-                {/* ④ Leaderboard submission */}
+                {/* ④ ランキング submission */}
                 <div className="lb-submit">
-                  <h3>🏆 Post your score to the leaderboard</h3>
+                  <h3>🏆 スコアをランキングに投稿</h3>
                   {!submitted?(
                     <div className="lb-form">
-                      <input className="nick-input" value={nickname} maxLength={20} placeholder="Your name (optional)"
+                      <input className="nick-input" value={nickname} maxLength={20} placeholder="名前（任意）"
                         onChange={e=>setNickname(e.target.value)}/>
-                      <button className="bprim" onClick={submitScore}>Post Score</button>
+                      <button className="bprim" onClick={submitScore}>スコア投稿</button>
                     </div>
                   ):(
                     <div className="lb-ok">
-                      Score posted! You are <strong>#{myRank}</strong> today.
-                      <button className="bsm" style={{marginLeft:8}} onClick={()=>setShowLB(true)}>View Leaderboard</button>
+                      投稿しました。本日の順位は <strong>#{myRank}</strong> today.
+                      <button className="bsm" style={{marginLeft:8}} onClick={()=>setShowLB(true)}>View ランキング</button>
                     </div>
                   )}
                 </div>
 
                 <div className="modal-btns">
-                  <button className="bprim" onClick={()=>{setSum(false);boot(mode);}}>Free Play</button>
-                  <button onClick={()=>setShowLB(true)}>🏆 Leaderboard</button>
-                  <button onClick={()=>setSum(false)}>Close</button>
+                  <button className="bprim" onClick={()=>{setSum(false);boot(mode);}}>フリープレイ</button>
+                  <button onClick={()=>setShowLB(true)}>🏆 ランキング</button>
+                  <button onClick={()=>setSum(false)}>閉じる</button>
                 </div>
               </>
             ):(
               <>
-                <h2>Battle Report</h2>
-                <p>Winner: <strong>{state.winner||"Draw"}</strong></p>
+                <h2>対戦レポート</h2>
+                <p>勝者: <strong>{state.winner||"引き分け"}</strong></p>
                 <div className="scard">
                   <div className="scrow"><span>🔴 RED</span><strong>{redT} cells</strong></div>
                   <div className="scrow"><span>🔵 BLUE</span><strong>{blueT} cells</strong></div>
                 </div>
-                {bestMove && <div className="best-move-card"><strong>Best Territorial Swing:</strong> {moveLabel(bestMove)}</div>}
-                {topMoves.length>0&&<><h3>Top Territorial Swings</h3>{topMoves.map((m,i)=><HistItem key={i} m={m}/>)}</>}
+                {bestMove && <div className="best-move-card"><strong>最大領地変動:</strong> {moveLabel(bestMove)}</div>}
+                {topMoves.length>0&&<><h3>大きな領地変動</h3>{topMoves.map((m,i)=><HistItem key={i} m={m}/>)}</>}
                 <div className="modal-btns">
-                  <button className="bprim" onClick={()=>boot(mode)}>New Game</button>
-                  {dailyInfo&&!dailyResult&&<button onClick={()=>{setSum(false);bootDaily();}}>Daily Challenge</button>}
-                  <button onClick={()=>setSum(false)}>Close</button>
+                  <button className="bprim" onClick={()=>boot(mode)}>新しいゲーム</button>
+                  {dailyInfo&&!dailyResult&&<button onClick={()=>{setSum(false);bootDaily();}}>デイリーチャレンジ</button>}
+                  <button onClick={()=>setSum(false)}>閉じる</button>
                 </div>
               </>
             )}
@@ -1974,7 +1974,7 @@ export default function Home() {
         </div>
       )}
 
-      {showLB&&<LeaderboardModal onClose={()=>setShowLB(false)} dailyInfo={dailyInfo} myRank={myRank}/>}
+      {showLB&&<ランキングModal on閉じる={()=>setShowLB(false)} dailyInfo={dailyInfo} myRank={myRank}/>}
 
     </main>
 
@@ -2622,6 +2622,7 @@ export default function Home() {
     `}</style>
   </>;
 }
+
 
 
 
