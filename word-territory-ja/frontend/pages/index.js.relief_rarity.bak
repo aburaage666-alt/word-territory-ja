@@ -5,7 +5,7 @@ import {
   botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyランキング,
   getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, getThreat, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, passAsyncTurn,
   joinWaitlist, passTurn, previewMove, seedMove, submitDailyScore, submitMove,
-  useFreeLetter, swapLetter,
+  useFreeLetter,
 } from "../lib/api";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -1241,24 +1241,7 @@ export default function Home() {
   }
 
   // ④ Submit daily score to leaderboard
-  
-async function swapRelief() {
-  try {
-    const next = await swapLetter(gameId, letter || "");
-    setState(next);
-    if (next.marketLetters?.length > 0) {
-      setMarket(m => ({...m, active:next.marketLetters, preview:next.previewLetters||[], freeLetterUsed:next.freeLetterUsed||false}));
-    }
-    reset();
-    await refresh();
-    getAlmost(gameId).then(setAlmost).catch(()=>{});
-  } catch(e) {
-    if (await recoverIfGameGone(e)) return;
-    setError(normalizeStringError(e, "交換は、作れる単語がない時だけ使えます。"));
-  }
-}
-
-async function submitScore() {
+  async function submitScore() {
     if (!dailyInfo || !dailyResult || submitted) return;
     try {
       const nick = nickname.trim() || "Anonymous";
@@ -1804,7 +1787,7 @@ async function submitScore() {
               <span className="seed-label">{lastStand ? "奪回" : "種まき"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "無料" : "コスト -1"}</span>}
             </button>}
               <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); }} disabled={!human()}>クリア</button>
-              {!isTutorial && <button className="ba" onClick={pass} disabled={!human()}>パス</button><button className="ba" onClick={swapRelief} disabled={!human()} title="作れる単語がない時だけ1回使えます">詰み交換</button>}
+              {!isTutorial && <button className="ba" onClick={pass} disabled={!human()}>パス</button>}
             </div>
           </div>}
         </div>
