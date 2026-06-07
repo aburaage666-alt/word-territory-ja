@@ -21,18 +21,18 @@ function wtJaKatakanaToHiraganaLongVowel(value) {
   );
 }
 
-function wtJaNormalizeKanaInput(value) {
+function wtJaふつうizeKanaInput(value) {
   const hira = wtJaKatakanaToHiraganaLongVowel(value);
   const chars = Array.from(hira).filter(ch => /^[\u3041-\u3096\u30fc]$/.test(ch));
   return chars.length ? chars[chars.length - 1] : "";
 }
 
 function wtJaHasKana(value) {
-  return !!wtJaNormalizeKanaInput(value);
+  return !!wtJaふつうizeKanaInput(value);
 }
 
 // WT_JA_PLAYABILITY_FIX_20260606
-// Normalize API shapes so frontend code never calls .forEach/.map on an object.
+// ふつうize API shapes so frontend code never calls .forEach/.map on an object.
 const asArray = (value) => {
   if (Array.isArray(value)) return value;
   if (!value || typeof value !== "object") return [];
@@ -244,8 +244,8 @@ function terrainMoveLabel(m) {
 function moveInsightLines(m) {
   if (!m) return [];
   const lines = [];
-  if (m.moveType === "SEED") return [`${m.player} seeded ${m.placedLetter || "a letter"} to build future territory.`];
-  if (m.word) lines.push(`${m.player} played ${m.word}.`);
+  if (m.moveType === "SEED") return [`${m.人} seeded ${m.placedLetter || "a letter"} to build future territory.`];
+  if (m.word) lines.push(`${m.人} played ${m.word}.`);
   if ((m.territoryGained || 0) > 0) lines.push(`領地 +${m.territoryGained}マス。`);
   if ((m.captureCount || 0) > 0) lines.push(`${m.captureCount}マス奪取。`);
   if ((m.fortifiedCellsGained || 0) > 0) lines.push(`${m.fortifiedCellsGained}マス固定。`);
@@ -257,8 +257,8 @@ function moveInsightLines(m) {
 
 function compactMoveTitle(m) {
   if (!m) return "";
-  if (m.moveType === "SEED") return `${m.player} seeded ${m.placedLetter || ""}`.trim();
-  return `${m.player} reshaped the map with ${m.word}`;
+  if (m.moveType === "SEED") return `${m.人} seeded ${m.placedLetter || ""}`.trim();
+  return `${m.人} reshaped the map with ${m.word}`;
 }
 
 
@@ -306,7 +306,7 @@ function buildEmojiBoard(board) {
 function buildShare(num, ds, r) {
   const winner = r.winner || "DRAW";
   const score = `🔴 ${r.redScore} – ${r.blueScore} 🔵`;
-  const best = r.bestMove ? `Best Swing: ${r.bestMove}` : null;
+  const best = r.bestMove ? `最良手: ${r.bestMove}` : null;
   const opening = r.openingName ? `開始形: ${r.openingName.replace(" OPENING","")}` : null;
   const board = r.emojiBoard || "";
   return [
@@ -450,9 +450,9 @@ function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePa
 function HistItem({ m }) {
   return (
     <div className="hi">
-      <div className="hi-head"><strong>T{m.turn} {m.player}</strong><span className="hiw">{m.word}</span></div>
+      <div className="hi-head"><strong>T{m.turn} {m.人}</strong><span className="hiw">{m.word}</span></div>
       {m.moveType === "WORD" && (
-        <div className="hi-stats">Territory Swing +{m.territoryGained} · +{m.wordScoreGained}W{m.fortifiedCellsGained>0 ? ` · Locked ${m.fortifiedCellsGained}` : ""}{m.captureCount > 0 ? ` · Captured ${m.captureCount}` : ""}</div>
+        <div className="hi-stats">領地変動 +{m.territoryGained} · +{m.wordScoreGained}W{m.fortifiedCellsGained>0 ? ` · 固定 ${m.fortifiedCellsGained}` : ""}{m.captureCount > 0 ? ` · 奪取 ${m.captureCount}` : ""}</div>
       )}
       {m.comboLabels?.length > 0 && <div className="chips">
               {m.comboLabels.map((x,xi) => {
@@ -480,12 +480,12 @@ function ランキングModal({ on閉じる, dailyInfo, myRank }) {
       <div className="modal">
         <h2>🏆 Daily ランキング</h2>
         {dailyInfo && <p className="muted">Day #{dailyInfo.dayNumber} · {dailyInfo.dateStr}</p>}
-        {loading && <p className="muted">Loading…</p>}
-        {!loading && !data && <p className="muted">Could not load leaderboard.</p>}
+        {loading && <p className="muted">読み込み中…</p>}
+        {!loading && !data && <p className="muted">ランキングを読み込めませんでした。</p>}
         {data && (
           <>
-            <p className="muted">{data.totalプレイers} player{data.totalプレイers !== 1 ? "s" : ""} today</p>
-            {myRank && <div className="my-rank">Your rank: <strong>#{myRank}</strong> of {data.totalプレイers}</div>}
+            <p className="muted">{data.totalPlayers} 人{data.totalPlayers !== 1 ? "s" : ""} 本日</p>
+            {myRank && <div className="my-rank">あなたの順位: <strong>#{myRank}</strong> of {data.totalPlayers}</div>}
             <table className="lb-table">
               <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Result</th><th>Turns</th></tr></thead>
               <tbody>
@@ -498,7 +498,7 @@ function ランキングModal({ on閉じる, dailyInfo, myRank }) {
                     <td>{e.turns}</td>
                   </tr>
                 ))}
-                {data.entries.length === 0 && <tr><td colSpan={5} className="muted">No scores yet today</td></tr>}
+                {data.entries.length === 0 && <tr><td colSpan={5} className="muted">本日のスコアはまだありません</td></tr>}
               </tbody>
             </table>
           </>
@@ -907,7 +907,7 @@ export default function Home() {
     if (!state || !gameId) return;
     if (asyncMode || spectatorMode) return;
     if (state.winner && state.winner !== "") return;  // stops on RED/BLUE/DRAW
-    if (state.currentプレイer !== state.botプレイer) return;
+    if (state.currentPlayer !== state.botPlayer) return;
     let cancelled = false;
     const run = async () => {
       setThinking(true);
@@ -926,7 +926,7 @@ export default function Home() {
     };
     run();
     return () => { cancelled = true; setThinking(false); };
-  }, [state?.turn, state?.currentプレイer, spectatorMode]);
+  }, [state?.turn, state?.currentPlayer, spectatorMode]);
 
   // ── spectator demo auto-play ─────────────────────────────────────────────
   useEffect(() => {
@@ -954,9 +954,9 @@ export default function Home() {
         try { setThreats(await getThreat(gameId)); } catch { setThreats([]); }
         const last = next.moveHistory?.[next.moveHistory.length - 1];
         if (last?.comboLabels?.length) {
-          setSpectatorNote(`${last.player} reshaped the map: ${terrainMoveLabel(last)}`);
+          setSpectatorNote(`${last.人} reshaped the map: ${terrainMoveLabel(last)}`);
         } else if (last?.word && last.word !== "SEED") {
-          setSpectatorNote(`${last.player} claimed ground with ${last.word}.`);
+          setSpectatorNote(`${last.人} claimed ground with ${last.word}.`);
         } else {
           setSpectatorNote("Bots are probing the frontier…");
         }
@@ -967,7 +967,7 @@ export default function Home() {
     };
     run();
     return () => { cancelled = true; setThinking(false); };
-  }, [spectatorMode, state?.turn, state?.currentプレイer, gameId]);
+  }, [spectatorMode, state?.turn, state?.currentPlayer, gameId]);
 
   // ── game over ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -995,7 +995,7 @@ export default function Home() {
       const r = {
         redScore: redCells, blueScore: tScore(state, "BLUE"),
         winner: state.winner, turns: state.turn - 1,
-        bestMove: best ? `${best.word} (Territory Swing +${best.territoryGained})` : null,
+        bestMove: best ? `${best.word} (領地変動 +${best.territoryGained})` : null,
         openingName: state.openingName,
         capturePct,
         emojiBoard: buildEmojiBoard(state.board),
@@ -1005,7 +1005,7 @@ export default function Home() {
       setShareText(buildShare(dailyInfo.dayNumber, dailyInfo.dateStr, r));
       const s = updateStreak(dailyInfo.dateStr); setStreak(s);
 
-      // ④ Auto-submit score anonymously; player can re-submit with nickname from modal
+      // ④ Auto-submit score anonymously; 人 can re-submit with nickname from modal
       submitDailyScore({
         nickname: "Anonymous",
         redScore: r.redScore,
@@ -1044,11 +1044,11 @@ export default function Home() {
   }, [placed]);
 
   // ── board helpers ────────────────────────────────────────────────────────
-  const human = () => state && !spectatorMode && !thinking && !state.winner && (asyncMode ? state.currentプレイer === asyncRole : state.currentプレイer !== state.botプレイer);
+  const human = () => state && !spectatorMode && !thinking && !state.winner && (asyncMode ? state.currentPlayer === asyncRole : state.currentPlayer !== state.botPlayer);
   const isSel = (r,c) => path.some(p => p.row===r && p.col===c);
 
   // Opponent cells adjacent to any placeable empty cell = attackable
-  const opponent = state?.currentプレイer === "RED" ? "BLUE" : "RED";
+  const opponent = state?.currentPlayer === "RED" ? "BLUE" : "RED";
   const attackableSet = useMemo(() => {
     if (!state || !human()) return new Set();
     const s = new Set();
@@ -1068,7 +1068,7 @@ export default function Home() {
       }
     }
     return s;
-  }, [state?.turn, state?.currentプレイer]);
+  }, [state?.turn, state?.currentPlayer]);
 
   // Opponent cells currently in the selected path (will be captured if submitted)
   const inPathOpponentSet = useMemo(() => {
@@ -1089,7 +1089,7 @@ export default function Home() {
   const isLegal = (r,c) => !!(state?.board?.[r]?.[c]) && !state.board[r][c].letter && hasNbr(r,c);
   const isDim = (r,c) => {
     if (!state) return true;
-    // In Spectator Mode and 対戦レポート, the board is display-first.
+    // In 観戦モード and 対戦レポート, the board is display-first.
     // Do not dim it just because the user cannot click.
     if (spectatorMode || state.winner) return false;
     if (!human()) return true;
@@ -1276,13 +1276,13 @@ async function submitScore() {
 
   // ── derived ──────────────────────────────────────────────────────────────
   const changedS  = new Set((state?.lastChangedCells||[]).map(c=>asKey(c.row,c.col)));
-  const capturedS = new Set((state?.lastCapturedCells||[]).map(c=>asKey(c.row,c.col)));
-  const capturedOrderMap = new Map((state?.lastCapturedCells||[]).map((c,i)=>[asKey(c.row,c.col), i]));
+  const capturedS = new Set((state?.last奪取Cells||[]).map(c=>asKey(c.row,c.col)));
+  const capturedOrderMap = new Map((state?.last奪取Cells||[]).map((c,i)=>[asKey(c.row,c.col), i]));
   const lockedS   = new Set((state?.lastFortifiedCells  ||[]).map(c=>asKey(c.row,c.col)));
   const lockedOrderMap = new Map((state?.lastFortifiedCells||[]).map((c,i)=>[asKey(c.row,c.col), i]));
   const redT = tScore(state,"RED"), blueT = tScore(state,"BLUE");
-  const comebackChance = state && !state.winner && state.currentプレイer && state.currentプレイer !== state.botプレイer
-    ? (() => { const p=state.currentプレイer; const opp=p==="RED"?"BLUE":"RED";
+  const comebackChance = state && !state.winner && state.currentPlayer && state.currentPlayer !== state.botPlayer
+    ? (() => { const p=state.currentPlayer; const opp=p==="RED"?"BLUE":"RED";
                const my=tScore(state,p), op=tScore(state,opp); return op-my>=6; })()
     : false;
   const pct  = Math.round((redT / Math.max(redT+blueT,1)) * 100);
@@ -1324,11 +1324,11 @@ async function submitScore() {
 
   const boardOpeningClass = `opening-${String(state?.openingName || "plain").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-opening$/,"").replace(/^-|-$/g,"") || "plain"}`;
   const boardBannerText = lastMoveIsSwing && lastMove ? [
-    (lastMove.captureCount||0)>0 ? `Captured ${lastMove.captureCount} cell${lastMove.captureCount===1?"":"s"}` : null,
+    (lastMove.captureCount||0)>0 ? `奪取 ${lastMove.captureCount} cell${lastMove.captureCount===1?"":"s"}` : null,
     (lastMove.comboLabels||[]).some(x=>String(x).includes("BRIDGE")) ? "Bridge connected zones" : null,
-    (lastMove.fortifiedCellsGained||0)>0 ? `Locked ${lastMove.fortifiedCellsGained} cell${lastMove.fortifiedCellsGained===1?"":"s"}` : null,
+    (lastMove.fortifiedCellsGained||0)>0 ? `固定 ${lastMove.fortifiedCellsGained} cell${lastMove.fortifiedCellsGained===1?"":"s"}` : null,
     (lastMove.comboLabels||[]).some(x=>String(x).startsWith("SYNERGY:")) ? "Synergy activated" : null,
-    (lastMove.territoryGained||0)>=5 ? `Territory Swing +${lastMove.territoryGained}` : null,
+    (lastMove.territoryGained||0)>=5 ? `領地変動 +${lastMove.territoryGained}` : null,
   ].filter(Boolean).join(" · ") : "";
 
   const lastMoveHasBridge = !!lastMove && (lastMove.comboLabels || []).some(x => String(x).includes("BRIDGE"));
@@ -1383,7 +1383,7 @@ async function submitScore() {
   // ── WebAudio cues: click / capture / bridge / lock / synergy / battle report ──
   useEffect(() => {
     if (!lastMove) return;
-    const key = `${lastMove.turn}-${lastMove.player}-${lastMove.word}`;
+    const key = `${lastMove.turn}-${lastMove.人}-${lastMove.word}`;
     const labels = (lastMove.comboLabels || []).map(x => String(x));
 
     if ((lastMove.captureCount || 0) > 0 && capture音Ref.current !== key) {
@@ -1452,22 +1452,22 @@ async function submitScore() {
             <h2>Words become territory.</h2>
             <p>Watch letters claim ground, trigger captures, lock cells, and reshape the map.</p>
             <div className="intro-steps">
-              <span>1. Choose a letter</span>
+              <span>1. 文字を選ぶ</span>
               <span>2. Tap a glowing cell</span>
               <span>3. Connect a word</span>
               <span>4. Watch territory change</span>
             </div>
             <div className="intro-btns">
               <button className="bprim" onClick={()=>dismissIntro(true)}>▶ デモを見る</button>
-              <button className="bsm" onClick={()=>dismissIntro(false)}>Start プレイing</button>
+              <button className="bsm" onClick={()=>dismissIntro(false)}>開始</button>
             </div>
           </div>
         </div>
       )}
       {showTutorial && !showIntro && !spectatorMode && !state?.winner && (
         <div className="tutorial-mini">
-          <strong>First move</strong>
-          <span>{tutorialStep===0 ? "これを選ぶ letter." : tutorialStep===1 ? "Tap a glowing tile." : tutorialStep===2 ? "Connect a word path." : "Capture Word."}</span>
+          <strong>最初の一手</strong>
+          <span>{tutorialStep===0 ? "文字カードを選ぶ。" : tutorialStep===1 ? "光っているマスを選ぶ。" : tutorialStep===2 ? "単語になるようにつなぐ。" : "単語を確定する。"}</span>
           <button onClick={finishTutorial}>Skip</button>
         </div>
       )}
@@ -1475,18 +1475,17 @@ async function submitScore() {
       <div className="hdr">
         <div className="hdr-l">
           <h1>WORD TERRITORY{dailyMode&&dailyInfo&&<span className="dpill">Daily #{dailyInfo.dayNumber}</span>}</h1>
-          <p className="sub">開始形: {state.openingName} · {spectatorMode ? `Spectator Mode · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "Bot vs Bot" : thinking?"Bot thinking…":asyncMode ? (state.currentプレイer===asyncRole?`Your turn (${asyncRole})`:`Waiting for ${state.currentプレイer}`) : state.currentプレイer===state.botプレイer?"Bot's turn":`Your turn (${state.currentプレイer})`} · Round {state.turn}</p>
+          <p className="sub">開始形: {state.openingName} · {spectatorMode ? `観戦モード · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "ボット対ボット" : thinking?"ボット思考中…":asyncMode ? (state.currentPlayer===asyncRole?`あなたの手番 (${asyncRole})`:`待機中: ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"ボットの手番":`あなたの手番 (${state.currentPlayer})`} · ラウンド {state.turn}</p>
           <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。一手ごとに盤面が変わる。"}</p>
-          <p className="tagline">言葉が領地になる。一手ごとに盤面が変わる。</p>
         </div>
         <div className="hdr-r">
-          <button className="bsm sound-toggle" onClick={()=>set音On(v=>!v)} title="Toggle sound">{soundOn ? "🔊 音" : "🔇 Muted"}</button>
+          <button className="bsm sound-toggle" onClick={()=>set音On(v=>!v)} title="音の切替">{soundOn ? "🔊 音" : "🔇 ミュート"}</button>
           {!dailyMode&&(
             <div className="mode-box">
               <label>Bot</label>
               <select value={mode} onChange={e=>setMode(e.target.value)}>
-                <option value="easy">やさしい</option><option value="normal">Normal</option>
-                <option value="strong">Strong</option>
+                <option value="easy">やさしい</option><option value="normal">ふつう</option>
+                <option value="strong">強い</option>
               </select>
             </div>
           )}
@@ -1518,7 +1517,7 @@ async function submitScore() {
       {/* ── First-move guide ── */}
       {tutTurns === 0 && human() && (
         <div className="firstmove-banner">
-          <strong>How to play:</strong>{" "}
+          <strong>遊び方:</strong>{" "}
           Tap a <span className="fm-green">green square</span> → type a letter → connect letters to make a word → press <strong>Claim Territory</strong>
         </div>
       )}
@@ -1527,7 +1526,7 @@ async function submitScore() {
         <div className="srow">
           <span className="stxt red-t">🔴 {redT} cells</span>
           <span className="smid">
-            {redT===blueT ? "Tied" : `${redT>blueT?"🔴 RED":"🔵 BLUE"} +${Math.abs(redT-blueT)}`}
+            {redT===blueT ? "同点" : `${redT>blueT?"🔴 RED":"🔵 BLUE"} +${Math.abs(redT-blueT)}`}
           </span>
           <span className="stxt blue-t">{blueT} cells 🔵</span>
         </div>
@@ -1537,7 +1536,7 @@ async function submitScore() {
       {/* ── rules ── */}
       {showルール&&(
         <div className="rules">
-          <strong>Build words from a shared draft. Place letters. Capture territory.</strong>
+          <strong>共通の盤面で単語を作り、文字を置き、領地を奪います。</strong>
           <ol>
             <li>Tap a <em>green square</em> → type any letter → connect letters to make a 3–6 letter word → press <strong>Claim Territory ⚔</strong>.</li>
             <li>Example: board has D–S–T, place U → select D→U→S→T → DUST! Your letter can go anywhere in the path.</li>
@@ -1545,15 +1544,15 @@ async function submitScore() {
             <li><strong>Role Bonuses</strong> — earn extra territory: BRIDGE +3T · CUT +2T · CROSS WORD +2T · LONG PATH +1T</li>
             <li><strong>Seed</strong> — place a letter without capturing when stuck. Good for setting up future words.</li>
             <li><strong>Goal:</strong> More red cells than blue wins. Territory beats vocabulary.</li>
-            <li><strong>デイリーチャレンジ</strong> — same board worldwide each day. One attempt. Strong bot.</li>
+            <li><strong>デイリーチャレンジ</strong> — same board worldwide each day. One attempt. 強い bot.</li>
           </ol>
         </div>
       )}
 
       {/* ── banners ── */}
-      {dailyMode&&<div className="dbanner">🗓️ Daily #{dailyInfo?.dayNumber} · {dailyInfo?.dateStr} · Strong Bot · {state.botStyle || "Raider"}{streak>1?` · 🔥 ${streak} 日連続`:""}</div>}
+      {dailyMode&&<div className="dbanner">🗓️ Daily #{dailyInfo?.dayNumber} · {dailyInfo?.dateStr} · 強い Bot · {state.botStyle || "Raider"}{streak>1?` · 🔥 ${streak} 日連続`:""}</div>}
       {asyncMode&&inviteUrl&&<div className="dbanner async-banner">🔗 Async PvP invite: <button className="link-copy" onClick={async()=>{try{await navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(()=>setCopied(false),2000);}catch{}}}>{copied?'Copied!':'Copy BLUE link'}</button></div>}
-      {spectatorMode&&<div className="dbanner demo-banner">🎬 Spectator Mode · Bot vs Bot · {spectatorNote || "Words become territory. Watch the map reshape itself."}</div>}
+      {spectatorMode&&<div className="dbanner demo-banner">🎬 観戦モード · ボット対ボット · {spectatorNote || "Words become territory. Watch the map reshape itself."}</div>}
       {thinking&&<div className="bnr thinking">{spectatorMode?"Spectator bots are moving…":"Bot is thinking…"}</div>}
       {spectatorMode&&lastMoveIsSwing&&<div className="bnr watch-swing">👀 Watch this swing — {lastMove ? terrainMoveLabel(lastMove) : "the map is changing"}</div>}
       {synergyFlash&&<div className="bnr synergy-flash">{synergyFlash}</div>}
@@ -1590,7 +1589,7 @@ async function submitScore() {
                     threat={threatCellSet.has(k)} threatMove={threatMoveSet.has(k)}
                     inPath={inPathOpponentSet.has(k)}
                     onClick={()=>clickCell(cell.row,cell.col)}/>
-                  {showVp && <div className={`vp-overlay vp-${vp.tier || 'basic'}`} title={vp.word ? `${vp.word} · Territory Swing +${vp.gain||0}${vp.synergyPreview ? ' · '+vp.synergyPreview : ''}` : 'Setup'}>
+                  {showVp && <div className={`vp-overlay vp-${vp.tier || 'basic'}`} title={vp.word ? `${vp.word} · 領地変動 +${vp.gain||0}${vp.synergyPreview ? ' · '+vp.synergyPreview : ''}` : 'Setup'}>
                     <span className="vp-num">{vp.tier==='strong' ? `+${vp.gain}T` : vp.tier==='frontline' ? `+${vp.gain}T` : (Number(vp.gain)||0) > 0 ? `+${vp.gain}T` : 'SET'}</span>
                     {vp.tier==='strong' && <span className="vp-star">★</span>}
                   </div>}
@@ -1611,8 +1610,8 @@ async function submitScore() {
               <div className="winner-banner">
                 <div className="battle-title">対戦レポート</div>
                 {state.winner === "DRAW" ? "🤝 引き分け" :
-                 state.winner === "RED"  ? "🔴 RED wins!" :
-                                           "🔵 BLUE wins!"}
+                 state.winner === "RED"  ? "🔴 REDの勝ち！" :
+                                           "🔵 BLUEの勝ち！"}
                 <span className="winner-score">
                   {state.winner !== "DRAW" && ` · ${Math.max(redT,blueT)}–${Math.min(redT,blueT)}`}
                 </span>
@@ -1718,7 +1717,7 @@ async function submitScore() {
                   <input className="lm-free-input" maxLength={1}
                     placeholder={wildMode ? "WILD: type any letter" : "Type any letter"}
                     value={freeLetter}
-                    onChange={e => setFreeLetter(wtJaNormalizeKanaInput(e.target.value))}
+                    onChange={e => setFreeLetter(wtJaふつうizeKanaInput(e.target.value))}
                     onKeyDown={e => {
                       if(e.key==='Enter' && freeLetter) {
                         useFreeLetter(gameId, freeLetter, wildMode ? "wild" : "free").then(r => {
@@ -1757,7 +1756,7 @@ async function submitScore() {
                 value={letter} maxLength={8} lang="ja" inputMode="text" autoComplete="off"
                 disabled={!human()}
                 readOnly={market.active.length > 0}
-                onChange={e=>{ if(market.active.length===0) setLetter(wtJaNormalizeKanaInput(e.target.value)); }}
+                onChange={e=>{ if(market.active.length===0) setLetter(wtJaふつうizeKanaInput(e.target.value)); }}
                 placeholder={market.active.length > 0 ? "—" : "あ/ー/ゃ"}
                 style={market.active.length > 0 && !letter ? {color:'#ccc'} : {}}
               />
@@ -1769,9 +1768,9 @@ async function submitScore() {
                     :<>
                       <div className="pvstats">
                         {preview.isInDictionary?"✓ Valid":"Not in dictionary"}
-                        {" · "}+{preview.wordScore}pts · Territory Swing +{preview.territoryGain}
-                        {preview.lockGain>0&&` · Locked ${preview.lockGain}`}
-                        {preview.captureHappened&&<span className="pvcap"> ⚔ Captured {preview.captureCount||1}</span>}
+                        {" · "}+{preview.wordScore}pts · 領地変動 +{preview.territoryGain}
+                        {preview.lockGain>0&&` · 固定 ${preview.lockGain}`}
+                        {preview.captureHappened&&<span className="pvcap"> ⚔ 奪取 {preview.captureCount||1}</span>}
                       </div>
                       {preview.comboLabels?.length>0&&<div className="chips">
                         {preview.comboLabels.map((x,xi)=>{
@@ -1958,7 +1957,7 @@ async function submitScore() {
                     </div>
                   ):(
                     <div className="lb-ok">
-                      投稿しました。本日の順位は <strong>#{myRank}</strong> today.
+                      投稿しました。本日の順位は <strong>#{myRank}</strong> 本日.
                       <button className="bsm" style={{marginLeft:8}} onClick={()=>setShowLB(true)}>View ランキング</button>
                     </div>
                   )}

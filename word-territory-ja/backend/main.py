@@ -228,7 +228,7 @@ def create_game(payload: CreateGameRequest = CreateGameRequest()):
 def make_move(game_id: str, payload: MoveRequest):
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     try:
         next_state = validate_and_apply_move(state, payload.row, payload.col, payload.letter, payload.path, advance_market_flag=True)
     except ValueError as exc:
@@ -241,7 +241,7 @@ def make_move(game_id: str, payload: MoveRequest):
 def seed_move(game_id: str, payload: SeedMoveRequest):
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     try:
         next_state = apply_seed_move(state, payload.row, payload.col, payload.letter, advance_market_flag=True)
     except ValueError as exc:
@@ -254,7 +254,7 @@ def seed_move(game_id: str, payload: SeedMoveRequest):
 def preview(game_id: str, payload: PreviewMoveRequest):
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     return preview_move(state, payload.row, payload.col, payload.letter, payload.path)
 
 
@@ -262,7 +262,7 @@ def preview(game_id: str, payload: PreviewMoveRequest):
 def do_pass(game_id: str):
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     next_state = pass_turn(state)
     GAMES[game_id] = next_state
     return next_state
@@ -272,7 +272,7 @@ def do_pass(game_id: str):
 def get_suggestions(game_id: str):
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     return SuggestionsResponse(suggestions=find_candidate_words(state))
 
 
@@ -280,9 +280,9 @@ def get_suggestions(game_id: str):
 def bot_move(game_id: str):
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     if state.currentPlayer != state.botPlayer:
-        raise HTTPException(status_code=400, detail="It is not the bot's turn")
+        raise HTTPException(status_code=400, detail="ボットの手番ではありません")
 
     import concurrent.futures, traceback as _tb
 
@@ -311,7 +311,7 @@ def auto_move(game_id: str, demo: bool = False):
     """
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     if state.winner:
         return _state_response(state)
 
@@ -465,7 +465,7 @@ def get_synergy_options(game_id: str):
     """Return the 3 synergy card options for this game."""
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     options = []
     for key in state.synergyOptions:
         card = SYNERGY_CARDS.get(key, {})
@@ -481,9 +481,9 @@ def select_synergy(game_id: str, req: dict):
     """Player selects one synergy card."""
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     if state.turn > 1:
-        raise HTTPException(status_code=400, detail="Synergy must be selected before first move")
+        raise HTTPException(status_code=400, detail="戦略カードは初手前に選んでください")
     card_key = req.get("card", "")
     if card_key not in state.synergyOptions:
         raise HTTPException(status_code=400, detail=f"Card {card_key} not in options")
@@ -499,7 +499,7 @@ def get_market(game_id: str):
     """Return current Letter Market with per-letter stats."""
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     # Stats are best-effort — never let them block the market from loading
     try:
         stats = get_market_stats(state)
@@ -519,7 +519,7 @@ def get_letter_preview(game_id: str, letter: str):
     """Return board-cell previews for the selected Letter Market tile."""
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     try:
         moves = get_letter_preview_moves(state, letter, limit=12)
     except Exception:
@@ -532,10 +532,10 @@ def use_free_letter(game_id: str, req: dict):
     """Use the Free Letter (Wild) once per game."""
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     source = req.get("source", "free")
     if source != "wild" and state.freeLetterUsed:
-        raise HTTPException(status_code=400, detail="Free letter already used this game")
+        raise HTTPException(status_code=400, detail="自由札はすでに使用済みです")
     letter = str(req.get("letter", "")).strip() # WT_JA_FREE_LETTER_KANA_FIX_20260606
     if not letter or len(letter) != 1 or not (("\u3041" <= letter <= "\u3096") or letter == "\u30fc"): raise HTTPException(status_code=400, detail="ひらがな1文字を入力してください")
     # Add letter to active market temporarily. WILD replaces the * slot and marks a pending cost.
@@ -562,7 +562,7 @@ def swap_letter(game_id: str, req: dict = {}):
     """One-time relief swap. Only allowed when the current market has no playable word."""
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     try:
         next_state = swap_market_tile(state, req.get("letter", ""))
     except ValueError as exc:
@@ -577,7 +577,7 @@ def get_almost(game_id: str):
     """Return words that are 1 letter away from being playable (Tenpai UI)."""
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     try:
         almost = find_almost_words(state, limit=4)
         return {"almost": almost}
@@ -605,13 +605,13 @@ def _load_async_game(game_id: str, token: str):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM async_games WHERE game_id=?", (game_id,)).fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail="Async game not found")
+        raise HTTPException(status_code=404, detail="非同期対戦が見つかりません")
     if token == row["red_token"]:
         player = "RED"
     elif token == row["blue_token"]:
         player = "BLUE"
     else:
-        raise HTTPException(status_code=403, detail="Invalid async match token")
+        raise HTTPException(status_code=403, detail="非同期対戦トークンが無効です")
     state = _state_from_json(row["state_json"])
     return row, state, player
 
@@ -669,7 +669,7 @@ def async_move(game_id: str, token: str, payload: MoveRequest):
     if state.winner:
         return state
     if state.currentPlayer != player:
-        raise HTTPException(status_code=400, detail="It is not your turn")
+        raise HTTPException(status_code=400, detail="あなたの手番ではありません")
     try:
         next_state = validate_and_apply_move(state, payload.row, payload.col, payload.letter, payload.path, advance_market_flag=True)
     except ValueError as exc:
@@ -684,7 +684,7 @@ def async_seed_move(game_id: str, token: str, payload: SeedMoveRequest):
     if state.winner:
         return state
     if state.currentPlayer != player:
-        raise HTTPException(status_code=400, detail="It is not your turn")
+        raise HTTPException(status_code=400, detail="あなたの手番ではありません")
     try:
         next_state = apply_seed_move(state, payload.row, payload.col, payload.letter, advance_market_flag=True)
     except ValueError as exc:
@@ -699,7 +699,7 @@ def async_pass(game_id: str, token: str):
     if state.winner:
         return state
     if state.currentPlayer != player:
-        raise HTTPException(status_code=400, detail="It is not your turn")
+        raise HTTPException(status_code=400, detail="あなたの手番ではありません")
     next_state = pass_turn(state)
     _save_async_state(game_id, next_state, {"type": "PASS", "turn": state.turn, "player": player})
     return next_state
@@ -754,7 +754,7 @@ def waitlist_count():
 def get_threat(game_id: str):
     state = GAMES.get(game_id)
     if not state:
-        raise HTTPException(status_code=404, detail="Game not found")
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
     try:
         return {"threats": get_threat_preview(state, limit=8)}
     except Exception:

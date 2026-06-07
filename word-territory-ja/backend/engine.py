@@ -451,41 +451,41 @@ if _LANG == 'ja':
 SYNERGY_CARDS = {
     # V6 retired: BRIDGE_MASTER no longer grants bonus territory; BRIDGE remains a core combo.
     "FORTIFIER": {
-        "name": "Fortifier",
+        "name": "守り固め",
         "icon": "🏰",
-        "difficulty": "Easy",
-        "effect": "First lock is powerful; later locks still add Swing.",
-        "tip": "Secure surrounded ground before expanding.",
-        "flavor": "Walls that hold, win.",
+        "difficulty": "やさしい",
+        "effect": "最初の固定が強力。以後の固定も領地変動を加える。",
+        "tip": "広げる前に、囲んだ領地を固める。",
+        "flavor": "守り切る壁が勝ちを呼ぶ。",
     },
     # V13 retired: CUT_SPECIALIST created high variance/outlier games. CUT remains a combo label only.
     # V10 retired: Frontline now appears only as combo label FRONTLINE PRESSURE; no +T bonus.
     "ENCIRCLER": {
-        "name": "Encircler",
+        "name": "包囲者",
         "icon": "🕸️",
-        "difficulty": "Hard",
-        "effect": "Moves that tighten a capture net gain +3T.",
-        "tip": "Close space around enemy cells.",
-        "flavor": "Territory is a trap before it is a capture.",
+        "difficulty": "むずかしい",
+        "effect": "包囲を強める手は領地+3。",
+        "tip": "相手の周囲を狭めて包囲する。",
+        "flavor": "領地は奪取の前に罠になる。",
     },
     "BORDER_LORD": {
-        "name": "Border Lord",
+        "name": "中央支配",
         "icon": "🏴",
-        "difficulty": "Easy",
-        "effect": "Words inside the central 6×6 battle zone gain +1T.",
-        "tip": "Control the middle; force the opponent outward.",
-        "flavor": "The center decides the frontier.",
+        "difficulty": "やさしい",
+        "effect": "中央6×6の戦場で作った単語は領地+1。",
+        "tip": "中央を制し、相手を外側へ追い出す。",
+        "flavor": "中央が前線を決める。",
     },
     # V10 retired: Trap Setter was unreliable in Bot tests; no +T bonus.
     # V6 retired: SHORT_TACTICIAN repeatedly produced score-gap outliers in Bot tests.
     # Old saved games with selectedSynergy="SHORT_TACTICIAN" are handled as no-bonus legacy states.
     "COMEBACK_SPARK": {
-        "name": "Comeback Spark",
+        "name": "逆転の火花",
         "icon": "🔥",
-        "difficulty": "Medium",
-        "effect": "When behind by 6+ cells, role bonuses gain extra Swing.",
-        "tip": "Use it to convert pressure into a reversal.",
-        "flavor": "Pressure creates territory.",
+        "difficulty": "ふつう",
+        "effect": "6マス以上劣勢のとき、役ボーナスに領地変動を追加。",
+        "tip": "劣勢の圧力を逆転の一手に変える。",
+        "flavor": "圧力が領地を生む。",
     },
 }
 
@@ -782,24 +782,24 @@ def synergy_activation_text(state: GameState, combos: list[str], player: str,
     card = state.selectedSynergy
     name = SYNERGY_CARDS.get(card, {}).get('name', 'Synergy')
     if card == 'BRIDGE_MASTER':
-        return f"{name}: connected zones +{bonus}T"
+        return f"{name}: 領地接続 +{bonus}T"
     if card == 'FORTIFIER':
-        return f"{name}: locked ground +{bonus}T"
+        return f"{name}: 固定領地 +{bonus}T"
     if card in ('CUT_HUNTER'):
-        return f"{name}: enemy line split +{bonus}T"
+        return f"{name}: 分断成功 +{bonus}T"
     if card == 'FRONTLINE_TACTICIAN':
-        return f"{name}: frontline push +{bonus}T"
+        return f"{name}: 前線押し上げ +{bonus}T"
     if card == 'ENCIRCLER':
-        return f"{name}: capture net tightened +{bonus}T"
+        return f"{name}: 包囲強化 +{bonus}T"
     if card == 'BORDER_LORD':
-        return f"{name}: center held +{bonus}T"
+        return f"{name}: 中央支配 +{bonus}T"
     if card == 'TRAP_SETTER':
-        return f"{name}: trap sprung +{bonus}T"
+        return f"{name}: 罠発動 +{bonus}T"
     if card == 'COMEBACK_SPARK':
-        return f"{name}: comeback pressure +{bonus}T"
+        return f"{name}: 逆転圧力 +{bonus}T"
     if card == 'SHORT_TACTICIAN':
-        return f"{name}: short frontline play +{bonus}T"
-    return f"{name} activated! +{bonus}T"
+        return f"{name}: 短手の前線 +{bonus}T"
+    return f"{name}発動 +{bonus}T"
 
 def update_synergy_state(state: GameState, combos: list[str],
                          is_seed: bool = False) -> dict:
