@@ -1,4 +1,4 @@
-﻿# JP_V28_FULL_ENGINE_CLEAN_V18_RELEASE
+# JP_V28_FULL_ENGINE_CLEAN_V18_RELEASE
 # JP_PROTOTYPE_V1_SAFE_FOLDER
 # JP_PROTOTYPE_V2_SEED_REDUCTION
 # JP_PROTOTYPE_V3_BOT_VALID_DICTIONARY
@@ -488,6 +488,18 @@ SYNERGY_CARDS = {
         "flavor": "圧力が領地を生む。",
     },
 }
+
+if _LANG == "ja":
+    # PHASE3_JA_SYNERGY_TEXT_V1
+    _JP_SYNERGY_TEXT = {
+        "FORTIFIER": {"name": "要塞家", "difficulty": "やさしい", "effect": "最初のロックを強化。以後のロックも領地変動を生む。", "tip": "囲った地面を固めてから広げよう。", "flavor": "守れる壁が勝つ。"},
+        "ENCIRCLER": {"name": "包囲家", "difficulty": "むずかしい", "effect": "包囲網を締める手は +3T。", "tip": "敵マスの周囲を閉じよう。", "flavor": "領地は、捕獲の前に罠になる。"},
+        "BORDER_LORD": {"name": "国境領主", "difficulty": "やさしい", "effect": "中央6×6の戦場で作る語は +1T。", "tip": "中央を支配して相手を外へ押し出そう。", "flavor": "中央が前線を決める。"},
+        "COMEBACK_SPARK": {"name": "逆転の火花", "difficulty": "ふつう", "effect": "6マス以上負けている時、役ボーナスが強化される。", "tip": "苦しい局面を反転の一手に変えよう。", "flavor": "圧力は領地を生む。"},
+    }
+    for _k, _v in _JP_SYNERGY_TEXT.items():
+        if _k in SYNERGY_CARDS:
+            SYNERGY_CARDS[_k].update(_v)
 
 
 def pick_synergy_options() -> list[str]:
@@ -1715,7 +1727,7 @@ def _is_capture_cooling(state: GameState, r: int, c: int, player: str) -> bool:
         info = cd.get(_cooldown_key(r, c))
         if not info:
             return False
-        return info.get("owner") != player and int(info.get("until", -1)) >= int(state.turn)
+        return info.get("owner") != player and int(info.get("until", -1)) > int(state.turn)
     except Exception:
         return False
 
@@ -1732,6 +1744,40 @@ def _record_capture_cooldowns(state: GameState, captured: list[Coord], player: s
         state.synergyState = ss
     except Exception:
         pass
+
+# PHASE3_INVASION_FRONTLINE_V1
+def _enemy_of(player: str) -> str:
+    return "BLUE" if player == "RED" else "RED"
+
+def _beachhead_bonus(before_state: GameState, row: int, col: int, player: str, word: str) -> int:
+    """Reward a light invasion inside enemy influence so maps keep changing."""
+    opponent = _enemy_of(player)
+    min_len = 4 if _LANG == "ja" else 3
+    if len(word or "") < min_len:
+        return 0
+    enemy = 0
+    mine = 0
+    cells = {(row, col)}
+    for nr, nc in get_neighbors(row, col):
+        cells.add((nr, nc))
+    for rr, cc in cells:
+        owner = before_state.board[rr][cc].owner
+        if owner == opponent:
+            enemy += 1
+        elif owner == player:
+            mine += 1
+    placed_on_enemy = before_state.board[row][col].owner == opponent
+    enemy_majority = enemy >= max(2, mine + 1)
+    return 1 if (placed_on_enemy or enemy_majority) else 0
+
+def _frontline_push(before_state: GameState, row: int, col: int, player: str, territory_gain: int) -> bool:
+    if territory_gain <= 0:
+        return False
+    opponent = _enemy_of(player)
+    if not any(before_state.board[nr][nc].owner == opponent for nr, nc in get_neighbors(row, col)):
+        return False
+    mid = BOARD_SIZE // 2
+    return row >= mid if player == "RED" else row <= mid
 
 SECOND_PLAYER_BONUS = 2  # EN/V23 value
 JP_SECOND_PLAYER_BONUS = 3  # JP v11: large dictionary needs stronger BLUE foothold.
@@ -2027,9 +2073,17 @@ def validate_and_apply_move(state: GameState, row: int, col: int, letter: str, p
         cross_words=cross_words_formed, row=row, col=col,
     )
 
+    beachhead_bonus = _beachhead_bonus(before, row, col, player, word)
+    if beachhead_bonus:
+        combos.append("BEACHHEAD")
+    if _frontline_push(before, row, col, player, delta["territory_gain"]):
+        combos.append("FRONTLINE PUSH")
+
 
     # ── Role bonus: award extra territory for strategic combos ───────────────
     bonus = 0
+    if beachhead_bonus:
+        bonus += beachhead_bonus
     if _LANG == "ja":
         # JP v11: in large dictionaries, 3-kana words happen constantly.
         # BRIDGE/CUT labels remain visible, but scoring starts at 4+ kana.
@@ -2865,7 +2919,8 @@ def choose_bot_move(state: GameState):
             elif label in ("CROSS WORD", "FORTIFY CHAIN"): combo_value += 5
             elif label in ("MAJOR CAPTURE", "COMEBACK"): combo_value += 4
             elif label in ("LONG PATH", "CAPTURE"):  combo_value += 3
-            elif label in ("EDGE REACH", "FIRST CAPTURE"): combo_value += 2
+            elif label in ("EDGE REACH", "FIRST CAPTURE", "FRONTLINE PUSH"): combo_value += 2
+            elif label in ("BEACHHEAD",):            combo_value += 3
             else:                                     combo_value += 1
         value = my_value + word_score(move["word"]) * 1.4 + combo_value + _bot_style_bonus(state, last, move, player)
         if _LANG == "ja":
@@ -4049,4 +4104,108 @@ def swap_market_tile(state, letter=None):
 
     return temp
 
+
+# WT_QUICK_5X5_BOTH_V2
+# Quick mode is a small-board runtime layer. It keeps Standard 7x7 unchanged,
+# while allowing new games to be created as 5x5 sessions.
+try:
+    WT_STANDARD_BOARD_SIZE = int(BOARD_SIZE)
+except Exception:
+    WT_STANDARD_BOARD_SIZE = 7
+
+try:
+    WT_STANDARD_OPENING_COORDS = list(OPENING_COORDS)
+except Exception:
+    WT_STANDARD_OPENING_COORDS = [(1,3),(2,2),(2,3),(2,4),(2,5),(3,3),(4,3)]
+
+try:
+    WT_STANDARD_MAX_TURNS = int(MAX_TURNS)
+except Exception:
+    WT_STANDARD_MAX_TURNS = 35
+
+WT_QUICK_BOARD_SIZE = 5
+WT_QUICK_MAX_TURNS = 20
+WT_QUICK_OPENING_COORDS = [(0,2), (1,1), (1,2), (1,3), (2,2)]
+
+def _wt_quick_runtime_size(value=None):
+    try:
+        n = int(value)
+    except Exception:
+        n = WT_STANDARD_BOARD_SIZE
+    return WT_QUICK_BOARD_SIZE if n == WT_QUICK_BOARD_SIZE else WT_STANDARD_BOARD_SIZE
+
+def _wt_quick_set_runtime(size=None):
+    global BOARD_SIZE, OPENING_COORDS, MAX_TURNS
+    n = _wt_quick_runtime_size(size)
+    BOARD_SIZE = n
+    if n == WT_QUICK_BOARD_SIZE:
+        OPENING_COORDS = list(WT_QUICK_OPENING_COORDS)
+        MAX_TURNS = WT_QUICK_MAX_TURNS
+    else:
+        OPENING_COORDS = list(WT_STANDARD_OPENING_COORDS)
+        MAX_TURNS = WT_STANDARD_MAX_TURNS
+    return n
+
+def sync_board_runtime(state):
+    """Synchronize module-level board constants with this state's boardSize."""
+    return _wt_quick_set_runtime(getattr(state, "boardSize", WT_STANDARD_BOARD_SIZE))
+
+try:
+    _WT_QUICK_ORIGINAL_BUILD_INITIAL_STATE_V1
+except NameError:
+    _WT_QUICK_ORIGINAL_BUILD_INITIAL_STATE_V1 = build_initial_state
+
+def build_initial_state(bot_level: str = "normal", opening_idx: int | None = None, board_mode: str = "standard", board_size: int | None = None) -> GameState:
+    mode = str(board_mode or "standard").lower()
+    quick = mode in ("quick", "5", "5x5", "quick5", "quick-5x5") or board_size == WT_QUICK_BOARD_SIZE
+    runtime_size = _wt_quick_set_runtime(WT_QUICK_BOARD_SIZE if quick else WT_STANDARD_BOARD_SIZE)
+
+    try:
+        state = _WT_QUICK_ORIGINAL_BUILD_INITIAL_STATE_V1(bot_level=bot_level, opening_idx=opening_idx)
+    except TypeError:
+        if opening_idx is None:
+            state = _WT_QUICK_ORIGINAL_BUILD_INITIAL_STATE_V1(bot_level=bot_level)
+        else:
+            state = _WT_QUICK_ORIGINAL_BUILD_INITIAL_STATE_V1(bot_level=bot_level, opening_idx=opening_idx)
+
+    state.boardSize = runtime_size
+    try:
+        state.synergyState = dict(getattr(state, "synergyState", {}) or {})
+        state.synergyState["_boardMode"] = "quick" if quick else "standard"
+    except Exception:
+        pass
+    try:
+        if quick and not str(state.openingName).startswith("QUICK 5×5"):
+            state.openingName = "QUICK 5×5 · " + str(state.openingName or "OPENING")
+    except Exception:
+        pass
+    return state
+
+def _wt_quick_wrap_state_fn(fn):
+    def wrapped(state, *args, **kwargs):
+        sync_board_runtime(state)
+        return fn(state, *args, **kwargs)
+    wrapped.__name__ = getattr(fn, "__name__", "wrapped")
+    wrapped.__doc__ = getattr(fn, "__doc__", None)
+    return wrapped
+
+for _wt_name in [
+    "validate_and_apply_move",
+    "apply_seed_move",
+    "preview_move",
+    "pass_turn",
+    "find_candidate_words",
+    "find_almost_words",
+    "apply_bot_move",
+    "apply_demo_bot_move",
+    "get_market_stats",
+    "get_letter_preview_moves",
+    "get_threat_preview",
+    "get_placeable_empty_cells",
+]:
+    _wt_fn = globals().get(_wt_name)
+    if callable(_wt_fn) and not getattr(_wt_fn, "_wt_quick_wrapped", False):
+        _wt_wrapped = _wt_quick_wrap_state_fn(_wt_fn)
+        _wt_wrapped._wt_quick_wrapped = True
+        globals()[_wt_name] = _wt_wrapped
 

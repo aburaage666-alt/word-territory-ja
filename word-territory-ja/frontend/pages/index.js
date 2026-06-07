@@ -1,4 +1,4 @@
-﻿import Head from "next/head";
+import Head from "next/head";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -785,7 +785,8 @@ export default function Home() {
   const [error,  setError]      = useState("");
   const [suggestions, setSugg]  = useState([]);
   const [mode,   setMode]       = useState("easy");
-  const [thinking, setThinking] = useState(false);
+  const [boardMode, setBoardMode] = useState("standard"); // WT_QUICK5_UI_V2
+const [thinking, setThinking] = useState(false);
   const [preview, setPreview]   = useState(null);
   const [showSummary, setSum]   = useState(false);
   const [copied, setCopied]     = useState(false);
@@ -1012,7 +1013,7 @@ export default function Home() {
     let lastErr;
     for (let attempt = 1; attempt <= 9; attempt++) {
       try {
-        const d = await createGame({ botLevel: m });
+        const d = await createGame({ botLevel: m, boardMode });
         setGameId(d.game_id); setState(d.state); setDailyMode(false);
         setSpectatorMode(false); setSpectatorSteps(0); setSpectatorNote("");
         reset(); setAnimGen(0); setBootMsg("");
@@ -1741,7 +1742,7 @@ async function submitScore() {
       <div className="hdr">
         <div className="hdr-l">
           <h1>WORD TERRITORY{dailyMode&&dailyInfo&&<span className="dpill">Daily #{dailyInfo.dayNumber}</span>}</h1>
-          <p className="sub">開始形: {state.openingName} · {spectatorMode ? `観戦モード · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "ボット対ボット" : thinking?"ボット思考中…":asyncMode ? (state.currentPlayer===asyncRole?`あなたの手番 (${asyncRole})`:`待機中: ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"ボットの手番":`あなたの手番 (${state.currentPlayer})`} · ラウンド {state.turn}</p>
+          <p className="sub">開始形: {state.openingName} · {spectatorMode ? `観戦モード · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "ボット対ボット" : thinking?"ボット思考中…":asyncMode ? (state.currentPlayer===asyncRole?`あなたの手番 (${asyncRole})`:`待機中: ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"ボットの手番":`あなたの手番 (${state.currentPlayer})`} · {state.boardSize===5?'Quick 5×5':'標準 7×7'} · ラウンド {state.turn}</p>
           <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。一手ごとに盤面が変わる。"}</p>
         </div>
         <div className="hdr-r">
@@ -1752,7 +1753,7 @@ async function submitScore() {
               <select value={mode} onChange={e=>setMode(e.target.value)}>
                 <option value="easy">やさしい</option><option value="normal">ふつう</option>
                 <option value="strong">強い</option>
-              </select>
+              </select> <label className="boardModeCtl">盤面 <select value={boardMode} onChange={e=>setBoardMode(e.target.value)}><option value="standard">標準 7×7</option><option value="quick">Quick 5×5</option></select></label>
             </div>
           )}
           {dailyInfo&&!dailyMode&&(
@@ -1775,7 +1776,7 @@ async function submitScore() {
           }
           <button className="bsm demo-btn" onClick={startSpectatorDemo}>▶ デモを見る</button>
           {spectatorMode&&<button className="bsm" onClick={()=>{setSpectatorMode(false); setSpectatorNote("Demo paused. Press 新しいゲーム to play.");}}>Stop Demo</button>}
-          <button className="bsm" onClick={async()=>{try{const d=await createAsyncMatch({botLevel:mode}); setAsyncMode(true); setSpectatorMode(false); setAsyncToken(d.redToken); setAsyncRole('RED'); setGameId(d.game_id); setState(d.state); setDailyMode(false); setInviteUrl(`${window.location.origin}${d.blueUrl}`); setMarket({active:d.state.marketLetters||[], preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed}); await refresh(d.game_id);}catch(e){setError(e.message||'Could not create async match');}}}>Async PvP</button>
+          <button className="bsm" onClick={async()=>{try{const d=await createAsyncMatch({botLevel:mode, boardMode}); setAsyncMode(true); setSpectatorMode(false); setAsyncToken(d.redToken); setAsyncRole('RED'); setGameId(d.game_id); setState(d.state); setDailyMode(false); setInviteUrl(`${window.location.origin}${d.blueUrl}`); setMarket({active:d.state.marketLetters||[], preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed}); await refresh(d.game_id);}catch(e){setError(e.message||'Could not create async match');}}}>Async PvP</button>
           {asyncMode&&<button className="bsm" onClick={async()=>{try{const d=await getAsyncMatch(gameId, asyncToken); setState(d.state); await refresh(gameId);}catch(e){setError(e.message||'Could not refresh match');}}}>Refresh Match</button>}
         </div>
       </div>
@@ -1804,10 +1805,10 @@ async function submitScore() {
         <div className="rules">
           <strong>共通の盤面で単語を作り、文字を置き、領地を奪います。</strong>
           <ol>
-            <li>Tap a <em>green square</em> → type any letter → connect letters to make a 3–6 letter word → press <strong>Claim Territory ⚔</strong>.</li>
+            <li><em>緑のマス</em>をタップ → 文字を置く → 3〜6文字の単語を作る → <strong>領地を確定 ⚔</strong></li>
             <li>Example: board has D–S–T, place U → select D→U→S→T → DUST! Your letter can go anywhere in the path.</li>
             <li>Enclose opponent cells to <strong>capture</strong> them. Surrounded own cells become 🏰 <strong>Fortified</strong>.</li>
-            <li><strong>Role Bonuses</strong> — earn extra territory: BRIDGE +3T · CUT +2T · CROSS WORD +2T · LONG PATH +1T</li>
+            <li><strong>役ボーナス</strong> — earn extra territory: BRIDGE +3T · CUT +2T · CROSS WORD +2T · LONG PATH +1T</li>
             <li><strong>Seed</strong> — place a letter without capturing when stuck. Good for setting up future words.</li>
             <li><strong>Goal:</strong> More red cells than blue wins. Territory beats vocabulary.</li>
             <li><strong>デイリーチャレンジ</strong> — same board worldwide each day. One attempt. 強い bot.</li>
