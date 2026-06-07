@@ -1804,7 +1804,7 @@ async function submitScore() {
               <span className="seed-label">{lastStand ? "奪回" : "種まき"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "無料" : "コスト -1"}</span>}
             </button>}
               <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); }} disabled={!human()}>クリア</button>
-              {!isTutorial && <button className="ba" onClick={pass} disabled={!human()}>パス</button><button className="ba" onClick={swapRelief} disabled={!human()} title="作れる単語がない時だけ1回使えます">詰み交換</button>}
+              {!isTutorial && <><button className="ba" onClick={pass} disabled={!human()}>パス</button><button className="ba" onClick={swapRelief} disabled={!human()} title="作れる単語がない時だけ1回使えます">詰み交換</button></>}
             </div>
           </div>}
         </div>
@@ -2639,6 +2639,7 @@ async function submitScore() {
     `}</style>
   </>;
 }
+
 
 
 
