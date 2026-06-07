@@ -221,6 +221,7 @@ const TERRAIN_LABELS = {
   "EDGE REACH": "端到達",
   "COMEBACK": "反撃",
   "SWING MOVE": "領地変動",
+  "DAZI": "奪字",
 };
 
 function terrainComboLabel(label, move = null) {
@@ -232,6 +233,7 @@ function terrainComboLabel(label, move = null) {
   if (raw === "CUT") return "分断 — 相手領地を切った";
   if (raw === "FORTIFY CHAIN") return "固定連鎖 — 守りを固めた";
   if (raw === "LONG PATH") return "長いルートボーナス";
+  if (raw === "DAZI" || raw === "奪字") return "奪字 — 敵ロック文字を中立化";
   return TERRAIN_LABELS[raw] || raw;
 }
 
@@ -810,6 +812,7 @@ const [thinking, setThinking] = useState(false);
   const [synergyOpts, setSynergyOpts] = useState([]);
   const [synergy,     setSynergy]     = useState("");
   const [valuePrev,   setValuePrev]   = useState([]); // Territory Preview candidates
+  const [daziMode,   setDaziMode]   = useState(false); // Disarm / 奪字: next word can neutralize one enemy LOCK
   const [threatsRaw,  _setThreats]    = useState([]); // opponent capture threats, raw API payload
   const threats = useMemo(() => normalizeThreats(threatsRaw), [threatsRaw]);
   const setThreats = (value) => _setThreats(normalizeThreats(value));
@@ -1007,7 +1010,7 @@ const [thinking, setThinking] = useState(false);
   }
   function resetValuePrev() { setValuePrev([]); }
   function reset() {
-    setPath([]); setPlaced(null); setLetter(""); setError(""); setPreview(null); setValuePrev([]);
+    setPath([]); setPlaced(null); setLetter(""); setError(""); setPreview(null); setValuePrev([]); setDaziMode(false);
     setSum(false); setCopied(false); setShareText(""); setNickname(""); setMyRank(null);
     setSubmitted(false); summaryFired.current = false;
   }
@@ -1496,7 +1499,7 @@ const [thinking, setThinking] = useState(false);
     }
 
     try {
-      const payload = {game_id:gameId,row:placed.row,col:placed.col,letter,path};
+      const payload = {game_id:gameId,row:placed.row,col:placed.col,letter,path,dazi:daziMode};
       const next = asyncMode ? await submitAsyncMove(gameId, asyncToken, payload) : await submitMove(payload);
       setState(next);
       // Update market from state immediately
@@ -1581,6 +1584,9 @@ async function submitScore() {
   const pct  = Math.round((redT / Math.max(redT+blueT,1)) * 100);
   const incPlaced = placed && path.some(p=>p.row===placed.row&&p.col===placed.col);
   const ok = preview?.isInDictionary && preview?.includesPlacedCell;
+  const daziUsed = Number((state?.daziUses || {})[state?.currentPlayer] || 0);
+  const daziRemaining = Math.max(0, 2 - daziUsed);
+  const daziLabel = daziMode ? "奪字ON" : "奪字";
   const topMoves = [...(state?.moveHistory||[])].filter(m=>m.moveType==="WORD")
     .sort((a,b)=>(b.territoryGained*2+b.wordScoreGained*1.5+b.fortifiedCellsGained*2+(b.captureCount?5:0)+(b.comboLabels?.length||0)*1.5)
                 -(a.territoryGained*2+a.wordScoreGained*1.5+a.fortifiedCellsGained*2+(a.captureCount?5:0)+(a.comboLabels?.length||0)*1.5))
@@ -1612,7 +1618,7 @@ async function submitScore() {
     (lastMove.captureCount || 0) > 0 ||
     (lastMove.fortifiedCellsGained || 0) > 0 ||
     (lastMove.territoryGained || 0) >= 5 ||
-    (lastMove.comboLabels || []).some(x => String(x).includes("BRIDGE") || String(x).includes("SYNERGY") || String(x).includes("CAPTURE"))
+    (lastMove.comboLabels || []).some(x => String(x).includes("BRIDGE") || String(x).includes("SYNERGY") || String(x).includes("CAPTURE") || String(x).includes("DAZI") || String(x).includes("奪字"))
   );
 
   const boardOpeningClass = `opening-${String(state?.openingName || "plain").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-opening$/,"").replace(/^-|-$/g,"") || "plain"}`;
@@ -1838,6 +1844,7 @@ async function submitScore() {
             <li><strong>Seed</strong> — place a letter without capturing when stuck. Good for setting up future words.</li>
             <li><strong>Goal:</strong> More red cells than blue wins. Territory beats vocabulary.</li>
             <li><strong>デイリーチャレンジ</strong> — same board worldwide each day. One attempt. 強い bot.</li>
+          <li><strong>奪字</strong> — 1試合2回まで。ロックされた敵文字を単語に含めると、そのロックを中立化します。</li>
           </ol>
         </div>
       )}
@@ -1851,6 +1858,7 @@ async function submitScore() {
       {synergyFlash&&<div className="bnr synergy-flash">{synergyFlash}</div>}
           {comboBanner.length>0&&<div className="bnr combo">{comboBanner.join(" · ")}</div>}
       {error&&<div className="bnr err">{error}<button className="bx" onClick={()=>setError("")}>✕</button></div>}
+      {daziMode&&<div className="bnr dazi-help-banner">{"奪字モード：ロックされた敵文字を含む単語を作ると、その文字を中立化します。"}</div>}
       
 
 
@@ -2095,6 +2103,7 @@ async function submitScore() {
               {!isTutorial && <button className="ba bseed" onClick={seed} disabled={!human()} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "種まき（無料 — 次の単語 +3T）" : "種まきには領地1マスを使います"}>
               <span className="seed-label">{lastStand ? "奪回" : "種まき"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "無料" : "コスト -1"}</span>}
             </button>}
+              {!isTutorial && <button className={`ba bdazi ${daziMode ? "active" : ""}`} onClick={()=>setDaziMode(v=>!v)} disabled={!human() || daziRemaining<=0} title="1試合2回まで。ロックされた敵文字を単語に含めると、その文字を中立化します。">{daziLabel} {daziRemaining}/2</button>}
               <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); }} disabled={!human()}>クリア</button>
               {!isTutorial && <><button className="ba" onClick={pass} disabled={!human()}>パス</button><button className="ba" onClick={swapRelief} disabled={!human()} title="作れる単語がない時だけ1回使えます">詰み交換</button></>}
             </div>
