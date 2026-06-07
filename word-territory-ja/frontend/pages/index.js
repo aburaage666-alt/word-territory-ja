@@ -484,8 +484,8 @@ function ランキングModal({ on閉じる, dailyInfo, myRank }) {
         {!loading && !data && <p className="muted">Could not load leaderboard.</p>}
         {data && (
           <>
-            <p className="muted">{data.totalPlayers} player{data.totalPlayers !== 1 ? "s" : ""} today</p>
-            {myRank && <div className="my-rank">Your rank: <strong>#{myRank}</strong> of {data.totalPlayers}</div>}
+            <p className="muted">{data.totalプレイers} player{data.totalプレイers !== 1 ? "s" : ""} today</p>
+            {myRank && <div className="my-rank">Your rank: <strong>#{myRank}</strong> of {data.totalプレイers}</div>}
             <table className="lb-table">
               <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Result</th><th>Turns</th></tr></thead>
               <tbody>
@@ -525,7 +525,7 @@ export default function Home() {
   const [copied, setCopied]     = useState(false);
 
   // UI panels
-  const [showRules,   setRules]   = useState(false);
+  const [showルール,   setルール]   = useState(false);
   const [showHistory, setHistory] = useState(true);
   const [showSuggest, setSuggest] = useState(false);
   const [showAlmost,  setAlmostOpen] = useState(true);
@@ -554,13 +554,13 @@ export default function Home() {
   const [showIntro, setShowIntro] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
-  const [soundOn, setSoundOn] = useState(true);
+  const [soundOn, set音On] = useState(true);
   const comboTimer = useRef(null);
   const soundTurnRef = useRef(null);
-  const captureSoundRef = useRef(null);
-  const bridgeSoundRef = useRef(null);
-  const lockSoundRef = useRef(null);
-  const battleSoundRef = useRef(null);
+  const capture音Ref = useRef(null);
+  const bridge音Ref = useRef(null);
+  const lock音Ref = useRef(null);
+  const battle音Ref = useRef(null);
   const audioCtxRef = useRef(null);
   const [animGen,  setAnimGen]    = useState(0);
 
@@ -907,7 +907,7 @@ export default function Home() {
     if (!state || !gameId) return;
     if (asyncMode || spectatorMode) return;
     if (state.winner && state.winner !== "") return;  // stops on RED/BLUE/DRAW
-    if (state.currentPlayer !== state.botPlayer) return;
+    if (state.currentプレイer !== state.botプレイer) return;
     let cancelled = false;
     const run = async () => {
       setThinking(true);
@@ -926,7 +926,7 @@ export default function Home() {
     };
     run();
     return () => { cancelled = true; setThinking(false); };
-  }, [state?.turn, state?.currentPlayer, spectatorMode]);
+  }, [state?.turn, state?.currentプレイer, spectatorMode]);
 
   // ── spectator demo auto-play ─────────────────────────────────────────────
   useEffect(() => {
@@ -967,7 +967,7 @@ export default function Home() {
     };
     run();
     return () => { cancelled = true; setThinking(false); };
-  }, [spectatorMode, state?.turn, state?.currentPlayer, gameId]);
+  }, [spectatorMode, state?.turn, state?.currentプレイer, gameId]);
 
   // ── game over ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1044,11 +1044,11 @@ export default function Home() {
   }, [placed]);
 
   // ── board helpers ────────────────────────────────────────────────────────
-  const human = () => state && !spectatorMode && !thinking && !state.winner && (asyncMode ? state.currentPlayer === asyncRole : state.currentPlayer !== state.botPlayer);
+  const human = () => state && !spectatorMode && !thinking && !state.winner && (asyncMode ? state.currentプレイer === asyncRole : state.currentプレイer !== state.botプレイer);
   const isSel = (r,c) => path.some(p => p.row===r && p.col===c);
 
   // Opponent cells adjacent to any placeable empty cell = attackable
-  const opponent = state?.currentPlayer === "RED" ? "BLUE" : "RED";
+  const opponent = state?.currentプレイer === "RED" ? "BLUE" : "RED";
   const attackableSet = useMemo(() => {
     if (!state || !human()) return new Set();
     const s = new Set();
@@ -1068,7 +1068,7 @@ export default function Home() {
       }
     }
     return s;
-  }, [state?.turn, state?.currentPlayer]);
+  }, [state?.turn, state?.currentプレイer]);
 
   // Opponent cells currently in the selected path (will be captured if submitted)
   const inPathOpponentSet = useMemo(() => {
@@ -1281,8 +1281,8 @@ async function submitScore() {
   const lockedS   = new Set((state?.lastFortifiedCells  ||[]).map(c=>asKey(c.row,c.col)));
   const lockedOrderMap = new Map((state?.lastFortifiedCells||[]).map((c,i)=>[asKey(c.row,c.col), i]));
   const redT = tScore(state,"RED"), blueT = tScore(state,"BLUE");
-  const comebackChance = state && !state.winner && state.currentPlayer && state.currentPlayer !== state.botPlayer
-    ? (() => { const p=state.currentPlayer; const opp=p==="RED"?"BLUE":"RED";
+  const comebackChance = state && !state.winner && state.currentプレイer && state.currentプレイer !== state.botプレイer
+    ? (() => { const p=state.currentプレイer; const opp=p==="RED"?"BLUE":"RED";
                const my=tScore(state,p), op=tScore(state,opp); return op-my>=6; })()
     : false;
   const pct  = Math.round((redT / Math.max(redT+blueT,1)) * 100);
@@ -1386,16 +1386,16 @@ async function submitScore() {
     const key = `${lastMove.turn}-${lastMove.player}-${lastMove.word}`;
     const labels = (lastMove.comboLabels || []).map(x => String(x));
 
-    if ((lastMove.captureCount || 0) > 0 && captureSoundRef.current !== key) {
-      captureSoundRef.current = key;
+    if ((lastMove.captureCount || 0) > 0 && capture音Ref.current !== key) {
+      capture音Ref.current = key;
       playSfx("capture", 0);
     }
-    if (labels.some(x => x.includes("BRIDGE")) && bridgeSoundRef.current !== key) {
-      bridgeSoundRef.current = key;
+    if (labels.some(x => x.includes("BRIDGE")) && bridge音Ref.current !== key) {
+      bridge音Ref.current = key;
       playSfx("bridge", (lastMove.captureCount || 0) > 0 ? 130 : 0);
     }
-    if ((lastMove.fortifiedCellsGained || 0) > 0 && lockSoundRef.current !== key) {
-      lockSoundRef.current = key;
+    if ((lastMove.fortifiedCellsGained || 0) > 0 && lock音Ref.current !== key) {
+      lock音Ref.current = key;
       playSfx("lock", labels.some(x => x.includes("BRIDGE")) ? 250 : 120);
     }
     if (labels.some(x => x.startsWith("SYNERGY:")) && soundTurnRef.current !== key) {
@@ -1407,8 +1407,8 @@ async function submitScore() {
   useEffect(() => {
     if (!state?.winner) return;
     const key = `${gameId}-${state?.winner}-${state?.turn}`;
-    if (battleSoundRef.current === key) return;
-    battleSoundRef.current = key;
+    if (battle音Ref.current === key) return;
+    battle音Ref.current = key;
     playSfx("battle", 120);
   }, [state?.winner, gameId, state?.turn, soundOn]);
 
@@ -1431,14 +1431,14 @@ async function submitScore() {
     <Head>
       {/* ③ SEO + social meta tags */}
       <title>Word Territory{dailyMode&&dailyInfo?` · Daily #${dailyInfo.dayNumber}`:""}</title>
-      <meta name="description" content="Word Territory is a word-powered territory strategy game where words become the map. Play the デイリーチャレンジ!" />
+      <meta name="description" content="Word Territory is a word-powered territory strategy game where words become the map. プレイ the デイリーチャレンジ!" />
       <meta property="og:title" content="Word Territory" />
       <meta property="og:description" content="A spatial strategy word game. デイリーチャレンジ · Combo moves · Territory control." />
       <meta property="og:url" content="https://wordterritory.com" />
       <meta property="og:type" content="website" />
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content="Word Territory" />
-      <meta name="twitter:description" content="Strategy meets vocabulary. Play the デイリーチャレンジ!" />
+      <meta name="twitter:description" content="Strategy meets vocabulary. プレイ the デイリーチャレンジ!" />
       <meta name="theme-color" content="#111111" />
       <link rel="manifest" href="/manifest.json" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1458,8 +1458,8 @@ async function submitScore() {
               <span>4. Watch territory change</span>
             </div>
             <div className="intro-btns">
-              <button className="bprim" onClick={()=>dismissIntro(true)}>▶ Watch Demo</button>
-              <button className="bsm" onClick={()=>dismissIntro(false)}>Start Playing</button>
+              <button className="bprim" onClick={()=>dismissIntro(true)}>▶ デモを見る</button>
+              <button className="bsm" onClick={()=>dismissIntro(false)}>Start プレイing</button>
             </div>
           </div>
         </div>
@@ -1475,17 +1475,17 @@ async function submitScore() {
       <div className="hdr">
         <div className="hdr-l">
           <h1>WORD TERRITORY{dailyMode&&dailyInfo&&<span className="dpill">Daily #{dailyInfo.dayNumber}</span>}</h1>
-          <p className="sub">開始形: {state.openingName} · {spectatorMode ? `Spectator Mode · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "Bot vs Bot" : thinking?"Bot thinking…":asyncMode ? (state.currentPlayer===asyncRole?`Your turn (${asyncRole})`:`Waiting for ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"Bot's turn":`Your turn (${state.currentPlayer})`} · Round {state.turn}</p>
-          <p className="opening-note">{OPENING_NOTES[state.openingName] || "Words become territory. Each move reshapes the map."}</p>
-          <p className="tagline">Words become territory. Each move reshapes the map.</p>
+          <p className="sub">開始形: {state.openingName} · {spectatorMode ? `Spectator Mode · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "Bot vs Bot" : thinking?"Bot thinking…":asyncMode ? (state.currentプレイer===asyncRole?`Your turn (${asyncRole})`:`Waiting for ${state.currentプレイer}`) : state.currentプレイer===state.botプレイer?"Bot's turn":`Your turn (${state.currentプレイer})`} · Round {state.turn}</p>
+          <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。一手ごとに盤面が変わる。"}</p>
+          <p className="tagline">言葉が領地になる。一手ごとに盤面が変わる。</p>
         </div>
         <div className="hdr-r">
-          <button className="bsm sound-toggle" onClick={()=>setSoundOn(v=>!v)} title="Toggle sound">{soundOn ? "🔊 Sound" : "🔇 Muted"}</button>
+          <button className="bsm sound-toggle" onClick={()=>set音On(v=>!v)} title="Toggle sound">{soundOn ? "🔊 音" : "🔇 Muted"}</button>
           {!dailyMode&&(
             <div className="mode-box">
               <label>Bot</label>
               <select value={mode} onChange={e=>setMode(e.target.value)}>
-                <option value="easy">Easy</option><option value="normal">Normal</option>
+                <option value="easy">やさしい</option><option value="normal">Normal</option>
                 <option value="strong">Strong</option>
               </select>
             </div>
@@ -1496,19 +1496,19 @@ async function submitScore() {
               <span className="dsub">{streak>1?`🔥 ${streak} 日連続`:(dailyResult?"Completed ✓":(state?.openingName || dailyInfo.openingName))}</span>
               <div className="dcard-btns">
                 <button className="btn-daily" onClick={dailyResult?()=>{setSum(true);setDailyMode(true);}:bootDaily}>
-                  {dailyResult?"View":"Play"}
+                  {dailyResult?"View":"プレイ"}
                 </button>
                 <button className="btn-daily-lb" onClick={()=>setShowLB(true)} title="ランキング">🏆</button>
               </div>
             </div>
           )}
-          <button className="bsm" onClick={()=>setRules(v=>!v)}>{showRules?"✕ Rules":"? Rules"}</button>
-          <Link href="/about" className="bsm" style={{textDecoration:"none",color:"#111"}}>About</Link>
+          <button className="bsm" onClick={()=>setルール(v=>!v)}>{showルール?"✕ ルール":"? ルール"}</button>
+          <Link href="/about" className="bsm" style={{textDecoration:"none",color:"#111"}}>説明</Link>
           {dailyMode
             ?<button className="bprim" onClick={()=>boot(mode)}>← フリープレイ</button>
             :<button className="bprim" onClick={()=>boot(mode)}>新しいゲーム</button>
           }
-          <button className="bsm demo-btn" onClick={startSpectatorDemo}>▶ Watch Demo</button>
+          <button className="bsm demo-btn" onClick={startSpectatorDemo}>▶ デモを見る</button>
           {spectatorMode&&<button className="bsm" onClick={()=>{setSpectatorMode(false); setSpectatorNote("Demo paused. Press 新しいゲーム to play.");}}>Stop Demo</button>}
           <button className="bsm" onClick={async()=>{try{const d=await createAsyncMatch({botLevel:mode}); setAsyncMode(true); setSpectatorMode(false); setAsyncToken(d.redToken); setAsyncRole('RED'); setGameId(d.game_id); setState(d.state); setDailyMode(false); setInviteUrl(`${window.location.origin}${d.blueUrl}`); setMarket({active:d.state.marketLetters||[], preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed}); await refresh(d.game_id);}catch(e){setError(e.message||'Could not create async match');}}}>Async PvP</button>
           {asyncMode&&<button className="bsm" onClick={async()=>{try{const d=await getAsyncMatch(gameId, asyncToken); setState(d.state); await refresh(gameId);}catch(e){setError(e.message||'Could not refresh match');}}}>Refresh Match</button>}
@@ -1535,7 +1535,7 @@ async function submitScore() {
       </div>
 
       {/* ── rules ── */}
-      {showRules&&(
+      {showルール&&(
         <div className="rules">
           <strong>Build words from a shared draft. Place letters. Capture territory.</strong>
           <ol>
@@ -1893,8 +1893,8 @@ async function submitScore() {
       {showSynergy && !synergy && (
         <div className="modal-bg" onClick={e => e.target===e.currentTarget&&setShowSynergy(false)}>
           <div className="modal syn-modal">
-            <h2 style={{marginBottom:6}}>🎴 Choose Your Strategy</h2>
-            <p style={{fontSize:13,color:'#888',marginBottom:20}}>Pick one card. It stays active the whole game.</p>
+            <h2 style={{marginBottom:6}}>🎴 戦略カードを選ぶ</h2>
+            <p style={{fontSize:13,color:'#888',marginBottom:20}}>カードを1枚選んでください。効果は対局中ずっと続きます。</p>
             <div className="syn-cards">
               {(synergyOpts||[]).map(card => (
                 <button key={card.key} className="syn-card"
@@ -1913,7 +1913,7 @@ async function submitScore() {
               ))}
             </div>
             <button className="syn-skip" onClick={() => setShowSynergy(false)}>
-              Skip — play without a card
+              スキップ — カードなしで始める
             </button>
           </div>
         </div>
@@ -2196,8 +2196,8 @@ async function submitScore() {
                      text-align:center;margin-bottom:4px;letter-spacing:.3px}
       .syn-difficulty{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;
                       border-radius:20px;margin-bottom:6px;letter-spacing:.5px}
-      [data-diff="Easy"]{background:#dcfce7;color:#166534}
-      [data-diff="Medium"]{background:#fef9c3;color:#854d0e}
+      [data-diff="やさしい"]{background:#dcfce7;color:#166534}
+      [data-diff="ふつう"]{background:#fef9c3;color:#854d0e}
       [data-diff="Hard"]{background:#fee2e2;color:#991b1b}
       .syn-tip{font-size:11px;color:#6b7280;font-style:italic;margin-top:4px;line-height:1.4}
       .synergy-chip{background:linear-gradient(90deg,#312e81,#4338ca)!important;color:#c7d2fe!important;
@@ -2639,6 +2639,7 @@ async function submitScore() {
     `}</style>
   </>;
 }
+
 
 
 
