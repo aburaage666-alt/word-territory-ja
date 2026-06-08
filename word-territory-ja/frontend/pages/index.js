@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyLeaderboard,
-  getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, getThreat, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, rotateAsyncBlock, passAsyncTurn,
+  getあと一歩, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, get脅威, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, rotateAsyncBlock, passAsyncTurn,
   joinWaitlist, passTurn, previewMove, rotateBlock, seedMove, submitDailyScore, submitMove, daziMove, daziAsyncMove,
   useFreeLetter, swapLetter,
 } from "../lib/api";
@@ -21,14 +21,14 @@ function wtJaKatakanaToHiraganaLongVowel(value) {
   );
 }
 
-function wtJaNormalizeKanaInput(value) {
+function wtJa通常izeKanaInput(value) {
   const hira = wtJaKatakanaToHiraganaLongVowel(value);
   const chars = Array.from(hira).filter(ch => /^[\u3041-\u3096\u30fc]$/.test(ch));
   return chars.length ? chars[chars.length - 1] : "";
 }
 
 function wtJaHasKana(value) {
-  return !!wtJaNormalizeKanaInput(value);
+  return !!wtJa通常izeKanaInput(value);
 }
 
 // WT_JA_PLAYABILITY_FIX_20260606
@@ -60,7 +60,7 @@ const toCell = (value) => {
   return { row, col };
 };
 
-const normalizeThreats = (value) => {
+const normalize脅威s = (value) => {
   return asArray(value)
     .map((item) => {
       const cellSource =
@@ -136,7 +136,7 @@ function wtJaToTextList(value) {
   return out;
 }
 
-function wtJaToThreatList(value) {
+function wtJaTo脅威List(value) {
   const raw = wtJaToArray(value);
 
   return raw.map((item) => {
@@ -487,8 +487,8 @@ function ランキングModal({ on閉じる, dailyInfo, myRank }) {
         {!loading && !data && <p className="muted">ランキングを読み込めませんでした。</p>}
         {data && (
           <>
-            <p className="muted">{data.totalPlayers} 人{data.totalPlayers !== 1 ? "s" : ""} 本日</p>
-            {myRank && <div className="my-rank">あなたの順位: <strong>#{myRank}</strong> of {data.totalPlayers}</div>}
+            <p className="muted">{data.total遊ぶers} 人{data.total遊ぶers !== 1 ? "s" : ""} 本日</p>
+            {myRank && <div className="my-rank">あなたの順位: <strong>#{myRank}</strong> of {data.total遊ぶers}</div>}
             <table className="lb-table">
               <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Result</th><th>Turns</th></tr></thead>
               <tbody>
@@ -531,8 +531,8 @@ function wtModernMoveText(m, moveLabel) {
   return gain ? `${word} +${gain}` : String(word);
 }
 
-function wtModernBestSwing(moveHistory) {
-  const arr = Array.isArray(moveHistory) ? moveHistory : [];
+function wtModernBestSwing(move履歴) {
+  const arr = Array.isArray(move履歴) ? move履歴 : [];
   if (!arr.length) return null;
   return arr.slice().sort((a, b) => {
     const av = Number(a.territoryGained || 0) + Number(a.captureCount || 0) * 2;
@@ -544,7 +544,7 @@ function wtModernBestSwing(moveHistory) {
 function wtModernShareText({ state, redT, blueT, bestMove, moveLabel, dailyInfo, url, title="Word Territory" }) {
   const winner = state?.winner || "";
   const day = dailyInfo?.dayNumber ? ` #${dailyInfo.dayNumber}` : "";
-  const best = bestMove || wtModernBestSwing(state?.moveHistory);
+  const best = bestMove || wtModernBestSwing(state?.move履歴);
   const bestText = wtModernMoveText(best, moveLabel);
   const board = wtModernBoardEmoji(state?.board);
   const result = winner === "DRAW" ? "DRAW" : winner ? `${winner} WIN` : "RESULT";
@@ -552,7 +552,7 @@ function wtModernShareText({ state, redT, blueT, bestMove, moveLabel, dailyInfo,
     `${title}${day}`,
     `${result} · RED ${redT}–${blueT} BLUE`,
     best ? `Best Swing: ${bestText}` : null,
-    state?.openingName ? `Opening: ${String(state.openingName).replace(" OPENING", "")}` : null,
+    state?.openingName ? `開始形: ${String(state.openingName).replace(" OPENING", "")}` : null,
     board,
     url || (typeof location !== "undefined" ? location.origin : ""),
   ].filter(Boolean).join("\n");
@@ -560,7 +560,7 @@ function wtModernShareText({ state, redT, blueT, bestMove, moveLabel, dailyInfo,
 
 function wtModernDownloadShareCard({ state, redT, blueT, bestMove, moveLabel, dailyInfo, title="Word Territory" }) {
   if (typeof document === "undefined") return;
-  const best = bestMove || wtModernBestSwing(state?.moveHistory);
+  const best = bestMove || wtModernBestSwing(state?.move履歴);
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
   canvas.height = 1350;
@@ -575,7 +575,7 @@ function wtModernDownloadShareCard({ state, redT, blueT, bestMove, moveLabel, da
   ctx.font = "bold 64px system-ui, sans-serif";
   ctx.fillText(title, 70, 110);
   ctx.font = "34px system-ui, sans-serif";
-  const day = dailyInfo?.dayNumber ? `Daily #${dailyInfo.dayNumber}` : "Free Play";
+  const day = dailyInfo?.dayNumber ? `Daily #${dailyInfo.dayNumber}` : "Free 遊ぶ";
   ctx.fillText(day, 72, 165);
   ctx.font = "bold 58px system-ui, sans-serif";
   ctx.fillStyle = red;
@@ -618,7 +618,7 @@ function wtModernDownloadShareCard({ state, redT, blueT, bestMove, moveLabel, da
 }
 
 function wtModernReplayBestSwing({ state, bestMove, moveLabel, setBoardBannerText }) {
-  const best = bestMove || wtModernBestSwing(state?.moveHistory);
+  const best = bestMove || wtModernBestSwing(state?.move履歴);
   const text = `最大スイング：${wtModernMoveText(best, moveLabel)}`;
   try { navigator.vibrate?.([70, 40, 100]); } catch {}
   try {
@@ -699,13 +699,13 @@ function wtDaziEnemyOf(player) {
 }
 function wtDaziPathHasEnemy(state, path) {
   if (!state?.board || !Array.isArray(path) || path.length === 0) return false;
-  const enemy = wtDaziEnemyOf(state.currentPlayer);
+  const enemy = wtDaziEnemyOf(state.current遊ぶer);
   return path.some(p => state.board?.[p.row]?.[p.col]?.owner === enemy);
 }
 function wtDaziTargetKeys(state) {
   const keys = new Set();
   if (!state?.board) return keys;
-  const enemy = wtDaziEnemyOf(state.currentPlayer);
+  const enemy = wtDaziEnemyOf(state.current遊ぶer);
   state.board.forEach((row, r) => {
     (row || []).forEach((cell, c) => {
       if (cell?.letter && cell?.owner === enemy) keys.add(`${r},${c}`);
@@ -734,10 +734,10 @@ const [thinking, setThinking] = useState(false);
 
   // UI panels
   const [showルール,   setルール]   = useState(false);
-  const [showHistory, setHistory] = useState(true);
+  const [show履歴, set履歴] = useState(true);
   const [showSuggest, setSuggest] = useState(false);
-  const [showAlmost,  setAlmostOpen] = useState(true);
-  const [showThreatPanel, setThreatPanel] = useState(false);
+  const [showあと一歩,  setあと一歩Open] = useState(true);
+  const [show脅威Panel, set脅威Panel] = useState(false);
   const [mobileTab, setMobileTab] = useState("hints"); // hints | history | threat
   const [showLB,      setShowLB]  = useState(false);  // ④
 
@@ -749,9 +749,9 @@ const [thinking, setThinking] = useState(false);
   const [synergyOpts, setSynergyOpts] = useState([]);
   const [synergy,     setSynergy]     = useState("");
   const [valuePrev,   setValuePrev]   = useState([]); // Territory Preview candidates
-  const [threatsRaw,  _setThreats]    = useState([]); // opponent capture threats, raw API payload
-  const threats = useMemo(() => normalizeThreats(threatsRaw), [threatsRaw]);
-  const setThreats = (value) => _setThreats(normalizeThreats(value));
+  const [threatsRaw,  _set脅威s]    = useState([]); // opponent capture threats, raw API payload
+  const threats = useMemo(() => normalize脅威s(threatsRaw), [threatsRaw]);
+  const set脅威s = (value) => _set脅威s(normalize脅威s(value));
   const [asyncMode,   setAsyncMode]   = useState(false);
   const [asyncToken,  setAsyncToken]  = useState("");
   const [asyncRole,   setAsyncRole]   = useState("");
@@ -874,13 +874,13 @@ const [thinking, setThinking] = useState(false);
   const [nickname,    setNickname]    = useState("");
   const [myRank,      setMyRank]      = useState(null);
   const [submitted,   set決定ted]   = useState(false);
-  const [almost,      setAlmost]      = useState([]);
+  const [almost,      setあと一歩]      = useState([]);
   const [market,      setMarket]      = useState({ active:[], preview:[], stats:[], freeLetterUsed:false });
   const [freeLetter,  setFreeLetter]  = useState('');
   const [showFreeInput, setShowFreeInput] = useState(false);
   const [wildMode, setWildMode] = useState(false);
   // Tutorial UX: track how many turns have been played
-  const tutTurns = (state?.moveHistory?.length || 0);
+  const tutTurns = (state?.move履歴?.length || 0);
   const isTutorial = tutTurns < 3;
   const WT_JA_LAST_STAND_FIX_20260606 = true;
   const lastStand = Boolean(
@@ -916,7 +916,7 @@ const [thinking, setThinking] = useState(false);
           setGameId(mid); setState(d.state); setDailyMode(false); setBootMsg("");
           if (d.state?.marketLetters?.length > 0) setMarket({ active:d.state.marketLetters, preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed });
           getSuggestions(mid).then(x => setSugg(wtJaToTextList(x))).catch(()=>setSugg([]));
-          getThreat(mid).then(x => setThreats(wtJaToThreatList(x))).catch(()=>setThreats([]));
+          get脅威(mid).then(x => set脅威s(wtJaTo脅威List(x))).catch(()=>set脅威s([]));
         }).catch(e => setError(e.message || "Could not load async match"));
       } else if (typeof window !== "undefined" && localStorage.getItem(LS_INTRO) !== "1") {
         setShowIntro(true);
@@ -931,7 +931,7 @@ const [thinking, setThinking] = useState(false);
             setGameId(saved.match); setState(d.state); setDailyMode(false); setBootMsg("");
             if (d.state?.marketLetters?.length > 0) setMarket({ active:d.state.marketLetters, preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed });
             getSuggestions(saved.match).then(d=>setSugg(wtJaToTextList(d))).catch(()=>setSugg([]));
-            getThreat(saved.match).then(d=>setThreats(wtJaToThreatList(d))).catch(()=>setThreats([]));
+            get脅威(saved.match).then(d=>set脅威s(wtJaTo脅威List(d))).catch(()=>set脅威s([]));
           }).catch(()=>{ try { localStorage.removeItem(LS_ASYNC); } catch {} });
         }
       }
@@ -967,7 +967,7 @@ const [thinking, setThinking] = useState(false);
           try { const mk = await getMarket(d.game_id); setMarket(mk); } catch(_) {}
         }
         getSuggestions(d.game_id).then(x => setSugg(wtJaToTextList(x))).catch(() => setSugg([]));
-        getThreat(d.game_id).then(x => setThreats(wtJaToThreatList(x))).catch(() => setThreats([]));
+        get脅威(d.game_id).then(x => set脅威s(wtJaTo脅威List(x))).catch(() => set脅威s([]));
         // Show synergy card selection
         getSynergyOptions(d.game_id).then(r => {
           setSynergyOpts(r.options||[]);
@@ -978,7 +978,7 @@ const [thinking, setThinking] = useState(false);
       } catch(e) {
         lastErr = e;
         if (attempt < 6) {
-          setBootMsg(`Almost ready… (${attempt * 10}s)`);
+          setBootMsg(`あと一歩 ready… (${attempt * 10}s)`);
           await new Promise(r => setTimeout(r, 10000));
         }
       }
@@ -1033,7 +1033,7 @@ const [thinking, setThinking] = useState(false);
         try { const mk = await getMarket(d.game_id); setMarket(mk); } catch(_) {}
       }
       try { setSugg(await getSuggestions(d.game_id)); } catch { setSugg([]); }
-      try { setThreats(await getThreat(d.game_id)); } catch { setThreats([]); }
+      try { set脅威s(await get脅威(d.game_id)); } catch { set脅威s([]); }
       getSynergyOptions(d.game_id).then(r => {
         const options = r.options || [];
         setSynergyOpts(options);
@@ -1088,8 +1088,8 @@ const [thinking, setThinking] = useState(false);
     if (tutorialStep === 0 && letter) setTutorialStep(1);
     else if (tutorialStep === 1 && placed) setTutorialStep(2);
     else if (tutorialStep === 2 && path.length >= 3) setTutorialStep(3);
-    else if (tutorialStep === 3 && (state?.moveHistory?.length || 0) > 0) finishTutorial();
-  }, [showTutorial, tutorialStep, letter, placed?.row, placed?.col, path.length, state?.moveHistory?.length]);
+    else if (tutorialStep === 3 && (state?.move履歴?.length || 0) > 0) finishTutorial();
+  }, [showTutorial, tutorialStep, letter, placed?.row, placed?.col, path.length, state?.move履歴?.length]);
 
 
   // ── state tick ───────────────────────────────────────────────────────────
@@ -1115,7 +1115,7 @@ const [thinking, setThinking] = useState(false);
     if (!state || !gameId) return;
     if (asyncMode || spectatorMode) return;
     if (state.winner && state.winner !== "") return;  // stops on RED/BLUE/DRAW
-    if (state.currentPlayer !== state.botPlayer) return;
+    if (state.current遊ぶer !== state.bot遊ぶer) return;
     let cancelled = false;
     const run = async () => {
       setThinking(true);
@@ -1134,7 +1134,7 @@ const [thinking, setThinking] = useState(false);
     };
     run();
     return () => { cancelled = true; setThinking(false); };
-  }, [state?.turn, state?.currentPlayer, spectatorMode]);
+  }, [state?.turn, state?.current遊ぶer, spectatorMode]);
 
   // ── spectator demo auto-play ─────────────────────────────────────────────
   useEffect(() => {
@@ -1159,8 +1159,8 @@ const [thinking, setThinking] = useState(false);
         setSpectatorSteps(n => n + 1);
         reset();
         try { setSugg(await getSuggestions(gameId)); } catch { setSugg([]); }
-        try { setThreats(await getThreat(gameId)); } catch { setThreats([]); }
-        const last = next.moveHistory?.[next.moveHistory.length - 1];
+        try { set脅威s(await get脅威(gameId)); } catch { set脅威s([]); }
+        const last = next.move履歴?.[next.move履歴.length - 1];
         if (last?.comboLabels?.length) {
           setSpectatorNote(`${last.人} reshaped the map: ${terrainMoveLabel(last)}`);
         } else if (last?.word && last.word !== "SEED") {
@@ -1175,7 +1175,7 @@ const [thinking, setThinking] = useState(false);
     };
     run();
     return () => { cancelled = true; setThinking(false); };
-  }, [spectatorMode, state?.turn, state?.currentPlayer, gameId]);
+  }, [spectatorMode, state?.turn, state?.current遊ぶer, gameId]);
 
   // ── game over ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1192,7 +1192,7 @@ const [thinking, setThinking] = useState(false);
     setSum(true);
 
     if (dailyMode && dailyInfo) {
-      const wm = state.moveHistory.filter(m => m.moveType === "WORD");
+      const wm = state.move履歴.filter(m => m.moveType === "WORD");
       const best = [...wm].sort((a, b) =>
         (b.territoryGained*2 + b.wordScoreGained*1.5 + b.fortifiedCellsGained*2 + (b.captureCount?5:0)) -
         (a.territoryGained*2 + a.wordScoreGained*1.5 + a.fortifiedCellsGained*2 + (a.captureCount?5:0))
@@ -1226,7 +1226,7 @@ const [thinking, setThinking] = useState(false);
     }
   }, [state?.winner]);
 
-  useEffect(() => { if (histRef.current) histRef.current.scrollTop = histRef.current.scrollHeight; }, [state?.moveHistory?.length]);
+  useEffect(() => { if (histRef.current) histRef.current.scrollTop = histRef.current.scrollHeight; }, [state?.move履歴?.length]);
 
   // ── preview ──────────────────────────────────────────────────────────────
   const currentWord = useMemo(() => {
@@ -1252,11 +1252,11 @@ const [thinking, setThinking] = useState(false);
   }, [placed]);
 
   // ── board helpers ────────────────────────────────────────────────────────
-  const human = () => state && !spectatorMode && !thinking && !state.winner && (asyncMode ? state.currentPlayer === asyncRole : state.currentPlayer !== state.botPlayer);
+  const human = () => state && !spectatorMode && !thinking && !state.winner && (asyncMode ? state.current遊ぶer === asyncRole : state.current遊ぶer !== state.bot遊ぶer);
   const isSel = (r,c) => path.some(p => p.row===r && p.col===c);
 
   // Opponent cells adjacent to any placeable empty cell = attackable
-  const opponent = state?.currentPlayer === "RED" ? "BLUE" : "RED";
+  const opponent = state?.current遊ぶer === "RED" ? "BLUE" : "RED";
   const attackableSet = useMemo(() => {
     if (!state || !human()) return new Set();
     const s = new Set();
@@ -1276,7 +1276,7 @@ const [thinking, setThinking] = useState(false);
       }
     }
     return s;
-  }, [state?.turn, state?.currentPlayer]);
+  }, [state?.turn, state?.current遊ぶer]);
 
   // Opponent cells currently in the selected path (will be captured if submitted)
   const inPathOpponentSet = useMemo(() => {
@@ -1311,7 +1311,7 @@ const [thinking, setThinking] = useState(false);
     );
     if (rotateAlreadyUsed) return { cells, anchors };
 
-    const opp = state?.currentPlayer === "RED" ? "BLUE" : "RED";
+    const opp = state?.current遊ぶer === "RED" ? "BLUE" : "RED";
     const n = b.length;
 
     for (let r = 0; r < n - 1; r++) {
@@ -1339,7 +1339,7 @@ const [thinking, setThinking] = useState(false);
     }
 
     return { cells, anchors };
-  }, [state?.turn, state?.currentPlayer, state?.winner, state?.board]);
+  }, [state?.turn, state?.current遊ぶer, state?.winner, state?.board]);
 
   const rotateCandidateSet = rotateCandidateData.cells;
   const rotateAnchorSet = rotateCandidateData.anchors;
@@ -1384,7 +1384,7 @@ const [thinking, setThinking] = useState(false);
     return new Set([asKey(r,c), asKey(r,c+1), asKey(r+1,c), asKey(r+1,c+1)]);
   }, [rotateTarget?.row, rotateTarget?.col]);
   const rotateRaidUsed = !!state?.synergyState?.rotationRaidUsed;
-  const daziTargetSet = useMemo(() => daziMode ? wtDaziTargetKeys(state) : new Set(), [daziMode, state?.board, state?.currentPlayer]);
+  const daziTargetSet = useMemo(() => daziMode ? wtDaziTargetKeys(state) : new Set(), [daziMode, state?.board, state?.current遊ぶer]);
 
   async function performRotateRaid(target = rotateTarget) {
     if (!target) { setError("2×2ブロックの左上マスを選んでください。ロック済みマスは回転できません。"); return; }
@@ -1514,17 +1514,17 @@ const [thinking, setThinking] = useState(false);
   }
 
   // ── move actions ─────────────────────────────────────────────────────────
-  async function syncThreats(id = gameId) {
+  async function sync脅威s(id = gameId) {
     if (!id) {
-      setThreats([]);
+      set脅威s([]);
       return [];
     }
     try {
-      const data = await getThreat(id);
-      setThreats(data);
-      return normalizeThreats(data);
+      const data = await get脅威(id);
+      set脅威s(data);
+      return normalize脅威s(data);
     } catch {
-      setThreats([]);
+      set脅威s([]);
       return [];
     }
   }
@@ -1537,7 +1537,7 @@ const [thinking, setThinking] = useState(false);
   }
   const refresh = async (id=gameId) => {
     try { setSugg(wtJaToTextList(await getSuggestions(id))); } catch { setSugg([]); }
-    await syncThreats(id);
+    await sync脅威s(id);
   };
   async function submit() {
     if (!placed) { setError("先に緑のマスを選んでください。"); return; }
@@ -1554,7 +1554,7 @@ const [thinking, setThinking] = useState(false);
       if (next.marketLetters?.length > 0) setMarket(m => ({...m, active:next.marketLetters, preview:next.previewLetters||[], freeLetterUsed:next.freeLetterUsed||false}));
 
       reset(); await refresh();
-      getAlmost(gameId).then(setAlmost).catch(()=>{});
+      getあと一歩(gameId).then(setあと一歩).catch(()=>{});
     } catch(e) {
       if (await recoverIfGameGone(e)) return;
       setError(normalizeStringError(e, "Move failed"));
@@ -1577,7 +1577,7 @@ try {
       const next = asyncMode ? await daziAsyncMove(gameId, asyncToken, payload) : await daziMove(gameId, payload);
       setState(next);
       reset(); await refresh();
-      getAlmost(gameId).then(setAlmost).catch(()=>{});
+      getあと一歩(gameId).then(setあと一歩).catch(()=>{});
     } catch(e) {
       setError(e.message || "奪字に失敗しました");
     }
@@ -1593,7 +1593,7 @@ try {
       if (next.marketLetters?.length > 0) setMarket(m => ({...m, active:next.marketLetters, preview:next.previewLetters||[], freeLetterUsed:next.freeLetterUsed||false}));
 
       reset(); await refresh();
-      getAlmost(gameId).then(setAlmost).catch(()=>{});
+      getあと一歩(gameId).then(setあと一歩).catch(()=>{});
     } catch(e) {
       if (await recoverIfGameGone(e)) return;
       setError(normalizeStringError(e, "Seed failed"));
@@ -1603,7 +1603,7 @@ try {
     try { const next = asyncMode ? await passAsyncTurn(gameId, asyncToken) : await passTurn(gameId); setState(next); reset(); await refresh(); }
     catch(e) {
       if (await recoverIfGameGone(e)) return;
-      setError(normalizeStringError(e, "Pass failed"));
+      setError(normalizeStringError(e, "パス failed"));
     }
   }
 
@@ -1618,7 +1618,7 @@ async function swapRelief() {
     }
     reset();
     await refresh();
-    getAlmost(gameId).then(setAlmost).catch(()=>{});
+    getあと一歩(gameId).then(setあと一歩).catch(()=>{});
   } catch(e) {
     if (await recoverIfGameGone(e)) return;
     setError(normalizeStringError(e, "交換は、作れる単語がない時だけ使えます。"));
@@ -1648,23 +1648,23 @@ async function submitScore() {
   const lockedS   = new Set((state?.lastFortifiedCells  ||[]).map(c=>asKey(c.row,c.col)));
   const lockedOrderMap = new Map((state?.lastFortifiedCells||[]).map((c,i)=>[asKey(c.row,c.col), i]));
   const redT = tScore(state,"RED"), blueT = tScore(state,"BLUE");
-  const comebackChance = state && !state.winner && state.currentPlayer && state.currentPlayer !== state.botPlayer
-    ? (() => { const p=state.currentPlayer; const opp=p==="RED"?"BLUE":"RED";
+  const comebackChance = state && !state.winner && state.current遊ぶer && state.current遊ぶer !== state.bot遊ぶer
+    ? (() => { const p=state.current遊ぶer; const opp=p==="RED"?"BLUE":"RED";
                const my=tScore(state,p), op=tScore(state,opp); return op-my>=6; })()
     : false;
   const pct  = Math.round((redT / Math.max(redT+blueT,1)) * 100);
   const incPlaced = placed && path.some(p=>p.row===placed.row&&p.col===placed.col);
   const ok = preview?.isInDictionary && preview?.includesPlacedCell;
-  const daziUsed = Number((state?.daziUses || {})[state?.currentPlayer] || 0);
+  const daziUsed = Number((state?.daziUses || {})[state?.current遊ぶer] || 0);
   const daziRemaining = Math.max(0, 2 - daziUsed);
   const daziLabel = daziMode ? "奪字ON" : "奪字";
-  const topMoves = [...(state?.moveHistory||[])].filter(m=>m.moveType==="WORD")
+  const topMoves = [...(state?.move履歴||[])].filter(m=>m.moveType==="WORD")
     .sort((a,b)=>(b.territoryGained*2+b.wordScoreGained*1.5+b.fortifiedCellsGained*2+(b.captureCount?5:0)+(b.comboLabels?.length||0)*1.5)
                 -(a.territoryGained*2+a.wordScoreGained*1.5+a.fortifiedCellsGained*2+(a.captureCount?5:0)+(a.comboLabels?.length||0)*1.5))
     .slice(0,3);
   const bestMove = topMoves[0] || null;
   const moveLabel = terrainMoveLabel;
-  const suggestionList = useMemo(() => wtJaToTextList(suggestions), [JSON.stringify(suggestions || [])]); const threatList = useMemo(() => normalizeThreats(threats), [JSON.stringify(threats || [])]);
+  const suggestionList = useMemo(() => wtJaToTextList(suggestions), [JSON.stringify(suggestions || [])]); const threatList = useMemo(() => normalize脅威s(threats), [JSON.stringify(threats || [])]);
   const threatCellSet = useMemo(() => {
     const s = new Set();
     threatList.forEach(t => {
@@ -1683,7 +1683,7 @@ async function submitScore() {
     });
     return s;
   }, [JSON.stringify(threatList)]);
-  const lastMove = (state?.moveHistory || [])[Math.max((state?.moveHistory?.length || 0) - 1, 0)] || null;
+  const lastMove = (state?.move履歴 || [])[Math.max((state?.move履歴?.length || 0) - 1, 0)] || null;
   const lastMoveInsights = moveInsightLines(lastMove);
   const lastMoveIsSwing = !!lastMove && (
     (lastMove.captureCount || 0) > 0 ||
@@ -1854,6 +1854,11 @@ async function submitScore() {
         .rotate-anchor-dot{width:16px;height:16px;font-size:11px;right:2px;bottom:2px}
       }
 
+      /* WT_JA_TUTORIAL_MIN_V2_CSS */
+      .intro-note{margin:8px auto 10px;max-width:560px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:900;line-height:1.45}
+      @media(max-width:600px){.intro-note{border-radius:12px;font-size:11px}}
+      /* END WT_JA_TUTORIAL_MIN_V2_CSS */
+
     `}</style>
     </main>
   );
@@ -1881,14 +1886,15 @@ async function submitScore() {
       {showIntro && (
         <div className="intro-bg">
           <div className="intro-card">
-            <div className="intro-kicker">30-second demo</div>
-            <h2>Words become territory.</h2>
-            <p>Watch letters claim ground, trigger captures, lock cells, and reshape the map.</p>
+            <div className="intro-kicker">30秒でわかる</div>
+            <h2>言葉が陣地になる。</h2>
+            <p>単語を作るたびに、文字が陣地を取り、敵文字を奪い、盤面を動かします。</p>
+            <div className="intro-note WT_JA_TUTORIAL_MIN_V2">まずは5x5で短く遊ぶのがおすすめです。慣れたら7x7で本格対局へ。</div>
             <div className="intro-steps">
               <span>1. 文字を選ぶ</span>
-              <span>2. Tap a glowing cell</span>
-              <span>3. Connect a word</span>
-              <span>4. Watch territory change</span>
+              <span>2. 光るマスに置く</span>
+              <span>3. 文字をつないで単語を作る</span>
+              <span>4. 陣地の変化を見る</span>
             </div>
             <div className="intro-btns">
               <button className="bprim" onClick={()=>dismissIntro(true)}>▶ デモを見る</button>
@@ -1908,7 +1914,7 @@ async function submitScore() {
       <div className="hdr">
         <div className="hdr-l">
           <h1>WORD TERRITORY{dailyMode&&dailyInfo&&<span className="dpill">Daily #{dailyInfo.dayNumber}</span>}</h1>
-          <p className="sub">開始形: {state.openingName} · {spectatorMode ? `観戦モード · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "ボット対ボット" : thinking?"ボット思考中…":asyncMode ? (state.currentPlayer===asyncRole?`あなたの手番 (${asyncRole})`:`待機中: ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"ボットの手番":`あなたの手番 (${state.currentPlayer})`} · {state.boardSize===5?'Quick 5×5':'標準 7×7'} · ラウンド {state.turn}</p>
+          <p className="sub">開始形: {state.openingName} · {spectatorMode ? `観戦モード · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "ボット対ボット" : thinking?"ボット思考中…":asyncMode ? (state.current遊ぶer===asyncRole?`あなたの手番 (${asyncRole})`:`待機中: ${state.current遊ぶer}`) : state.current遊ぶer===state.bot遊ぶer?"ボットの手番":`あなたの手番 (${state.current遊ぶer})`} · {state.boardSize===5?'Quick 5×5':'標準 7×7'} · ラウンド {state.turn}</p>
           <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。一手ごとに盤面が変わる。"}</p>
         </div>
         <div className="hdr-r">
@@ -1928,7 +1934,7 @@ async function submitScore() {
               <span className="dsub">{streak>1?`🔥 ${streak} 日連続`:(dailyResult?"Completed ✓":(state?.openingName || dailyInfo.openingName))}</span>
               <div className="dcard-btns">
                 <button className="btn-daily" onClick={dailyResult?()=>{setSum(true);setDailyMode(true);}:bootDaily}>
-                  {dailyResult?"View":"プレイ"}
+                  {dailyResult?"見る":"プレイ"}
                 </button>
                 <button className="btn-daily-lb" onClick={()=>setShowLB(true)} title="ランキング">🏆</button>
               </div>
@@ -1941,9 +1947,9 @@ async function submitScore() {
             :<button className="bprim" onClick={()=>boot(mode)}>新しいゲーム</button>
           }
           <button className="bsm demo-btn" onClick={startSpectatorDemo}>▶ デモを見る</button>
-          {spectatorMode&&<button className="bsm" onClick={()=>{setSpectatorMode(false); setSpectatorNote("Demo paused. Press 新しいゲーム to play.");}}>Stop Demo</button>}
+          {spectatorMode&&<button className="bsm" onClick={()=>{setSpectatorMode(false); setSpectatorNote("Demo paused. Press 新しいゲーム to play.");}}>デモ停止</button>}
           <button className="bsm" onClick={async()=>{try{const d=await createAsyncMatch({botLevel:mode, boardMode}); setAsyncMode(true); setSpectatorMode(false); setAsyncToken(d.redToken); setAsyncRole('RED'); setGameId(d.game_id); setState(d.state); setDailyMode(false); setInviteUrl(`${window.location.origin}${d.blueUrl}`); setMarket({active:d.state.marketLetters||[], preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed}); await refresh(d.game_id);}catch(e){setError(e.message||'Could not create async match');}}}>Async PvP</button>
-          {asyncMode&&<button className="bsm" onClick={async()=>{try{const d=await getAsyncMatch(gameId, asyncToken); setState(d.state); await refresh(gameId);}catch(e){setError(e.message||'Could not refresh match');}}}>Refresh Match</button>}
+          {asyncMode&&<button className="bsm" onClick={async()=>{try{const d=await getAsyncMatch(gameId, asyncToken); setState(d.state); await refresh(gameId);}catch(e){setError(e.message||'Could not refresh match');}}}>更新</button>}
         </div>
       </div>
 
@@ -1972,11 +1978,11 @@ async function submitScore() {
           <strong>共通の盤面で単語を作り、文字を置き、領地を奪います。</strong>
           <ol>
             <li><em>緑のマス</em>をタップ → 文字を置く → 3〜6文字の単語を作る → <strong>領地を確定 ⚔</strong></li>
-            <li>Example: board has D–S–T, place U → select D→U→S→T → DUST! Your letter can go anywhere in the path.</li>
-            <li>Enclose opponent cells to <strong>capture</strong> them. Surrounded own cells become 🏰 <strong>Fortified</strong>.</li>
-            <li><strong>役ボーナス</strong> — earn extra territory: 橋渡し +3T · 分断 +2T · 交差語 +2T · 長経路 +1T</li>
-            <li><strong>Seed</strong> — place a letter without capturing when stuck. Good for setting up future words.</li>
-            <li><strong>Goal:</strong> More red cells than blue wins. Territory beats vocabulary.</li>
+            <li>置いた文字は単語の先頭・途中・末尾のどこに入っても構いません。</li>
+            <li>敵の文字を含む単語を作ると、敵文字を中立化できます。</li>
+            <li><strong>役ボーナス</strong> — 追加の陣地を得られます: 橋渡し +3T · 分断 +2T · 交差語 +2T · 長経路 +1T</li>
+            <li><strong>Seed</strong> — 単語が作れない時に、文字だけを置いて次の単語を準備します。</li>
+            <li><strong>目的:</strong> 相手より多くの陣地を取れば勝ちです。語彙点より盤面支配が重要です。</li>
             <li><strong>デイリーチャレンジ</strong> — same board worldwide each day. One attempt. 強い bot.</li>
           <li><strong>奪字</strong> — 1試合2回まで。敵文字を単語に含めると、そのロックを中立化します。</li>
           </ol>
@@ -1986,7 +1992,7 @@ async function submitScore() {
       {/* ── banners ── */}
       {dailyMode&&<div className="dbanner">🗓️ Daily #{dailyInfo?.dayNumber} · {dailyInfo?.dateStr} · 強い Bot · {state.botStyle || "Raider"}{streak>1?` · 🔥 ${streak} 日連続`:""}</div>}
       {asyncMode&&inviteUrl&&<div className="dbanner async-banner">🔗 Async PvP invite: <button className="link-copy" onClick={async()=>{try{await navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(()=>setCopied(false),2000);}catch{}}}>{copied?'Copied!':'Copy BLUE link'}</button></div>}
-      {spectatorMode&&<div className="dbanner demo-banner">🎬 観戦モード · ボット対ボット · {spectatorNote || "Words become territory. Watch the map reshape itself."}</div>}
+      {spectatorMode&&<div className="dbanner demo-banner">🎬 観戦モード · ボット対ボット · {spectatorNote || "言葉が陣地になる。 Watch the map reshape itself."}</div>}
       {thinking&&<div className="bnr thinking">{spectatorMode?"Spectator bots are moving…":"Bot is thinking…"}</div>}
       {spectatorMode&&lastMoveIsSwing&&<div className="bnr watch-swing">👀 Watch this swing — {lastMove ? terrainMoveLabel(lastMove) : "the map is changing"}</div>}
       {synergyFlash&&<div className="bnr synergy-flash">{synergyFlash}</div>}
@@ -2061,7 +2067,7 @@ async function submitScore() {
                 </div>
                 {bestMove && <div className="report-best"><span>最大領地変動</span><strong>{moveLabel(bestMove)}</strong></div>}
                 <div className="report-stats">
-                  <span>最大奪取: {Math.max(0, ...((state.moveHistory||[]).map(m=>m.captureCount||0)))} cells</span>
+                  <span>最大奪取: {Math.max(0, ...((state.move履歴||[]).map(m=>m.captureCount||0)))} cells</span>
                   <span>大きな変動: {topMoves.length}</span>
                   <span>開始形: {state.openingName}</span>
                 </div>
@@ -2154,7 +2160,7 @@ async function submitScore() {
                   <input className="lm-free-input" maxLength={1}
                     placeholder={wildMode ? "ワイルド: type any letter" : "Type any letter"}
                     value={freeLetter}
-                    onChange={e => setFreeLetter(wtJaNormalizeKanaInput(e.target.value))}
+                    onChange={e => setFreeLetter(wtJa通常izeKanaInput(e.target.value))}
                     onKeyDown={e => {
                       if(e.key==='Enter' && freeLetter) {
                         useFreeLetter(gameId, freeLetter, wildMode ? "wild" : "free").then(r => {
@@ -2193,7 +2199,7 @@ async function submitScore() {
                 value={letter} maxLength={8} lang="ja" inputMode="text" autoComplete="off"
                 disabled={!human()}
                 readOnly={market.active.length > 0}
-                onChange={e=>{ if(market.active.length===0) setLetter(wtJaNormalizeKanaInput(e.target.value)); }}
+                onChange={e=>{ if(market.active.length===0) setLetter(wtJa通常izeKanaInput(e.target.value)); }}
                 placeholder={market.active.length > 0 ? "—" : "あ/ー/ゃ"}
                 style={market.active.length > 0 && !letter ? {color:'#ccc'} : {}}
               />
@@ -2222,14 +2228,14 @@ async function submitScore() {
                 ):(
                   <div className="pvhint">
                     {!placed
-                      ? (market.active.length > 0 ? (thinking ? "Bot is thinking..." : state?.winner ? "対戦レポート" : "上の文字カードを選ぶと、ここに領地化の見込みが表示されます。") : "Tap a 緑のマス to place a letter.")
+                      ? (market.active.length > 0 ? (thinking ? "Bot is thinking..." : state?.winner ? "対戦レポート" : "上の文字カードを選ぶと、ここに領地化の見込みが表示されます。") : "緑のマス to place a letter.")
                       : !letter
                       ? "ひらがな1文字・ー・ゃゅょっを入力してください。"
                       : path.length < 2
-                      ? "Now tap connected letters to make a word."
+                      ? "隣り合う文字をつないで単語を作ります。"
                       : !incPlaced
-                      ? "Path must include your placed letter."
-                      : "Keep connecting — need 3–6 letters total."}
+                      ? "置いた文字を単語に含めてください。"
+                      : "3文字以上になるまでつないでください。"}
                   </div>
                 )}
               </div>
@@ -2271,10 +2277,10 @@ async function submitScore() {
           ) : null; })()}
           {almost.length > 0 && (
             <div className={`panel panel-almost ${comebackChance ? "comeback-box" : ""}`}>
-              <div className="ph" onClick={()=>setAlmostOpen(v=>!v)}>
-                <span>{comebackChance ? "🔥 反撃チャンス" : "🀄 あと1文字"}</span><span className="ci">{showAlmost?"▲":"▼"}</span>
+              <div className="ph" onClick={()=>setあと一歩Open(v=>!v)}>
+                <span>{comebackChance ? "🔥 反撃チャンス" : "🀄 あと1文字"}</span><span className="ci">{showあと一歩?"▲":"▼"}</span>
               </div>
-              {showAlmost && <div className="almost-list">
+              {showあと一歩 && <div className="almost-list">
                 <div className="almost-title">{comebackChance ? "1文字で盤面が動きます:" : "1文字置くと作れます:"}</div>
                 {almost.map((a,i) => (
                   <span key={i} className="almost-chip">
@@ -2295,10 +2301,10 @@ async function submitScore() {
             )}
           </div>
                     <div className="panel panel-threat">
-            <div className="ph" onClick={()=>setThreatPanel(v=>!v)}>
-              <span>⚠ 脅威</span><span className="ci">{showThreatPanel?"▲":"▼"}</span>
+            <div className="ph" onClick={()=>set脅威Panel(v=>!v)}>
+              <span>⚠ 脅威</span><span className="ci">{show脅威Panel?"▲":"▼"}</span>
             </div>
-            {showThreatPanel&&(
+            {show脅威Panel&&(
               <div className="threat-list">
                 {threatList && threatList.length ? threatList.slice(0,5).map((t,i)=>(
                   <div className="threat-row" key={i}>
@@ -2310,13 +2316,13 @@ async function submitScore() {
             )}
           </div>
 <div className="panel panel-history">
-            <div className="ph" onClick={()=>setHistory(v=>!v)}>
-              <span>📋 履歴</span><span className="ci">{showHistory?"▲":"▼"}</span>
+            <div className="ph" onClick={()=>set履歴(v=>!v)}>
+              <span>📋 履歴</span><span className="ci">{show履歴?"▲":"▼"}</span>
             </div>
-            {showHistory&&(
+            {show履歴&&(
               <div className="hist" ref={histRef}>
-                {!state.moveHistory.length&&<div className="muted">まだ履歴はありません</div>}
-                {state.moveHistory.map((m,i)=><HistItem key={i} m={m}/>)}
+                {!state.move履歴.length&&<div className="muted">まだ履歴はありません</div>}
+                {state.move履歴.map((m,i)=><HistItem key={i} m={m}/>)}
               </div>
             )}
           </div>
@@ -2406,7 +2412,7 @@ async function submitScore() {
                   ):(
                     <div className="lb-ok">
                       投稿しました。本日の順位は <strong>#{myRank}</strong> 本日.
-                      <button className="bsm" style={{marginLeft:8}} onClick={()=>setShowLB(true)}>View ランキング</button>
+                      <button className="bsm" style={{marginLeft:8}} onClick={()=>setShowLB(true)}>見る ランキング</button>
                     </div>
                   )}
                 </div>
@@ -2692,7 +2698,7 @@ async function submitScore() {
                   padding:8px 12px;margin-bottom:8px;font-size:12px;color:#3730a3}
       .syn-active-effect{display:block;font-size:11px;color:#6366f1;margin-top:3px;font-style:italic}
 
-      /* Tenpai / Almost UI */
+      /* Tenpai / あと一歩 UI */
       .almost-box{background:#fffdf0;border:1.5px solid #f0c040;border-radius:12px;padding:8px 12px;margin-bottom:8px}
       .almost-title{font-size:11px;font-weight:800;color:#b08000;margin-bottom:6px;letter-spacing:.3px}
       .almost-list{display:flex;flex-wrap:wrap;gap:5px}
@@ -2936,7 +2942,7 @@ async function submitScore() {
         .almost-box{font-size:12px}
         .almost-chip{font-size:11px;padding:2px 7px}
 
-        /* History compact */
+        /* 履歴 compact */
         .hist{max-height:160px}
         .hi{padding:6px 8px}
         .hw{font-size:13px}
