@@ -2060,17 +2060,17 @@ async function submitScore() {
                 )}
               </div>
             </div>
-                        <div className="brow">
+                                    <div className="brow">
               <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={daziMode ? daziV2 : submit} disabled={!human()}>{daziMode ? "奪字確定" : showTutorial && tutorialStep===3 ? "語を確定 ⚔" : ok ? "領地を確定 ⚔" : "確定"}</button>
-              {!isTutorial && <button className="ba bseed" onClick={seed} disabled={!human() || daziMode || rotateMode} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "種まき（無料 — 次の語 +3T）" : "種まきは領地1コスト"}>
+              <button className="ba bseed" onClick={seed} disabled={!human() || daziMode || rotateMode} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "種まき（無料 — 次の語 +3T）" : "種まきは領地1コスト"}>
                 <span className="seed-label">{lastStand ? "奪回" : "種まき"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "無料" : "コスト -1"}</span>}
-              </button>}
-              {!isTutorial && <button className={`ba bdazi ${daziMode ? "active" : ""}`} onClick={()=>{ setDaziMode(v=>!v); setRotateMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setLetter(""); setPreview(null); setError(!daziMode ? "奪字モード：既存文字だけをつなぎ、ロック敵文字を含む有効語を作ると、その1マスを中立化します。" : ""); }} disabled={!human() || rotateMode || daziRemaining<=0} title="緑マス不要。ロック敵文字を含む既存文字パスで発動します。">奪字 {daziMode ? "ON " : ""}{daziRemaining}/2</button>}{/* WT_DAZI_V2_TOGGLE_BUTTON */}
-              {!isTutorial && !rotateRaidUsed && <button className={`ba brotate ${rotateMode ? "active" : ""}`} onClick={()=>{ if(rotateTarget) performRotateRaid(); else { setRotateMode(v=>!v); setDaziMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setPreview(null); setError("2×2ブロックの左上マスを選択。回転だけでは領地は取れません。"); } }} disabled={!human() || daziMode} title="1試合1回。敵地を含む2×2の文字だけを回転。所有権は動きません。">{rotateTarget ? "回転確定" : rotateMode ? "2×2選択中" : "回転侵略"}</button>}
+              </button>
+              <button className={`ba bdazi ${daziMode ? "active" : ""}`} onClick={()=>{ setDaziMode(v=>!v); setRotateMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setLetter(""); setPreview(null); setError(!daziMode ? "奪字モード：既存文字だけをつなぎ、ロック敵文字を含む有効語を作ると、その1マスを中立化します。" : ""); }} disabled={!human() || rotateMode || daziRemaining<=0} title="緑マス不要。ロック敵文字を含む既存文字パスで発動します。">奪字 {daziMode ? "ON " : ""}{daziRemaining}/2</button>{/* WT_DAZI_V2_TOGGLE_BUTTON */}
+              {!rotateRaidUsed && <button className={`ba brotate ${rotateMode ? "active" : ""}`} onClick={()=>{ if(rotateTarget) performRotateRaid(); else { setRotateMode(v=>!v); setDaziMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setPreview(null); setError("2×2ブロックの左上マスを選択。回転だけでは領地は取れません。"); } }} disabled={!human() || daziMode} title="1試合1回。敵地を含む2×2の文字だけを回転。所有権は動きません。">{rotateTarget ? "回転確定" : rotateMode ? "2×2選択中" : "回転侵略"}</button>}
               {rotateMode && <button className="ba" onClick={()=>{setRotateMode(false);setRotateTarget(null);setError("");}} disabled={!human()}>取消</button>}
               <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); setDaziMode(false); setRotateMode(false); setRotateTarget(null); }} disabled={!human()}>クリア</button>
-              {!isTutorial && <button className="ba" onClick={pass} disabled={!human() || daziMode || rotateMode}>パス</button>}
-              {!isTutorial && typeof swapRelief === "function" && <button className="ba" onClick={swapRelief} disabled={!human() || daziMode || rotateMode}>読み交換</button>}
+              <button className="ba" onClick={pass} disabled={!human() || daziMode || rotateMode}>パス</button>
+              {typeof swapRelief === "function" && <button className="ba" onClick={swapRelief} disabled={!human() || daziMode || rotateMode}>読み交換</button>}
             </div>
           </div>}
         </div>
