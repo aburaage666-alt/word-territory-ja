@@ -28,6 +28,24 @@ export async function rotateBlock(gameId, payload) {
   return readJson(res);
 }
 
+export async function daziMove(gameId, payload) {
+  const res = await fetchWithTimeout(`${API_BASE}/games/${gameId}/dazi-move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return readJson(res);
+}
+
+export async function daziAsyncMove(gameId, token, payload) {
+  const res = await fetchWithTimeout(`${API_BASE}/async/games/${gameId}/dazi-move?token=${encodeURIComponent(token)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return readJson(res);
+}
+
 export async function previewMove(...args){const {gameId,body}=payloadArgs(args); if(!gameId)return {errorMessage:"ゲームIDがありません。新規ゲームを押してください。"}; return request(`/games/${gameId}/preview-move`,{method:"POST",body:JSON.stringify(body)});}
 export async function passTurn(gameId){return request(`/games/${gameId}/pass`,{method:"POST"});}
 export async function botMove(gameId){return request(`/games/${gameId}/bot-move`,{method:"POST"});}

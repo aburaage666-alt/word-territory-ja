@@ -96,6 +96,11 @@ class MoveRequest(BaseModel):
     path: List[Coord] = []
 
 
+
+class DaziMoveRequest(BaseModel):
+    path: List[Coord]
+
+
 class SeedMoveRequest(BaseModel):
     row: int
     col: int

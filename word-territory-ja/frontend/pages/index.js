@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyLeaderboard,
   getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, getThreat, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, rotateAsyncBlock, passAsyncTurn,
-  joinWaitlist, passTurn, previewMove, rotateBlock, seedMove, submitDailyScore, submitMove,
+  joinWaitlist, passTurn, previewMove, rotateBlock, seedMove, submitDailyScore, submitMove, daziMove, daziAsyncMove,
   useFreeLetter, swapLetter,
 } from "../lib/api";
 
@@ -460,9 +460,9 @@ function HistItem({ m }) {
               {m.comboLabels.map((x,xi) => {
                 const label = terrainComboLabel(x, m);
                 if (String(x).startsWith('SYNERGY:')) {
-                  return <span key={xi} className="chip combo synergy-chip" title={label}>✦ {label}</span>;
+                  return <span key={xi} className="chip combo synergy-chip" title={wtJaTranslateRoleText(label)}>✦ {wtJaTranslateRoleText(label)}</span>;
                 }
-                return <span key={xi} className="chip combo">{label}</span>;
+                return <span key={xi} className="chip combo">{wtJaTranslateRoleText(label)}</span>;
               })}
             </div>}
     </div>
@@ -651,6 +651,46 @@ function wtModernSharePanel({ state, redT, blueT, bestMove, moveLabel, dailyInfo
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+// WT_JA_ROLE_LABEL_TRANSLATOR_V2
+function wtJaTranslateRoleText(value) {
+  if (value == null) return value;
+  let s = String(value);
+  const pairs = [
+    ["DOUBLE CAPTURE", "連続捕獲"],
+    ["MAJOR CAPTURE", "大奪取"],
+    ["FIRST CAPTURE", "初回捕獲"],
+    ["MEGA TERRITORY", "大領地"],
+    ["TERRITORY SWING", "領地変動"],
+    ["SWING MOVE", "領地変動"],
+    ["CROSS WORD", "交差語"],
+    ["FRONTLINE PUSH", "前線押し上げ"],
+    ["BEACHHEAD", "打ち込み"],
+    ["EDGE REACH", "端到達"],
+    ["COMEBACK", "逆転"],
+    ["SECOND PLAYER INITIATIVE", "後手の主導権"],
+    ["ROTATION RAID", "回転侵略"],
+    ["DISARM", "奪字"],
+    ["DAZI", "奪字"],
+    ["CAPTURE", "捕獲"],
+    ["BRIDGE", "橋渡し"],
+    ["CUT", "分断"],
+    ["FORTIFY CHAIN", "連続ロック"],
+    ["LONG PATH", "長経路"],
+    ["LOCKED", "ロック"],
+    ["LOCK", "ロック"],
+    ["FREE", "自由"],
+    ["SETUP", "布石"],
+    ["POWER", "攻め"],
+    ["SAFE", "安全"],
+    ["WILD", "ワイルド"],
+  ];
+  for (const [en, ja] of pairs) s = s.split(en).join(ja);
+  s = s.split("捕獲").join("捕獲");
+  s = s.split("ロック").join("ロック");
+  s = s.split("Best Territorial Swing").join("最大領地変動");
+  s = s.split("Top Territorial Swings").join("上位の領地変動");
+  return s;
+}
 
 export default function Home() {
   const [gameId, setGameId]     = useState("");
@@ -658,6 +698,7 @@ export default function Home() {
   const [path,   setPath]       = useState([]);
   const [placed, setPlaced]     = useState(null);
   const [letter, setLetter]     = useState("");
+  const [daziMode, setDaziMode] = useState(false);
   const [error,  setError]      = useState("");
   const [suggestions, setSugg]  = useState([]);
   const [mode,   setMode]       = useState("easy");
@@ -884,7 +925,7 @@ const [thinking, setThinking] = useState(false);
   }
   function resetValuePrev() { setValuePrev([]); }
   function reset() {
-    setPath([]); setPlaced(null); setLetter(""); setError(""); setPreview(null); setValuePrev([]); setDaziMode(false);
+    setPath([]); setPlaced(null); setLetter(""); setError(""); setPreview(null); setValuePrev([]); setDaziMode(false); setDaziMode(false);
     setSum(false); setCopied(false); setShareText(""); setNickname(""); setMyRank(null);
     set決定ted(false); summaryFired.current = false;
   }
@@ -1295,6 +1336,29 @@ const [thinking, setThinking] = useState(false);
     playSfx("click");
     const cell = state.board[r][c];
 
+    // WT_DAZI_V2_CLICKCELL_BRANCH
+    if (daziMode) {
+      if (!cell?.letter) return;
+      if (path.length > 0 && path[path.length - 1].row === r && path[path.length - 1].col === c) {
+        setPath(path.slice(0, -1));
+        return;
+      }
+      if (isSel(r, c)) return;
+      if (path.length === 0) {
+        setPlaced(null);
+        setLetter("");
+        setPreview(null);
+        setPath([{row:r, col:c}]);
+        setError("");
+        return;
+      }
+      const last = path[path.length - 1];
+      if (!adj(last, {row:r, col:c})) return;
+      setPath(prev => [...prev, {row:r, col:c}]);
+      setError("");
+      return;
+    }
+
     // Deselect last cell if tapping it again (undo last step)
     if (path.length > 0 && path[path.length-1].row===r && path[path.length-1].col===c) {
       const newPath = path.slice(0, -1);
@@ -1394,6 +1458,23 @@ const [thinking, setThinking] = useState(false);
       setError(normalizeStringError(e, "Move failed"));
     }
   }
+  async function daziV2() {
+    if (!daziMode) return;
+    if (!path || path.length < 2) {
+      setError("奪字する単語の文字を2文字以上つないでください。");
+      return;
+    }
+    try {
+      const payload = { path };
+      const next = asyncMode ? await daziAsyncMove(gameId, asyncToken, payload) : await daziMove(gameId, payload);
+      setState(next);
+      reset(); await refresh();
+      getAlmost(gameId).then(setAlmost).catch(()=>{});
+    } catch(e) {
+      setError(e.message || "奪字に失敗しました");
+    }
+  }
+
   async function seed() {
     if (!placed) { setError("先に緑のマスを選んでください。"); return; }
     if (!letter) { setError("Type one letter in the input box."); return; }
@@ -1783,7 +1864,7 @@ async function submitScore() {
                   <polyline points={bridgeSvgPoints} />
                 </svg>
               )}
-              {boardBannerText && <div className="board-event-banner">{boardBannerText}</div>}
+              {boardBannerText && <div className="board-event-banner">{wtJaTranslateRoleText(boardBannerText)}</div>}
             </div>
           </div>
 
@@ -1874,7 +1955,7 @@ async function submitScore() {
                         {s.wordCount > 0 && <span className="lm-count">{s.wordCount}語</span>}
                       </span>
                     ) : (
-                      <span className="lm-stats"><span className="lm-zero" style={{fontSize:10}}>setup</span></span>
+                      <span className="lm-stats"><span className="lm-zero" style={{fontSize:10}}>布石</span></span>
                     )}
                   </button>;
                 })}
@@ -1886,7 +1967,7 @@ async function submitScore() {
                     title="Use once per game — choose any letter"
                   >
                     <span className="lm-letter">⭐</span>
-                    <span className="lm-stats"><span className="lm-freeLabel">FREE</span></span>
+                    <span className="lm-stats"><span className="lm-freeLabel">自由</span></span>
                   </button>
                 ) : (
                   <div className="lm-tile lm-free lm-used" title="Free letter already used">
@@ -1950,7 +2031,7 @@ async function submitScore() {
                     ?<div className="pverr">{preview.errorMessage}</div>
                     :<>
                       <div className="pvstats">
-                        {preview.isInDictionary?"✓ Valid":"Not in dictionary"}
+                        {preview.isInDictionary?"✓ 有効":"辞書にありません"}
                         {" · "}+{preview.wordScore}pts · 領地変動 +{preview.territoryGain}
                         {preview.lockGain>0&&` · 固定 ${preview.lockGain}`}
                         {preview.captureHappened&&<span className="pvcap"> ⚔ 奪取 {preview.captureCount||1}</span>}
@@ -1959,9 +2040,9 @@ async function submitScore() {
                         {preview.comboLabels.map((x,xi)=>{
                           const label = terrainComboLabel(x, { captureCount: preview.captureCount || 0 });
                           if(String(x).startsWith('SYNERGY:')){
-                            return <span key={xi} className="chip combo synergy-chip" title={label}>✦ {label}</span>;
+                            return <span key={xi} className="chip combo synergy-chip" title={wtJaTranslateRoleText(label)}>✦ {wtJaTranslateRoleText(label)}</span>;
                           }
-                          return <span key={xi} className="chip combo">{label}</span>;
+                          return <span key={xi} className="chip combo">{wtJaTranslateRoleText(label)}</span>;
                         })}
                       </div>}
                     </>
@@ -1981,13 +2062,14 @@ async function submitScore() {
               </div>
             </div>
             <div className="brow">
-              <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={submit} disabled={!human()}>{showTutorial && tutorialStep===3 ? "単語確定 ⚔" : ok ? "領地化 ⚔" : "確定"}</button>
+              <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={daziMode ? daziV2 : submit} disabled={!human()}>{showTutorial && tutorialStep===3 ? "単語確定 ⚔" : ok ? "領地化 ⚔" : "確定"}</button>
               {!isTutorial && <button className="ba bseed" onClick={seed} disabled={!human()} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "種まき（無料 — 次の単語 +3T）" : "種まきには領地1マスを使います"}>
               <span className="seed-label">{lastStand ? "奪回" : "種まき"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "無料" : "コスト -1"}</span>}
             </button>}
               {!isTutorial && <button className={`ba bdazi ${daziMode ? "active" : ""}`} onClick={()=>setDaziMode(v=>!v)} disabled={!human() || daziRemaining<=0} title="1試合2回まで。ロックされた敵文字を単語に含めると、その文字を中立化します。">{daziLabel} {daziRemaining}/2</button>}
               <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); }} disabled={!human()}>クリア</button>
               {!isTutorial && <><button className="ba" onClick={pass} disabled={!human()}>パス</button><button className="ba" onClick={swapRelief} disabled={!human()} title="作れる単語がない時だけ1回使えます">詰み交換</button></>}
+            {!isTutorial && <button className={`ba ${daziMode ? "active" : ""}`} onClick={()=>{ setDaziMode(v=>!v); setPath([]); setPlaced(null); setLetter(""); setPreview(null); setError(!daziMode ? "奪字モード：盤面上の既存文字だけをつなぎ、ロックされた敵文字を含む有効語を作ると、その1マスを中立化します。" : ""); }} disabled={!human() || daziRemaining<=0} title="緑マス不要。ロック敵文字を含む既存文字パスで発動します。">奪字 {daziMode ? "ON " : ""}{daziRemaining}/2</button>}{/* WT_DAZI_V2_TOGGLE_BUTTON */}
             </div>
           </div>}
         </div>
