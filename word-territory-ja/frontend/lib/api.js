@@ -1,5 +1,24 @@
 export const WT_JA_API_DEFINITIVE_20260606 = true;
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://word-territory-ja.onrender.com";
+
+
+// WT_FETCH_TIMEOUT_FALLBACK_V1
+async function fetchWithTimeout(url, options = {}) {
+  return fetch(url, options);
+}
+
+// WT_API_READJSON_RUNTIME_FIX_V1
+async function readJson(res) {
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) {
+    const msg = (data && (data.detail || data.message || data.error)) || (typeof data === "string" && data) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data;
+}
+
 const WT_JA_KANA_POOL = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ";
 function kanaChars(){return Array.from(WT_JA_KANA_POOL);}
 function isKanaTile(v){return typeof v==="string" && /^[\u3041-\u3096\u30fc]$/.test(v);}

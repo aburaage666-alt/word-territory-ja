@@ -1326,11 +1326,35 @@ const [thinking, setThinking] = useState(false);
     const size = state?.boardSize || state?.board?.length || 7;
     if (r + 1 >= size || c + 1 >= size) { setError("2×2の左上マスを選んでください。"); return; }
     setRotateTarget({ row:r, col:c });
-    setError("もう一度「回転確定」を押すと、文字だけが回転します。所有権は動きません。");
+    setError("紫の2×2を確認し、「回転確定」を押してください。文字だけが回転します。所有権は動きません。");
   }
 
   function clickCell(r,c) {
     if (!state || !human()) return;
+    // WT_DAZI_ROTATE_EARLY_BRANCH_V1
+    if (rotateMode) { handleRotateCell(r,c); return; }
+    if (daziMode) {
+      const cell = state?.board?.[r]?.[c];
+      if (!cell?.letter) { setError("奪字では盤面上の既存文字だけを選んでください。"); return; }
+      if (path.length > 0 && path[path.length - 1].row === r && path[path.length - 1].col === c) {
+        setPath(path.slice(0, -1));
+        return;
+      }
+      if (isSel(r, c)) return;
+      if (path.length === 0) {
+        setPlaced(null);
+        setLetter("");
+        setPreview(null);
+        setPath([{row:r, col:c}]);
+        setError("");
+        return;
+      }
+      const last = path[path.length - 1];
+      if (!adj(last, {row:r, col:c})) { setError("隣の文字につないでください。"); return; }
+      setPath(prev => [...prev, {row:r, col:c}]);
+      setError("");
+      return;
+    }
     if (rotateMode) { handleRotateCell(r,c); return; }
     playSfx("click");
     const cell = state.board[r][c];
@@ -2061,12 +2085,12 @@ async function submitScore() {
               </div>
             </div>
                                     <div className="brow">
-              <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={daziMode ? daziV2 : submit} disabled={!human()}>{daziMode ? "奪字確定" : showTutorial && tutorialStep===3 ? "語を確定 ⚔" : ok ? "領地を確定 ⚔" : "確定"}</button>
+              <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={daziMode ? daziV2 : submit} disabled={!human() || rotateMode}>{daziMode ? "奪字確定" : showTutorial && tutorialStep===3 ? "語を確定 ⚔" : ok ? "領地を確定 ⚔" : "確定"}</button>
               <button className="ba bseed" onClick={seed} disabled={!human() || daziMode || rotateMode} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "種まき（無料 — 次の語 +3T）" : "種まきは領地1コスト"}>
                 <span className="seed-label">{lastStand ? "奪回" : "種まき"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "無料" : "コスト -1"}</span>}
               </button>
               <button className={`ba bdazi ${daziMode ? "active" : ""}`} onClick={()=>{ setDaziMode(v=>!v); setRotateMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setLetter(""); setPreview(null); setError(!daziMode ? "奪字モード：既存文字だけをつなぎ、ロック敵文字を含む有効語を作ると、その1マスを中立化します。" : ""); }} disabled={!human() || rotateMode || daziRemaining<=0} title="緑マス不要。ロック敵文字を含む既存文字パスで発動します。">奪字 {daziMode ? "ON " : ""}{daziRemaining}/2</button>{/* WT_DAZI_V2_TOGGLE_BUTTON */}
-              {!rotateRaidUsed && <button className={`ba brotate ${rotateMode ? "active" : ""}`} onClick={()=>{ if(rotateTarget) performRotateRaid(); else { setRotateMode(v=>!v); setDaziMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setPreview(null); setError("2×2ブロックの左上マスを選択。回転だけでは領地は取れません。"); } }} disabled={!human() || daziMode} title="1試合1回。敵地を含む2×2の文字だけを回転。所有権は動きません。">{rotateTarget ? "回転確定" : rotateMode ? "2×2選択中" : "回転侵略"}</button>}
+              {!rotateRaidUsed && <button className={`ba brotate ${rotateMode ? "active" : ""}`} onClick={()=>{ if(rotateTarget) performRotateRaid(); else { setRotateMode(v=>!v); setDaziMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setPreview(null); setError("2×2の左上マスを選択してください。紫の4マスが対象です。回転だけでは領地は取れません。"); } }} disabled={!human() || daziMode} title="1試合1回。敵地を含む2×2の文字だけを回転。所有権は動きません。">{rotateTarget ? "回転確定" : rotateMode ? "2×2選択中" : "回転侵略"}</button>}
               {rotateMode && <button className="ba" onClick={()=>{setRotateMode(false);setRotateTarget(null);setError("");}} disabled={!human()}>取消</button>}
               <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); setDaziMode(false); setRotateMode(false); setRotateTarget(null); }} disabled={!human()}>クリア</button>
               <button className="ba" onClick={pass} disabled={!human() || daziMode || rotateMode}>パス</button>
