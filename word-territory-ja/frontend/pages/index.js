@@ -1259,6 +1259,14 @@ const [thinking, setThinking] = useState(false);
   };
 
 
+  const rotateTargetSet = useMemo(() => {
+    if (!rotateTarget) return new Set();
+    const r = Number(rotateTarget.row);
+    const c = Number(rotateTarget.col);
+    return new Set([asKey(r,c), asKey(r,c+1), asKey(r+1,c), asKey(r+1,c+1)]);
+  }, [rotateTarget?.row, rotateTarget?.col]);
+  const rotateRaidUsed = !!state?.synergyState?.rotationRaidUsed;
+
   async function performRotateRaid(target = rotateTarget) {
     if (!target) { setError("2×2ブロックの左上マスを選んでください。ロック済みマスは回転できません。"); return; }
     try {
