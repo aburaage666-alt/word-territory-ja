@@ -3669,6 +3669,49 @@ except Exception:
     pass
 
 
+
+def _wt_ja_comeback_pressure_bonus_v2_20260608(state, move, last, player):
+    """Bot-only comeback pressure bonus.
+
+    ルール・得点・辞書・合法手は変えない。
+    劣勢側Botが、陣地を取り返す手・捕獲手・前線を作る手を選びやすくする。
+    """
+    try:
+        gap = get_score_gap(state, player)  # positive means current player is behind
+    except Exception:
+        gap = 0
+
+    if gap <= 3:
+        return 0.0
+
+    try:
+        labels = set(getattr(last, "comboLabels", None) or [])
+        territory = max(0, int(getattr(last, "territoryGained", 0) or 0))
+        captures = max(0, int(getattr(last, "captureCount", 0) or 0))
+        word = str(move.get("word", "") or "")
+    except Exception:
+        return 0.0
+
+    pressure = min(2.0, max(0.0, (gap - 3) / 6.0))
+    bonus = 0.0
+
+    bonus += territory * (0.65 + 0.25 * pressure)
+    bonus += captures * (3.0 + 0.75 * pressure)
+
+    if "前線押し上げ" in labels or "打ち込み" in labels:
+        bonus += 3.0
+    if "捕獲" in labels:
+        bonus += 2.5
+    if "大奪取" in labels or "逆転" in labels:
+        bonus += 3.5
+    if "橋渡し" in labels or "分断" in labels:
+        bonus += 1.8
+    if len(word) >= 4:
+        bonus += 0.7
+
+    return bonus
+
+
 try:
     _wt_ja_orig_choose_bot_move_20260607 = choose_bot_move
 
@@ -3753,10 +3796,10 @@ try:
 
         if gap > 6:
             # Bot/current player is losing: allow slightly stronger move.
-            idx = min(len(scored) - 1, max(0, len(scored) // 4))
+            idx = min(len(scored) - 1, max(0, (len(scored) * 3) // 4))
         elif gap < -3:
             # Bot/current player is ahead: choose weaker move.
-            idx = min(len(scored) - 1, max(0, (len(scored) * 2) // 3))
+            idx = min(len(scored) - 1, max(0, (len(scored) * 3) // 4))
         else:
             idx = min(len(scored) - 1, max(0, len(scored) // 2))
 
