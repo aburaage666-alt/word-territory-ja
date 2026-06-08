@@ -575,7 +575,7 @@ def get_market(game_id: str):
     try:
         stats = get_market_stats(state)
     except Exception:
-        stats = [{"letter": l, "wordCount": 0, "bestGain": 0, "bestWord": "", "roles": ["WILD"] if l == "*" else [], "bestRole": "WILD" if l == "*" else "SETUP", "roleIcon": "★" if l == "*" else "✨", "roleLabel": "Wild" if l == "*" else "Setup", "isWild": l == "*"}
+        stats = [{"letter": l, "wordCount": 0, "bestGain": 0, "bestWord": "", "roles": ["ワイルド"] if l == "*" else [], "bestRole": "ワイルド" if l == "*" else "布石", "roleIcon": "★" if l == "*" else "✨", "roleLabel": "Wild" if l == "*" else "Setup", "isWild": l == "*"}
                  for l in state.marketLetters]
     return {
         "active":  state.marketLetters,
@@ -793,7 +793,7 @@ def async_dazi_move(game_id: str, token: str, payload: DaziMoveRequest):
         next_state = apply_dazi_move(state, payload.path)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    _save_async_state(game_id, next_state, {"type": "DAZI", "turn": state.turn, "player": player})
+    _save_async_state(game_id, next_state, {"type": "奪字", "turn": state.turn, "player": player})
     return next_state
 
 @app.post("/async/games/{game_id}/pass")

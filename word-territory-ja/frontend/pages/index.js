@@ -11,10 +11,10 @@ import {
 // ── helpers ──────────────────────────────────────────────────────────────────
 const asKey = (r, c) => `${r}-${c}`;
 
-// WT_JA_FREE_INPUT_FIX_20260606
-const WT_JA_FREE_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
+// WT_JA_自由_INPUT_FIX_20260606
+const WT_JA_自由_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
 
-// WT_JA_SMALL_KANA_FREE_INPUT_V1
+// WT_JA_SMALL_KANA_自由_INPUT_V1
 function wtJaKatakanaToHiraganaLongVowel(value) {
   return String(value || "").normalize("NFKC").replace(/[\u30a1-\u30f6]/g, ch =>
     String.fromCharCode(ch.charCodeAt(0) - 0x60)
@@ -180,7 +180,7 @@ const wScore = w => ({ 3:1,4:2,5:3,6:5 }[w?.length] || 0);
 
 const OPENING_NOTES = {
   "CIRCLE OPENING": "Encircle and Capture — surround to win.",
-  "BRIDGE OPENING": "Connect and Divide — control the center bridge.",
+  "橋渡し OPENING": "Connect and Divide — control the center bridge.",
   "GARDEN OPENING": "Expand and Lock — fortify before they do.",
   "STONE OPENING": "Hold the center — build safe locked ground.",
   "RIVER OPENING": "Flow outward — connect lanes before they split.",
@@ -192,48 +192,48 @@ const OPENING_NOTES = {
 };
 
 const MARKET_SLOT_LABELS = [
-  { key: "SAFE",  icon: "🛡", label: "安全", copy: "安全重視" },
-  { key: "POWER", icon: "⚔", label: "攻め", copy: "最大効果" },
-  { key: "SETUP", icon: "✨", label: "準備", copy: "次の布石" },
+  { key: "安全",  icon: "🛡", label: "安全", copy: "安全重視" },
+  { key: "攻め", icon: "⚔", label: "攻め", copy: "最大効果" },
+  { key: "布石", icon: "✨", label: "準備", copy: "次の布石" },
 ];
 
 const ROLE_META = {
-  WILD:    { icon: "★", label: "自由" },
-  CAPTURE: { icon: "⚔️", label: "奪取" },
-  BRIDGE:  { icon: "🌉", label: "接続" },
-  LOCK:    { icon: "🔒", label: "固定" },
-  POWER:   { icon: "⚡", label: "攻め" },
-  SAFE:    { icon: "🛡", label: "安全" },
-  SETUP:   { icon: "✨", label: "準備" },
+  ワイルド:    { icon: "★", label: "自由" },
+  捕獲: { icon: "⚔️", label: "奪取" },
+  橋渡し:  { icon: "🌉", label: "接続" },
+  ロック:    { icon: "🔒", label: "固定" },
+  攻め:   { icon: "⚡", label: "攻め" },
+  安全:    { icon: "🛡", label: "安全" },
+  布石:   { icon: "✨", label: "準備" },
   LONG:    { icon: "➜", label: "長手" },
 };
 
 const TERRAIN_LABELS = {
-  "CAPTURE": "奪取",
-  "DOUBLE CAPTURE": "連続奪取",
-  "BRIDGE": "接続",
-  "CUT": "分断",
-  "FORTIFY CHAIN": "固定連鎖",
-  "LONG PATH": "長い道",
-  "MEGA TERRITORY": "大領地変動",
-  "CROSS WORD": "交差ルート",
-  "FIRST CAPTURE": "初奪取",
-  "EDGE REACH": "端到達",
-  "COMEBACK": "反撃",
-  "SWING MOVE": "領地変動",
-  "DAZI": "奪字",
+  "捕獲": "奪取",
+  "連続捕獲": "連続奪取",
+  "橋渡し": "接続",
+  "分断": "分断",
+  "連続ロック": "固定連鎖",
+  "長経路": "長い道",
+  "大領地": "大領地変動",
+  "交差語": "交差ルート",
+  "初回捕獲": "初奪取",
+  "端到達": "端到達",
+  "逆転": "反撃",
+  "領地変動": "領地変動",
+  "奪字": "奪字",
 };
 
 function terrainComboLabel(label, move = null) {
   const raw = String(label || "");
   if (raw.startsWith("SYNERGY:")) return raw.replace("SYNERGY:", "").trim();
-  if (raw === "CAPTURE" && move?.captureCount) return `${move.captureCount}マス奪取`;
-  if (raw === "DOUBLE CAPTURE" && move?.captureCount) return `連続奪取（+${move.captureCount}マス）`;
-  if (raw === "BRIDGE") return "接続 — 領地をつないだ";
-  if (raw === "CUT") return "分断 — 相手領地を切った";
-  if (raw === "FORTIFY CHAIN") return "固定連鎖 — 守りを固めた";
-  if (raw === "LONG PATH") return "長いルートボーナス";
-  if (raw === "DAZI" || raw === "奪字") return "奪字 — 敵ロック文字を中立化";
+  if (raw === "捕獲" && move?.captureCount) return `${move.captureCount}マス奪取`;
+  if (raw === "連続捕獲" && move?.captureCount) return `連続奪取（+${move.captureCount}マス）`;
+  if (raw === "橋渡し") return "接続 — 領地をつないだ";
+  if (raw === "分断") return "分断 — 相手領地を切った";
+  if (raw === "連続ロック") return "固定連鎖 — 守りを固めた";
+  if (raw === "長経路") return "長いルートボーナス";
+  if (raw === "奪字" || raw === "奪字") return "奪字 — 敵ロック文字を中立化";
   return TERRAIN_LABELS[raw] || raw;
 }
 
@@ -656,33 +656,33 @@ function wtJaTranslateRoleText(value) {
   if (value == null) return value;
   let s = String(value);
   const pairs = [
-    ["DOUBLE CAPTURE", "連続捕獲"],
-    ["MAJOR CAPTURE", "大奪取"],
-    ["FIRST CAPTURE", "初回捕獲"],
-    ["MEGA TERRITORY", "大領地"],
-    ["TERRITORY SWING", "領地変動"],
-    ["SWING MOVE", "領地変動"],
-    ["CROSS WORD", "交差語"],
-    ["FRONTLINE PUSH", "前線押し上げ"],
-    ["BEACHHEAD", "打ち込み"],
-    ["EDGE REACH", "端到達"],
-    ["COMEBACK", "逆転"],
-    ["SECOND PLAYER INITIATIVE", "後手の主導権"],
-    ["ROTATION RAID", "回転侵略"],
-    ["DISARM", "奪字"],
-    ["DAZI", "奪字"],
-    ["CAPTURE", "捕獲"],
-    ["BRIDGE", "橋渡し"],
-    ["CUT", "分断"],
-    ["FORTIFY CHAIN", "連続ロック"],
-    ["LONG PATH", "長経路"],
-    ["LOCKED", "ロック"],
-    ["LOCK", "ロック"],
-    ["FREE", "自由"],
-    ["SETUP", "布石"],
-    ["POWER", "攻め"],
-    ["SAFE", "安全"],
-    ["WILD", "ワイルド"],
+    ["連続捕獲", "連続捕獲"],
+    ["大奪取", "大奪取"],
+    ["初回捕獲", "初回捕獲"],
+    ["大領地", "大領地"],
+    ["領地変動", "領地変動"],
+    ["領地変動", "領地変動"],
+    ["交差語", "交差語"],
+    ["前線押し上げ", "前線押し上げ"],
+    ["打ち込み", "打ち込み"],
+    ["端到達", "端到達"],
+    ["逆転", "逆転"],
+    ["後手の主導権", "後手の主導権"],
+    ["回転侵略", "回転侵略"],
+    ["奪字", "奪字"],
+    ["奪字", "奪字"],
+    ["捕獲", "捕獲"],
+    ["橋渡し", "橋渡し"],
+    ["分断", "分断"],
+    ["連続ロック", "連続ロック"],
+    ["長経路", "長経路"],
+    ["ロック", "ロック"],
+    ["ロック", "ロック"],
+    ["自由", "自由"],
+    ["布石", "布石"],
+    ["攻め", "攻め"],
+    ["安全", "安全"],
+    ["ワイルド", "ワイルド"],
   ];
   for (const [en, ja] of pairs) s = s.split(en).join(ja);
   s = s.split("捕獲").join("捕獲");
@@ -692,7 +692,7 @@ function wtJaTranslateRoleText(value) {
   return s;
 }
 
-// WT_DAZI_TARGET_HELPER_V1
+// WT_奪字_TARGET_HELPER_V1
 function wtDaziEnemyOf(player) {
   return player === "RED" ? "BLUE" : "RED";
 }
@@ -1103,7 +1103,7 @@ const [thinking, setThinking] = useState(false);
       setCombo(c);
       if (comboTimer.current) clearTimeout(comboTimer.current);
       comboTimer.current = setTimeout(() => setCombo([]), 3500);
-      if (c.some(l => l === "BRIDGE" || (typeof l === "string" && l.includes("BRIDGE")))) {
+      if (c.some(l => l === "橋渡し" || (typeof l === "string" && l.includes("橋渡し")))) {
         setBridgeFlash(true); setTimeout(() => setBridgeFlash(false), 950);
       }
     }
@@ -1145,7 +1145,7 @@ const [thinking, setThinking] = useState(false);
     }
     let cancelled = false;
     const combos = state.lastComboLabels || [];
-    const hasHighlight = combos.some(x => String(x).includes("CAPTURE") || String(x).includes("BRIDGE") || String(x).includes("LOCK") || String(x).includes("SYNERGY"));
+    const hasHighlight = combos.some(x => String(x).includes("捕獲") || String(x).includes("橋渡し") || String(x).includes("ロック") || String(x).includes("SYNERGY"));
     const delay = hasHighlight ? 1700 : 850;
     const run = async () => {
       setThinking(true);
@@ -1353,7 +1353,7 @@ const [thinking, setThinking] = useState(false);
 
   function clickCell(r,c) {
     if (!state || !human()) return;
-    // WT_DAZI_ROTATE_EARLY_BRANCH_V1
+    // WT_奪字_ROTATE_EARLY_BRANCH_V1
     if (rotateMode) { handleRotateCell(r,c); return; }
     if (daziMode) {
       const cell = state?.board?.[r]?.[c];
@@ -1381,7 +1381,7 @@ const [thinking, setThinking] = useState(false);
     playSfx("click");
     const cell = state.board[r][c];
 
-    // WT_DAZI_V2_CLICKCELL_BRANCH
+    // WT_奪字_V2_CLICKCELL_BRANCH
     if (daziMode) {
       if (!cell?.letter) return;
       if (path.length > 0 && path[path.length - 1].row === r && path[path.length - 1].col === c) {
@@ -1510,7 +1510,7 @@ const [thinking, setThinking] = useState(false);
       return;
     }
     
-    // WT_DAZI_TARGET_PRECHECK_V1
+    // WT_奪字_TARGET_PRECHECK_V1
     if (!wtDaziPathHasEnemy(state, path)) {
       setError("奪字には紫枠の敵文字を1つ以上含む単語が必要です。");
       return;
@@ -1632,19 +1632,19 @@ async function submitScore() {
     (lastMove.captureCount || 0) > 0 ||
     (lastMove.fortifiedCellsGained || 0) > 0 ||
     (lastMove.territoryGained || 0) >= 5 ||
-    (lastMove.comboLabels || []).some(x => String(x).includes("BRIDGE") || String(x).includes("SYNERGY") || String(x).includes("CAPTURE") || String(x).includes("DAZI") || String(x).includes("奪字"))
+    (lastMove.comboLabels || []).some(x => String(x).includes("橋渡し") || String(x).includes("SYNERGY") || String(x).includes("捕獲") || String(x).includes("奪字") || String(x).includes("奪字"))
   );
 
   const boardOpeningClass = `opening-${String(state?.openingName || "plain").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-opening$/,"").replace(/^-|-$/g,"") || "plain"}`;
   const boardBannerText = lastMoveIsSwing && lastMove ? [
     (lastMove.captureCount||0)>0 ? `奪取 ${lastMove.captureCount} cell${lastMove.captureCount===1?"":"s"}` : null,
-    (lastMove.comboLabels||[]).some(x=>String(x).includes("BRIDGE")) ? "Bridge connected zones" : null,
+    (lastMove.comboLabels||[]).some(x=>String(x).includes("橋渡し")) ? "Bridge connected zones" : null,
     (lastMove.fortifiedCellsGained||0)>0 ? `固定 ${lastMove.fortifiedCellsGained} cell${lastMove.fortifiedCellsGained===1?"":"s"}` : null,
     (lastMove.comboLabels||[]).some(x=>String(x).startsWith("SYNERGY:")) ? "Synergy activated" : null,
     (lastMove.territoryGained||0)>=5 ? `領地変動 +${lastMove.territoryGained}` : null,
   ].filter(Boolean).join(" · ") : "";
 
-  const lastMoveHasBridge = !!lastMove && (lastMove.comboLabels || []).some(x => String(x).includes("BRIDGE"));
+  const lastMoveHasBridge = !!lastMove && (lastMove.comboLabels || []).some(x => String(x).includes("橋渡し"));
   const bridgePathSet = useMemo(() => {
     const s = new Set();
     if (lastMoveHasBridge) (lastMove.path || []).forEach(p => s.add(asKey(p.row, p.col)));
@@ -1703,13 +1703,13 @@ async function submitScore() {
       capture音Ref.current = key;
       playSfx("capture", 0);
     }
-    if (labels.some(x => x.includes("BRIDGE")) && bridge音Ref.current !== key) {
+    if (labels.some(x => x.includes("橋渡し")) && bridge音Ref.current !== key) {
       bridge音Ref.current = key;
       playSfx("bridge", (lastMove.captureCount || 0) > 0 ? 130 : 0);
     }
     if ((lastMove.fortifiedCellsGained || 0) > 0 && lock音Ref.current !== key) {
       lock音Ref.current = key;
-      playSfx("lock", labels.some(x => x.includes("BRIDGE")) ? 250 : 120);
+      playSfx("lock", labels.some(x => x.includes("橋渡し")) ? 250 : 120);
     }
     if (labels.some(x => x.startsWith("SYNERGY:")) && soundTurnRef.current !== key) {
       soundTurnRef.current = key;
@@ -1735,7 +1735,28 @@ async function submitScore() {
           <div style={{height:"100%",background:"#111",borderRadius:999,animation:"loadpulse 1.8s ease-in-out infinite"}}/>
         </div>
       </div>
-      <style>{`@keyframes loadpulse{0%{width:10%}50%{width:75%}100%{width:10%}}`}</style>
+      <style>{`@keyframes loadpulse{0%{width:10%}50%{width:75%}100%{width:10%}}
+
+        /* WT_JA_TARGET_CSS_V3 */
+        .cell.dazi-target{
+          box-shadow: inset 0 0 0 3px #8b5cf6, 0 0 0 3px rgba(139,92,246,.22);
+          border-color:#8b5cf6 !important;
+          background:linear-gradient(180deg,#f5f3ff,#ede9fe);
+        }
+        .cell.dazi-target::after{
+          content:"奪";
+          position:absolute;
+          right:4px;
+          bottom:3px;
+          font-size:10px;
+          font-weight:900;
+          color:#6d28d9;
+          background:#fff;
+          border:1px solid rgba(109,40,217,.35);
+          border-radius:999px;
+          padding:0 3px;
+        }
+`}</style>
     </main>
   );
 
@@ -1854,7 +1875,7 @@ async function submitScore() {
             <li><em>緑のマス</em>をタップ → 文字を置く → 3〜6文字の単語を作る → <strong>領地を確定 ⚔</strong></li>
             <li>Example: board has D–S–T, place U → select D→U→S→T → DUST! Your letter can go anywhere in the path.</li>
             <li>Enclose opponent cells to <strong>capture</strong> them. Surrounded own cells become 🏰 <strong>Fortified</strong>.</li>
-            <li><strong>役ボーナス</strong> — earn extra territory: BRIDGE +3T · CUT +2T · CROSS WORD +2T · LONG PATH +1T</li>
+            <li><strong>役ボーナス</strong> — earn extra territory: 橋渡し +3T · 分断 +2T · 交差語 +2T · 長経路 +1T</li>
             <li><strong>Seed</strong> — place a letter without capturing when stuck. Good for setting up future words.</li>
             <li><strong>Goal:</strong> More red cells than blue wins. Territory beats vocabulary.</li>
             <li><strong>デイリーチャレンジ</strong> — same board worldwide each day. One attempt. 強い bot.</li>
@@ -1963,11 +1984,11 @@ async function submitScore() {
               </div>
               <div className="lm-active">
                 {(market.active||[]).map((ltr,i) => {
-                  const s = (market.stats||[]).find(x => x.letter === ltr) || {letter:ltr, wordCount:0, bestGain:0, bestWord:'', roles:[], bestRole:i===0?"SAFE":i===1?"POWER":"SETUP"};
+                  const s = (market.stats||[]).find(x => x.letter === ltr) || {letter:ltr, wordCount:0, bestGain:0, bestWord:'', roles:[], bestRole:i===0?"安全":i===1?"攻め":"布石"};
                   const slot = MARKET_SLOT_LABELS[i] || MARKET_SLOT_LABELS[2];
                   const roleKey = s.bestRole || (s.roles?.[0] || slot.key);
-                  const role = ROLE_META[roleKey] || ROLE_META.SETUP;
-                  const isWildTile = ltr === "*" || s.isWild || roleKey === "WILD";
+                  const role = ROLE_META[roleKey] || ROLE_META.布石;
+                  const isWildTile = ltr === "*" || s.isWild || roleKey === "ワイルド";
                   const shownLetter = isWildTile ? "★" : ltr;
                   return <button key={`${ltr}-${i}`}
                     className={`lm-tile ${isWildTile ? 'lm-wild' : ''} ${letter===ltr ? 'lm-selected' : ''} ${showTutorial && tutorialStep===0 && i===0 ? 'tut-pulse tut-target' : ''}`}
@@ -2030,7 +2051,7 @@ async function submitScore() {
               {showFreeInput && (
                 <div className="lm-free-row">
                   <input className="lm-free-input" maxLength={1}
-                    placeholder={wildMode ? "WILD: type any letter" : "Type any letter"}
+                    placeholder={wildMode ? "ワイルド: type any letter" : "Type any letter"}
                     value={freeLetter}
                     onChange={e => setFreeLetter(wtJaNormalizeKanaInput(e.target.value))}
                     onKeyDown={e => {
@@ -2124,7 +2145,7 @@ async function submitScore() {
               <button className="ba bseed" onClick={seed} disabled={!human() || daziMode || rotateMode} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "種まき（無料 — 次の語 +3T）" : "種まきは領地1コスト"}>
                 <span className="seed-label">{lastStand ? "奪回" : "種まき"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "無料" : "コスト -1"}</span>}
               </button>
-              <button className={`ba bdazi ${daziMode ? "active" : ""}`} onClick={()=>{ setDaziMode(v=>!v); setRotateMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setLetter(""); setPreview(null); setError(!daziMode ? "奪字モード：既存文字だけをつなぎ、紫枠の敵文字を1つ以上含む有効語を作ると、その1マスを中立化します。" : ""); }} disabled={!human() || rotateMode || daziRemaining<=0} title="緑マス不要。紫枠の敵文字を1つ以上含む既存文字パスで発動します。">奪字 {daziMode ? "ON " : ""}{daziRemaining}/2</button>{/* WT_DAZI_V2_TOGGLE_BUTTON */}
+              <button className={`ba bdazi ${daziMode ? "active" : ""}`} onClick={()=>{ setDaziMode(v=>!v); setRotateMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setLetter(""); setPreview(null); setError(!daziMode ? "奪字モード：既存文字だけをつなぎ、紫枠の敵文字を1つ以上含む有効語を作ると、その1マスを中立化します。" : ""); }} disabled={!human() || rotateMode || daziRemaining<=0} title="緑マス不要。紫枠の敵文字を1つ以上含む既存文字パスで発動します。">奪字 {daziMode ? "ON " : ""}{daziRemaining}/2</button>{/* WT_奪字_V2_TOGGLE_BUTTON */}
               {!rotateRaidUsed && <button className={`ba brotate ${rotateMode ? "active" : ""}`} onClick={()=>{ if(rotateTarget) performRotateRaid(); else { setRotateMode(v=>!v); setDaziMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setPreview(null); setError("2×2の左上マスを選択してください。紫の4マスが対象です。回転だけでは領地は取れません。"); } }} disabled={!human() || daziMode} title="1試合1回。敵地を含む2×2の文字だけを回転。所有権は動きません。">{rotateTarget ? "回転確定" : rotateMode ? "2×2選択中" : "回転侵略"}</button>}
               {rotateMode && <button className="ba" onClick={()=>{setRotateMode(false);setRotateTarget(null);setError("");}} disabled={!human()}>取消</button>}
               <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); setDaziMode(false); setRotateMode(false); setRotateTarget(null); }} disabled={!human()}>クリア</button>
@@ -2965,25 +2986,6 @@ async function submitScore() {
       .seed-cost{display:block;margin-top:3px;font-size:10px;color:#b45309;font-weight:800}
 
     `}
-        /* WT_DAZI_TARGET_CSS_V1 */
-        .cell.dazi-target{
-          box-shadow: inset 0 0 0 3px #8b5cf6, 0 0 0 3px rgba(139,92,246,.22);
-          border-color:#8b5cf6 !important;
-          background:linear-gradient(180deg,#f5f3ff,#ede9fe);
-        }
-        .cell.dazi-target::after{
-          content:"奪";
-          position:absolute;
-          right:4px;
-          bottom:3px;
-          font-size:10px;
-          font-weight:900;
-          color:#6d28d9;
-          background:#fff;
-          border:1px solid rgba(109,40,217,.35);
-          border-radius:999px;
-          padding:0 3px;
-        }
 </style>
   </>;
 }

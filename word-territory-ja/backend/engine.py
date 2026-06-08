@@ -325,7 +325,7 @@ def _is_ui_word(word: str) -> bool:
 # Watch Demo / Trailer / Spectator showcase uses this list so the demo never
 # feels like a dictionary exploit. The full Valid Dictionary remains available
 # for manual play, and UI Dictionary remains broader for Suggested / Almost.
-_DEMO_WORDS = frozenset(('STONE', 'WATER', 'PLANT', 'BRIDGE', 'TRAIN', 'LIGHT', 'RIVER', 'GARDEN', 'HOPE', 'FIRE', 'LINE', 'FIELD', 'ROAD', 'GATE', 'STAR', 'ROPE', 'BONE', 'TONE', 'ROSE', 'CONE', 'TREE', 'ROOT', 'LEAF', 'HOUSE', 'HOME', 'WALL', 'PATH', 'TRAIL', 'LAND', 'LAKE', 'RAIN', 'CLOUD', 'SUN', 'MOON', 'NIGHT', 'DAY', 'WIND', 'HILL', 'VALLEY', 'FOREST', 'MARKET', 'CIRCLE', 'CART', 'CARE', 'RATE', 'TEAR', 'NEAR', 'EARN', 'EAST', 'WEST', 'NORTH', 'SOUTH', 'HAND', 'HARD', 'RING', 'WING', 'KING', 'SING', 'FIND', 'FINE', 'MIND', 'MINE', 'KIND', 'LINK', 'SAND', 'BIRD', 'FISH', 'BOAT', 'PORT', 'SHIP', 'ROCK', 'IRON', 'WOOD', 'GOLD', 'SILVER', 'GREEN', 'BLUE', 'RED', 'BLACK', 'WHITE', 'CLEAR', 'BRIGHT', 'SMART', 'QUICK', 'SLOW', 'FAST', 'OPEN', 'CLOSE', 'COVER', 'BUILD', 'BREAK', 'CLAIM', 'CROSS', 'BLOCK', 'LOCK', 'SAFE', 'GUARD', 'POWER', 'SHARE', 'PLACE', 'SPACE', 'MAP', 'WORD', 'GAME', 'MOVE', 'TURN', 'SCORE', 'ROUND', 'BATTLE', 'BRICK', 'TRACK', 'TRUCK', 'PLANE', 'GRASS', 'SEED', 'BLOOM', 'FRUIT', 'WHEAT'))
+_DEMO_WORDS = frozenset(('STONE', 'WATER', 'PLANT', '橋渡し', 'TRAIN', 'LIGHT', 'RIVER', 'GARDEN', 'HOPE', 'FIRE', 'LINE', 'FIELD', 'ROAD', 'GATE', 'STAR', 'ROPE', 'BONE', 'TONE', 'ROSE', 'CONE', 'TREE', 'ROOT', 'LEAF', 'HOUSE', 'HOME', 'WALL', 'PATH', 'TRAIL', 'LAND', 'LAKE', 'RAIN', 'CLOUD', 'SUN', 'MOON', 'NIGHT', 'DAY', 'WIND', 'HILL', 'VALLEY', 'FOREST', 'MARKET', 'CIRCLE', 'CART', 'CARE', 'RATE', 'TEAR', 'NEAR', 'EARN', 'EAST', 'WEST', 'NORTH', 'SOUTH', 'HAND', 'HARD', 'RING', 'WING', 'KING', 'SING', 'FIND', 'FINE', 'MIND', 'MINE', 'KIND', 'LINK', 'SAND', 'BIRD', 'FISH', 'BOAT', 'PORT', 'SHIP', 'ROCK', 'IRON', 'WOOD', 'GOLD', 'SILVER', 'GREEN', 'BLUE', 'RED', 'BLACK', 'WHITE', 'CLEAR', 'BRIGHT', 'SMART', 'QUICK', 'SLOW', 'FAST', 'OPEN', 'CLOSE', 'COVER', 'BUILD', 'BREAK', 'CLAIM', 'CROSS', 'BLOCK', 'ロック', '安全', 'GUARD', '攻め', 'SHARE', 'PLACE', 'SPACE', 'MAP', 'WORD', 'GAME', 'MOVE', 'TURN', 'SCORE', 'ROUND', 'BATTLE', 'BRICK', 'TRACK', 'TRUCK', 'PLANE', 'GRASS', 'SEED', 'BLOOM', 'FRUIT', 'WHEAT'))
 _DEMO_WORD_EXCLUDE = frozenset({
     'IRE','DISC','WREN','WRET','THUS','CHUB','HULK','HULL','GLIB','BIFF',
     'MPH','ETC','LIB','TBSP','TSP','VAR','FARO','TARO','GEN','TOSH','LENO',
@@ -651,16 +651,16 @@ def _synergy_preview_text(state: GameState, combos: list[str], player: str,
     if not card or not _synergy_can_activate(state, card, player):
         return ""
     name = SYNERGY_CARDS.get(card, {}).get('name', 'Synergy')
-    has_capture = "CAPTURE" in combos or "MAJOR CAPTURE" in combos
-    has_bridge = "BRIDGE" in combos
-    has_cut = "CUT" in combos
+    has_capture = "捕獲" in combos or "大奪取" in combos
+    has_bridge = "橋渡し" in combos
+    has_cut = "分断" in combos
     opp = other_player(player)
     my_t = count_territory(state, player)
     opp_t = count_territory(state, opp)
     lead = my_t - opp_t
 
     # V6: Bridge Master no longer grants a separate synergy bonus.
-    if card == "FORTIFIER" and lead < _active_card_lead_limit(player) and "FORTIFY CHAIN" in combos:
+    if card == "FORTIFIER" and lead < _active_card_lead_limit(player) and "連続ロック" in combos:
         return f"★ {name} ready"
     if card in ("CUT_HUNTER") and has_cut and (has_capture or has_bridge):
         return f"★ {name} ready"
@@ -671,7 +671,7 @@ def _synergy_preview_text(state: GameState, combos: list[str], player: str,
         if (opp_t - my_t) >= _comeback_gap_required(player):
             return f"★ {name} ready"
     # Legacy cards preserved for old saved games
-    if card == "PATH_SEEKER" and "LONG PATH" in combos:
+    if card == "PATH_SEEKER" and "長経路" in combos:
         return f"★ {name} ready"
     if card == "LONG_WORD" and len(word) >= 5:
         return f"★ {name} ready"
@@ -738,9 +738,9 @@ def apply_synergy_bonus(state: GameState, combos: list[str], player: str,
     my_t  = count_territory(state, player)
     opp_t = count_territory(state, opp)
     lead = my_t - opp_t
-    has_capture = "CAPTURE" in combos or "MAJOR CAPTURE" in combos
-    has_bridge = "BRIDGE" in combos
-    has_cut = "CUT" in combos
+    has_capture = "捕獲" in combos or "大奪取" in combos
+    has_bridge = "橋渡し" in combos
+    has_cut = "分断" in combos
 
     if card == "BRIDGE_MASTER" and has_bridge and (has_capture or territory_gain >= 4):
         bonus += 0  # V6: Bridge remains a combo, but Bridge Master no longer adds territory.
@@ -760,10 +760,10 @@ def apply_synergy_bonus(state: GameState, combos: list[str], player: str,
                 owned_cells_in_path = 0
 
             fortify_anchor = (len(_norm_word(word)) >= 4 and owned_cells_in_path >= 1)
-            if total < 3 and lead < 4 and (lock_gain >= 1 or "FORTIFY CHAIN" in combos or fortify_anchor):
+            if total < 3 and lead < 4 and (lock_gain >= 1 or "連続ロック" in combos or fortify_anchor):
                 bonus += 1
                 state.synergyState["jpFortifierTotal"] = total + 1
-        elif lead < _active_card_lead_limit(player) and (lock_gain > 0 or "FORTIFY CHAIN" in combos):
+        elif lead < _active_card_lead_limit(player) and (lock_gain > 0 or "連続ロック" in combos):
             bonus += 2 if not state.synergyState.get("firstLockDone") else 1
     elif card in ("CUT_HUNTER"):
         if has_cut and (has_capture or has_bridge or territory_gain >= 4):
@@ -787,7 +787,7 @@ def apply_synergy_bonus(state: GameState, combos: list[str], player: str,
         bonus += 1
     elif card == "SEED_TACTICIAN" and state.synergyState.get("seedPending"):
         bonus += 2
-    elif card == "PATH_SEEKER" and "LONG PATH" in combos:
+    elif card == "PATH_SEEKER" and "長経路" in combos:
         bonus += 2
     return bonus
 
@@ -834,13 +834,13 @@ def update_synergy_state(state: GameState, combos: list[str],
     if any(str(c).startswith("SYNERGY:") for c in combos):
         ss = _record_synergy_activation(ss, card, actor, state.turn)
 
-    if card == "FORTIFIER" and ("FORTIFY CHAIN" in combos or any(str(c).startswith("SYNERGY:Fortifier") for c in combos)):
+    if card == "FORTIFIER" and ("連続ロック" in combos or any(str(c).startswith("SYNERGY:Fortifier") for c in combos)):
         ss["firstLockDone"] = True
     elif card in ("CUT_HUNTER"):
-        if "CUT" in combos:
+        if "分断" in combos:
             ss["cutPending"] = True
             ss["cutPendingFor"] = actor
-        elif "CAPTURE" in combos and ss.get("cutPendingFor") == actor:
+        elif "捕獲" in combos and ss.get("cutPendingFor") == actor:
             ss["cutPending"] = False
             ss.pop("cutPendingFor", None)
     elif card == "SEED_TACTICIAN":
@@ -878,48 +878,48 @@ def _letter_enables_word(state: GameState, letter: str, max_check: int = 8) -> b
 
 
 _ROLE_PRIORITY = {
-    "WILD": 90,
-    "CAPTURE": 80,
-    "BRIDGE": 75,
-    "LOCK": 70,
-    "POWER": 60,
+    "ワイルド": 90,
+    "捕獲": 80,
+    "橋渡し": 75,
+    "ロック": 70,
+    "攻め": 60,
     "LONG": 50,
-    "SAFE": 40,
-    "SETUP": 10,
+    "安全": 40,
+    "布石": 10,
 }
 
 def _market_role_payload(role: str) -> dict:
     meta = {
-        "WILD":    ("★", "Wild"),
-        "CAPTURE": ("⚔️", "Capture"),
-        "BRIDGE":  ("🌉", "Bridge"),
-        "LOCK":    ("🔒", "Lock"),
-        "POWER":   ("⚡", "Power"),
+        "ワイルド":    ("★", "Wild"),
+        "捕獲": ("⚔️", "Capture"),
+        "橋渡し":  ("🌉", "Bridge"),
+        "ロック":    ("🔒", "Lock"),
+        "攻め":   ("⚡", "Power"),
         "LONG":    ("➜", "Long"),
-        "SAFE":    ("🛡", "Safe"),
-        "SETUP":   ("✨", "Setup"),
+        "安全":    ("🛡", "Safe"),
+        "布石":   ("✨", "Setup"),
     }
-    icon, label = meta.get(role, meta["SETUP"])
+    icon, label = meta.get(role, meta["布石"])
     return {"bestRole": role, "roleIcon": icon, "roleLabel": label}
 
 def _pick_best_role(roles: list[str], word_count: int, best_gain: int, best_word: str) -> str:
     normalized = []
     for r in roles or []:
         rr = str(r).upper()
-        if "CAPTURE" in rr:
-            normalized.append("CAPTURE")
-        elif "BRIDGE" in rr:
-            normalized.append("BRIDGE")
-        elif "FORTIFY" in rr or "LOCK" in rr:
-            normalized.append("LOCK")
+        if "捕獲" in rr:
+            normalized.append("捕獲")
+        elif "橋渡し" in rr:
+            normalized.append("橋渡し")
+        elif "FORTIFY" in rr or "ロック" in rr:
+            normalized.append("ロック")
         elif "LONG" in rr:
             normalized.append("LONG")
     if best_gain >= 5:
-        normalized.append("POWER")
+        normalized.append("攻め")
     if word_count >= 4:
-        normalized.append("SAFE")
+        normalized.append("安全")
     if not normalized:
-        normalized.append("SETUP")
+        normalized.append("布石")
     return max(normalized, key=lambda r: _ROLE_PRIORITY.get(r, 0))
 
 
@@ -929,15 +929,15 @@ def _letter_best_stats(state: GameState, letter: str) -> dict:
     For active market letters only, so simulating a few moves is acceptable.
     """
     if letter == "*":
-        payload = {"wordCount": 0, "bestGain": 0, "bestWord": "", "roles": ["WILD"], "isWild": True}
-        payload.update(_market_role_payload("WILD"))
+        payload = {"wordCount": 0, "bestGain": 0, "bestWord": "", "roles": ["ワイルド"], "isWild": True}
+        payload.update(_market_role_payload("ワイルド"))
         return payload
 
     excluded = set(state.usedWords)
     moves = _fast_bot_moves_for_letter(state, letter, max_results=10, excluded=excluded)
     if not moves:
-        payload = {"wordCount": 0, "bestGain": 0, "bestWord": "", "roles": ["SETUP"]}
-        payload.update(_market_role_payload("SETUP"))
+        payload = {"wordCount": 0, "bestGain": 0, "bestWord": "", "roles": ["布石"]}
+        payload.update(_market_role_payload("布石"))
         return payload
 
     best_word = ""
@@ -959,10 +959,10 @@ def _letter_best_stats(state: GameState, letter: str) -> dict:
                     continue
                 if cc not in roles:
                     roles.append(cc)
-            if (last.captureCount or 0) > 0 and "CAPTURE" not in roles:
-                roles.append("CAPTURE")
-            if (last.fortifiedCellsGained or 0) > 0 and "LOCK" not in roles:
-                roles.append("LOCK")
+            if (last.captureCount or 0) > 0 and "捕獲" not in roles:
+                roles.append("捕獲")
+            if (last.fortifiedCellsGained or 0) > 0 and "ロック" not in roles:
+                roles.append("ロック")
         except Exception:
             gain = m.get("territory_gain", 0)
             if gain >= best_gain:
@@ -971,11 +971,11 @@ def _letter_best_stats(state: GameState, letter: str) -> dict:
 
     if not roles:
         if len(best_word) >= 5:
-            roles.append("LONG PATH")
+            roles.append("長経路")
         elif len(moves) >= 4:
-            roles.append("SAFE")
+            roles.append("安全")
         else:
-            roles.append("SETUP")
+            roles.append("布石")
 
     best_role = _pick_best_role(roles, len(moves), best_gain, best_word)
     payload = {
@@ -1138,8 +1138,8 @@ def _comeback_letter_candidates(state: GameState, exclude: set | None = None, li
                 val += last.territoryGained * 2
                 val += last.captureCount * 10
                 val += last.fortifiedCellsGained * 3
-                val += 9 if "BRIDGE" in labels else 0
-                val += 6 if "MAJOR CAPTURE" in labels else 0
+                val += 9 if "橋渡し" in labels else 0
+                val += 6 if "大奪取" in labels else 0
                 val += 6 if any(str(x).startswith("SYNERGY") for x in labels) else 0
                 val += min(6, word_score(m.get("word", "")))
                 best = max(best, val)
@@ -1425,18 +1425,18 @@ def get_letter_preview_moves(state: GameState, letter: str, limit: int = 12) -> 
                 + last.wordScoreGained
                 + last.fortifiedCellsGained * 2
                 + last.captureCount * 5
-                + (4 if "BRIDGE" in combos else 0)
-                + (4 if "CUT" in combos else 0)
-                + (3 if "LONG PATH" in combos else 0)
+                + (4 if "橋渡し" in combos else 0)
+                + (4 if "分断" in combos else 0)
+                + (3 if "長経路" in combos else 0)
                 + (3 if any(str(c).startswith("SYNERGY") for c in combos) else 0)
             )
-            kind = "SAFE"
-            if last.captureCount > 0 or "BRIDGE" in combos or "CUT" in combos or any(str(c).startswith("SYNERGY") for c in combos):
-                kind = "POWER"
-            elif len(last.word) >= 5 or "LONG PATH" in combos:
+            kind = "安全"
+            if last.captureCount > 0 or "橋渡し" in combos or "分断" in combos or any(str(c).startswith("SYNERGY") for c in combos):
+                kind = "攻め"
+            elif len(last.word) >= 5 or "長経路" in combos:
                 kind = "LONG"
             elif last.territoryGained <= 2:
-                kind = "SETUP"
+                kind = "布石"
 
             syn_hint = _synergy_preview_text(state, combos, player, last.word, letter,
                                              path=last.path, row=m["row"], col=m["col"])
@@ -1444,11 +1444,11 @@ def get_letter_preview_moves(state: GameState, letter: str, limit: int = 12) -> 
             if syn_hint:
                 roles.append(syn_hint)
             tier = "safe"
-            if last.captureCount > 0 or "BRIDGE" in combos or any(str(c).startswith("SYNERGY") for c in combos) or syn_hint:
+            if last.captureCount > 0 or "橋渡し" in combos or any(str(c).startswith("SYNERGY") for c in combos) or syn_hint:
                 tier = "strong"
-            elif last.territoryGained >= 5 or "CUT" in combos:
+            elif last.territoryGained >= 5 or "分断" in combos:
                 tier = "frontline"
-            elif "LONG PATH" in combos or len(last.word) >= 5:
+            elif "長経路" in combos or len(last.word) >= 5:
                 tier = "path"
             item = {
                 "row": m["row"],
@@ -1502,7 +1502,7 @@ def get_threat_preview(state: GameState, limit: int = 8) -> list[dict]:
         try:
             after = validate_and_apply_move(clone_state(probe), m["row"], m["col"], m["letter"], m["path"], advance_market_flag=False)
             last = after.moveHistory[-1]
-            if last.captureCount <= 0 and "CUT" not in (last.comboLabels or []):
+            if last.captureCount <= 0 and "分断" not in (last.comboLabels or []):
                 continue
             endangered = []
             for c in (after.lastCapturedCells or []):
@@ -1522,7 +1522,7 @@ def get_threat_preview(state: GameState, limit: int = 8) -> list[dict]:
                 "comboLabels": last.comboLabels or [],
                 "cells": endangered,
                 "reason": f"{attacker} may swing +{last.territoryGained} with {last.word}",
-                "level": "high" if last.captureCount >= 2 or "BRIDGE" in (last.comboLabels or []) else "medium",
+                "level": "high" if last.captureCount >= 2 or "橋渡し" in (last.comboLabels or []) else "medium",
             })
             if len(threats) >= limit:
                 break
@@ -1651,21 +1651,21 @@ def combo_labels(word: str, territory_gain: int, lock_gain: int,
 
     # ── Power moves ───────────────────────────────────────────────────────────
     if len(word) >= 5:
-        labels.append("LONG PATH")
+        labels.append("長経路")
     if territory_gain >= 6:
-        labels.append("MEGA TERRITORY")
+        labels.append("大領地")
     if lock_gain >= 2:
-        labels.append("FORTIFY CHAIN")
+        labels.append("連続ロック")
     if capture_count >= 1:
-        labels.append("CAPTURE")
+        labels.append("捕獲")
     if capture_count >= 2:
-        labels.append("MAJOR CAPTURE")
+        labels.append("大奪取")
     if leader_changed:
-        labels.append("SWING MOVE")
+        labels.append("領地変動")
 
     # ── Cross Word Bonus (もじぴったん的連鎖) ─────────────────────────────────
     if cross_words and len(cross_words) >= 2:
-        labels.append("CROSS WORD")    # 1手で2語以上 +2T
+        labels.append("交差語")    # 1手で2語以上 +2T
 
     # ── Early Yaku (序盤でも出る役) ──────────────────────────────────────────
     if before_state and after_state:
@@ -1676,9 +1676,9 @@ def combo_labels(word: str, territory_gain: int, lock_gain: int,
         after_opp_t  = sum(1 for r in after_state.board  for c in r if c.owner == opponent)
 
         # FIRST CAPTURE — first time taking opponent's cell this game
-        before_hist = [m for m in before_state.moveHistory if "CAPTURE" in (m.comboLabels or [])]
+        before_hist = [m for m in before_state.moveHistory if "捕獲" in (m.comboLabels or [])]
         if capture_count >= 1 and not before_hist:
-            labels.append("FIRST CAPTURE")
+            labels.append("初回捕獲")
 
         # EDGE REACH — player reaches the board edge for the first time
         edge_before = any(
@@ -1692,7 +1692,7 @@ def combo_labels(word: str, territory_gain: int, lock_gain: int,
             if r in (0, BOARD_SIZE-1) or c in (0, BOARD_SIZE-1)
         )
         if not edge_before and edge_after:
-            labels.append("EDGE REACH")
+            labels.append("端到達")
 
         # LINK only fires if BRIDGE didn't (BRIDGE is the stronger version)
         # Both are checked via region counting — skip standalone LINK to reduce spam
@@ -1700,21 +1700,21 @@ def combo_labels(word: str, territory_gain: int, lock_gain: int,
         # COMEBACK — player was behind, now leads or closes gap significantly
         before_leader = "RED" if before_state.scores.redTerritory > before_state.scores.blueTerritory else "BLUE"
         if before_leader != player and leader_changed:
-            labels.append("COMEBACK")
+            labels.append("逆転")
 
         # BRIDGE and CUT
         before_regions = _count_connected_regions(before_state, player)
         after_regions  = _count_connected_regions(after_state, player)
         if before_regions > 1 and after_regions < before_regions:
-            labels.append("BRIDGE")
+            labels.append("橋渡し")
         before_opp_r = _count_connected_regions(before_state, opponent)
         after_opp_r  = _count_connected_regions(after_state, opponent)
         if after_opp_r > before_opp_r:
-            labels.append("CUT")
+            labels.append("分断")
 
         # ENCIRCLE PRESSURE: score-neutral version of the retired Encircler bonus.
         if _capture_net_pressure(after_state, row, col, player) and (
-            "CAPTURE" in labels or "MAJOR CAPTURE" in labels or "CUT" in labels or "BRIDGE" in labels
+            "捕獲" in labels or "大奪取" in labels or "分断" in labels or "橋渡し" in labels
         ):
             labels.append("ENCIRCLE PRESSURE")
 
@@ -1831,7 +1831,7 @@ def rotate_block_state(state: GameState, row: int, col: int, player=None) -> Gam
     state.lastChangedCells = [Coord(row=r, col=c) for r, c in coords]
     state.lastCapturedCells = []
     state.lastFortifiedCells = []
-    state.lastComboLabels = ["ROTATION RAID"]
+    state.lastComboLabels = ["回転侵略"]
 
     recalc_scores(state)
     try:
@@ -1840,7 +1840,7 @@ def rotate_block_state(state: GameState, row: int, col: int, player=None) -> Gam
         state.moveHistory.append(MoveHistoryItem(
             turn=state.turn,
             player=player,
-            word="回転侵略" if _LANG == "ja" else "ROTATION RAID",
+            word="回転侵略" if _LANG == "ja" else "回転侵略",
             moveType="ROTATE",
             placedRow=row,
             placedCol=col,
@@ -1850,7 +1850,7 @@ def rotate_block_state(state: GameState, row: int, col: int, player=None) -> Gam
             territoryGained=0,
             fortifiedCellsGained=0,
             captureCount=0,
-            comboLabels=["ROTATION RAID"],
+            comboLabels=["回転侵略"],
             redTotalAfter=red_total,
             blueTotalAfter=blue_total,
         ))
@@ -2170,7 +2170,7 @@ def apply_dazi_move(state: GameState, path):
         turn=state.turn,
         player=player,
         word=word,
-        moveType="DAZI",
+        moveType="奪字",
         placedRow=tr,
         placedCol=tc,
         placedLetter=temp.board[tr][tc].letter,
@@ -2179,7 +2179,7 @@ def apply_dazi_move(state: GameState, path):
         territoryGained=0,
         fortifiedCellsGained=0,
         captureCount=0,
-        comboLabels=["DISARM"],
+        comboLabels=["奪字"],
         redTotalAfter=red_total,
         blueTotalAfter=blue_total,
     )
@@ -2190,7 +2190,7 @@ def apply_dazi_move(state: GameState, path):
     temp.lastChangedCells = [Coord(row=tr, col=tc)]
     temp.lastCapturedCells = []
     temp.lastFortifiedCells = []
-    temp.lastComboLabels = ["DISARM"]
+    temp.lastComboLabels = ["奪字"]
 
     temp.currentPlayer = other_player(player)
     temp.turn += 1
@@ -2301,9 +2301,9 @@ def validate_and_apply_move(state: GameState, row: int, col: int, letter: str, p
 
     beachhead_bonus = _beachhead_bonus(before, row, col, player, word)
     if beachhead_bonus:
-        combos.append("BEACHHEAD")
+        combos.append("打ち込み")
     if _frontline_push(before, row, col, player, delta["territory_gain"]):
-        combos.append("FRONTLINE PUSH")
+        combos.append("前線押し上げ")
 
 
     # ── Role bonus: award extra territory for strategic combos ───────────────
@@ -2315,29 +2315,29 @@ def validate_and_apply_move(state: GameState, row: int, col: int, letter: str, p
         # BRIDGE/CUT labels remain visible, but scoring starts at 4+ kana.
         wl = len(word)
         if wl >= 4:
-            if "BRIDGE" in combos:        bonus += 1
-            if "CUT" in combos:           bonus += 1
-            if "FORTIFY CHAIN" in combos: bonus += 1
-        if "LONG PATH" in combos:         bonus += 1
-        if wl >= 4 and "CROSS WORD" in combos: bonus += 1
-        if "COMEBACK" in combos:          bonus += 1
+            if "橋渡し" in combos:        bonus += 1
+            if "分断" in combos:           bonus += 1
+            if "連続ロック" in combos: bonus += 1
+        if "長経路" in combos:         bonus += 1
+        if wl >= 4 and "交差語" in combos: bonus += 1
+        if "逆転" in combos:          bonus += 1
         # FIRST CAPTURE may help readability, but no extra territory in large-dict mode.
         # EDGE / DOUBLE / MAJOR / MEGA remain score-neutral in Japanese.
     else:
         # Power moves (中盤〜終盤)
-        if "BRIDGE" in combos:        bonus += 3
-        if "CUT" in combos:           bonus += 2
-        if "FORTIFY CHAIN" in combos: bonus += 2
-        if "MAJOR CAPTURE" in combos: bonus += 1
-        if "DOUBLE CAPTURE" in combos:bonus += 1
-        if "LONG PATH" in combos:     bonus += 1
-        if "MEGA TERRITORY" in combos:bonus += 1
+        if "橋渡し" in combos:        bonus += 3
+        if "分断" in combos:           bonus += 2
+        if "連続ロック" in combos: bonus += 2
+        if "大奪取" in combos: bonus += 1
+        if "連続捕獲" in combos:bonus += 1
+        if "長経路" in combos:     bonus += 1
+        if "大領地" in combos:bonus += 1
         # Cross Word (もじぴったん的連鎖)
-        if "CROSS WORD" in combos:    bonus += 2
+        if "交差語" in combos:    bonus += 2
         # Early Yaku (序盤でも出る役)
-        if "FIRST CAPTURE" in combos: bonus += 1
-        if "EDGE REACH" in combos:    bonus += 1
-        if "COMEBACK" in combos:      bonus += 2
+        if "初回捕獲" in combos: bonus += 1
+        if "端到達" in combos:    bonus += 1
+        if "逆転" in combos:      bonus += 2
 
     # Synergy Card bonus (Balatro-like build direction)
     base_bonus = bonus
@@ -2362,9 +2362,9 @@ def validate_and_apply_move(state: GameState, row: int, col: int, letter: str, p
     if _LANG == "ja" and len(word) == 3:
         if delta["capture_count"] >= 2:
             bonus = min(bonus, 1)
-        elif delta["capture_count"] >= 1 and ("BRIDGE" in combos or "CUT" in combos or "FORTIFY CHAIN" in combos):
+        elif delta["capture_count"] >= 1 and ("橋渡し" in combos or "分断" in combos or "連続ロック" in combos):
             bonus = min(bonus, 1)
-        elif "BRIDGE" in combos and "CUT" in combos:
+        elif "橋渡し" in combos and "分断" in combos:
             bonus = min(bonus, 1)
         else:
             bonus = min(bonus, 2)
@@ -2376,12 +2376,12 @@ def validate_and_apply_move(state: GameState, row: int, col: int, letter: str, p
         syn_text = synergy_activation_text(temp, combos, player, word, letter, actual_synergy_bonus)
         if syn_text:
             combos.append(f"SYNERGY:{syn_text}")
-    if dazi_done and "DAZI" not in combos:
-        combos.append("DAZI")
+    if dazi_done and "奪字" not in combos:
+        combos.append("奪字")
     if wild_cost_active:
         combos.append("WILD COST")
     if blue_initiative_used:
-        combos.append("SECOND PLAYER INITIATIVE")
+        combos.append("後手の主導権")
     if bonus > 0:
         # Convert nearest unfortified non-player cells to player (bonus territory)
         import random as _r
@@ -2912,11 +2912,11 @@ def _river_opening_dampener(state: GameState, last: MoveHistoryItem, player: str
     penalty += (last.captureCount or 0) * 5.0
     penalty += (last.fortifiedCellsGained or 0) * 3.0
     penalty += max(0, (last.territoryGained or 0) - 2) * 2.2
-    if "BRIDGE" in labels:
+    if "橋渡し" in labels:
         penalty += 6.0
-    if "MAJOR CAPTURE" in labels:
+    if "大奪取" in labels:
         penalty += 5.0
-    if "FORTIFY CHAIN" in labels:
+    if "連続ロック" in labels:
         penalty += 4.0
     return penalty
 
@@ -2947,9 +2947,9 @@ def _jp_blue_builder_contest_bonus(state: GameState, last: MoveHistoryItem, play
     bonus = 0.0
     bonus += (last.captureCount or 0) * 5.5
     bonus += max(0, (last.territoryGained or 0) - 1) * 1.5
-    bonus += 3.5 if "BRIDGE" in labels else 0.0
-    bonus += 3.0 if "CUT" in labels else 0.0
-    bonus += 2.0 if "CAPTURE" in labels or "MAJOR CAPTURE" in labels else 0.0
+    bonus += 3.5 if "橋渡し" in labels else 0.0
+    bonus += 3.0 if "分断" in labels else 0.0
+    bonus += 2.0 if "捕獲" in labels or "大奪取" in labels else 0.0
     # Builder still likes structure, so do not punish fortify as strongly as Defender.
     bonus -= (last.fortifiedCellsGained or 0) * 1.2
 
@@ -2985,9 +2985,9 @@ def _jp_blue_defender_attack_bonus(state: GameState, last: MoveHistoryItem, play
     bonus = 0.0
     bonus += (last.captureCount or 0) * 7.0
     bonus += max(0, (last.territoryGained or 0) - 1) * 1.8
-    bonus += 4.0 if "BRIDGE" in labels else 0.0
-    bonus += 3.0 if "CUT" in labels else 0.0
-    bonus += 2.0 if "CAPTURE" in labels or "MAJOR CAPTURE" in labels else 0.0
+    bonus += 4.0 if "橋渡し" in labels else 0.0
+    bonus += 3.0 if "分断" in labels else 0.0
+    bonus += 2.0 if "捕獲" in labels or "大奪取" in labels else 0.0
     bonus -= (last.fortifiedCellsGained or 0) * 3.0
 
     # If already ahead, keep anti-snowball behavior.
@@ -3039,35 +3039,35 @@ def _bot_style_bonus(state: GameState, last: MoveHistoryItem, move: dict, player
         val += 5.0
     elif length == 4:
         val += 2.5
-    elif length == 3 and last.captureCount <= 0 and "BRIDGE" not in labels and "CUT" not in labels:
+    elif length == 3 and last.captureCount <= 0 and "橋渡し" not in labels and "分断" not in labels:
         val -= 5.0
 
     if style == "Raider":
         val += (last.captureCount or 0) * 2.5
-        val += 1.5 if "MAJOR CAPTURE" in labels else 0.0
+        val += 1.5 if "大奪取" in labels else 0.0
         if lead >= 6:
             val -= (last.captureCount or 0) * 4.5
             val -= max(0, (last.territoryGained or 0) - 3) * 1.6
     elif style == "Defender":
         # Defender should not only lock; it must relieve pressure by reclaiming.
         val += (last.fortifiedCellsGained or 0) * 1.2
-        val += 3.0 if "BRIDGE" in labels else 0.0
+        val += 3.0 if "橋渡し" in labels else 0.0
         if behind >= 4:
             val += (last.captureCount or 0) * 6.0
             val += max(0, (last.territoryGained or 0) - 2) * 1.4
-            if last.captureCount <= 0 and "BRIDGE" not in labels:
+            if last.captureCount <= 0 and "橋渡し" not in labels:
                 val -= (last.fortifiedCellsGained or 0) * 2.2
         if lead >= 8:
             val -= (last.fortifiedCellsGained or 0) * 1.5
     elif style == "Builder":
         val += (last.fortifiedCellsGained or 0) * 1.8
-        val += 2.0 if "BRIDGE" in labels else 0.0
+        val += 2.0 if "橋渡し" in labels else 0.0
     elif style == "Cutter":
-        val += 4.0 if "CUT" in labels else 0.0
-        val += 1.5 if "BRIDGE" in labels else 0.0
+        val += 4.0 if "分断" in labels else 0.0
+        val += 1.5 if "橋渡し" in labels else 0.0
     elif style == "Expander":
         val += max(0, (last.territoryGained or 0) - 2) * 1.3
-        val += 2.0 if "LONG PATH" in labels else 0.0
+        val += 2.0 if "長経路" in labels else 0.0
     # V16: suppress River Opening snowball only when already ahead.
     val -= _river_opening_dampener(state, last, player)
     return val
@@ -3087,8 +3087,8 @@ def choose_bot_move(state: GameState):
                 base = evaluate_state_for_player(ns, player)
                 last = ns.moveHistory[-1]
                 labels = last.comboLabels or []
-                bonus = sum(3 if l in ("BRIDGE","CUT") else
-                            2 if l in ("CAPTURE","CROSS WORD") else 1
+                bonus = sum(3 if l in ("橋渡し","分断") else
+                            2 if l in ("捕獲","交差語") else 1
                             for l in labels)
                 # Rubberband: when Normal bot is already ahead, stop piling on
                 # captures/bridges. It should still play, but not crush beginners.
@@ -3103,9 +3103,9 @@ def choose_bot_move(state: GameState):
                 if _LANG == "ja":
                     # JP v11 anti-snowball: in large dictionaries, strong moves are common.
                     swing_penalty = (last.captureCount or 0) * 5
-                    swing_penalty += 5 if "BRIDGE" in labels else 0
-                    swing_penalty += 5 if "CUT" in labels else 0
-                    swing_penalty += 4 if "FORTIFY CHAIN" in labels else 0
+                    swing_penalty += 5 if "橋渡し" in labels else 0
+                    swing_penalty += 5 if "分断" in labels else 0
+                    swing_penalty += 4 if "連続ロック" in labels else 0
                     swing_penalty += max(0, (last.territoryGained or 0) - 3) * 1.5
                     if lead >= 6:
                         bonus -= swing_penalty
@@ -3113,8 +3113,8 @@ def choose_bot_move(state: GameState):
                         bonus -= swing_penalty * 0.55
                 if lead >= 8:
                     bonus -= (last.captureCount or 0) * 8
-                    bonus -= 7 if "BRIDGE" in labels else 0
-                    bonus -= 4 if "MAJOR CAPTURE" in labels else 0
+                    bonus -= 7 if "橋渡し" in labels else 0
+                    bonus -= 4 if "大奪取" in labels else 0
                     bonus -= max(0, (last.territoryGained or 0) - 2) * 2
                     return word_score(m["word"]) + style_bonus - bonus
                 return base + bonus + style_bonus
@@ -3143,12 +3143,12 @@ def choose_bot_move(state: GameState):
         # Role bonus weighting — prefer moves that earn strategic combos
         combo_value = 0
         for label in (last.comboLabels or []):
-            if label in ("BRIDGE", "CUT"):           combo_value += 8
-            elif label in ("CROSS WORD", "FORTIFY CHAIN"): combo_value += 5
-            elif label in ("MAJOR CAPTURE", "COMEBACK"): combo_value += 4
-            elif label in ("LONG PATH", "CAPTURE"):  combo_value += 3
-            elif label in ("EDGE REACH", "FIRST CAPTURE", "FRONTLINE PUSH"): combo_value += 2
-            elif label in ("BEACHHEAD",):            combo_value += 3
+            if label in ("橋渡し", "分断"):           combo_value += 8
+            elif label in ("交差語", "連続ロック"): combo_value += 5
+            elif label in ("大奪取", "逆転"): combo_value += 4
+            elif label in ("長経路", "捕獲"):  combo_value += 3
+            elif label in ("端到達", "初回捕獲", "前線押し上げ"): combo_value += 2
+            elif label in ("打ち込み",):            combo_value += 3
             else:                                     combo_value += 1
         value = my_value + word_score(move["word"]) * 1.4 + combo_value + _bot_style_bonus(state, last, move, player)
         if _LANG == "ja":
@@ -3160,9 +3160,9 @@ def choose_bot_move(state: GameState):
         if _LANG == "ja":
             lead_now = -get_score_gap(state, player)
             swing_penalty = (last.captureCount or 0) * 4
-            swing_penalty += 5 if "BRIDGE" in (last.comboLabels or []) else 0
-            swing_penalty += 5 if "CUT" in (last.comboLabels or []) else 0
-            swing_penalty += 4 if "FORTIFY CHAIN" in (last.comboLabels or []) else 0
+            swing_penalty += 5 if "橋渡し" in (last.comboLabels or []) else 0
+            swing_penalty += 5 if "分断" in (last.comboLabels or []) else 0
+            swing_penalty += 4 if "連続ロック" in (last.comboLabels or []) else 0
             if lead_now >= 6:
                 value -= swing_penalty
             elif lead_now >= 3:
@@ -3207,11 +3207,11 @@ def choose_demo_bot_move(state: GameState):
         value += last.captureCount * 10
         value += last.fortifiedCellsGained * 4
         value += word_score(word) * 1.2
-        value += 9 if "BRIDGE" in combos else 0
-        value += 7 if "CUT" in combos else 0
-        value += 6 if "FORTIFY CHAIN" in combos else 0
-        value += 5 if "MAJOR CAPTURE" in combos else 0
-        value += 3 if "LONG PATH" in combos else 0
+        value += 9 if "橋渡し" in combos else 0
+        value += 7 if "分断" in combos else 0
+        value += 6 if "連続ロック" in combos else 0
+        value += 5 if "大奪取" in combos else 0
+        value += 3 if "長経路" in combos else 0
         value += 10 if any(str(c).startswith("SYNERGY") for c in combos) else 0
 
         # demo readability
@@ -3219,7 +3219,7 @@ def choose_demo_bot_move(state: GameState):
             value += 7
         if not is_demo:
             value -= 12
-        if len(word) == 3 and last.captureCount == 0 and "BRIDGE" not in combos:
+        if len(word) == 3 and last.captureCount == 0 and "橋渡し" not in combos:
             value -= 4
 
         # prefer visible map changes over tiny score nudges
@@ -3688,11 +3688,11 @@ try:
 
             # Normal bot should not crush humans with tactical bursts.
             score -= (last.captureCount or 0) * 2.8
-            if "BRIDGE" in labels:
+            if "橋渡し" in labels:
                 score -= 2.5
-            if "CUT" in labels:
+            if "分断" in labels:
                 score -= 2.5
-            if "FORTIFY CHAIN" in labels:
+            if "連続ロック" in labels:
                 score -= 1.8
 
             # Very long words are impressive, but Normal should not always prefer them.
@@ -3710,7 +3710,7 @@ try:
                 if gap < -3:
                     score -= (last.captureCount or 0) * 4.0
                     score -= max(0, (last.territoryGained or 0) - 2) * 1.5
-                    if "BRIDGE" in labels or "CUT" in labels:
+                    if "橋渡し" in labels or "分断" in labels:
                         score -= 3.0
                 elif gap > 5:
                     # If bot is losing badly, allow a reasonable comeback.
@@ -3778,20 +3778,20 @@ def _wt_ja_cap_early_t2_bonus_20260607(before_state, temp_state, player, combos,
         labels = set(combos or [])
 
         # Opening COMEBACK suppression.
-        if turn <= 6 and "COMEBACK" in labels:
+        if turn <= 6 and "逆転" in labels:
             try:
-                combos[:] = [c for c in combos if c != "COMEBACK"]
+                combos[:] = [c for c in combos if c != "逆転"]
             except Exception:
                 pass
             bonus_uncapped = max(0, int(bonus_uncapped) - 1)
 
         labels = set(combos or [])
         stacked = sum(1 for x in (
-            "COMEBACK",
-            "SECOND PLAYER INITIATIVE",
-            "MEGA TERRITORY",
-            "FIRST CAPTURE",
-            "EDGE REACH",
+            "逆転",
+            "後手の主導権",
+            "大領地",
+            "初回捕獲",
+            "端到達",
         ) if x in labels)
 
         if turn <= 4 and stacked >= 2:
@@ -3832,17 +3832,17 @@ def _wt_ja_easy_move_penalty_20260607(state, move, player):
         penalty += terr * 2.0
         penalty += cap * 8.0
 
-        if "BRIDGE" in labels:
+        if "橋渡し" in labels:
             penalty += 7.0
-        if "CUT" in labels:
+        if "分断" in labels:
             penalty += 7.0
-        if "MEGA TERRITORY" in labels:
+        if "大領地" in labels:
             penalty += 9.0
-        if "FIRST CAPTURE" in labels:
+        if "初回捕獲" in labels:
             penalty += 4.0
-        if "SECOND PLAYER INITIATIVE" in labels:
+        if "後手の主導権" in labels:
             penalty += 4.0
-        if "COMEBACK" in labels:
+        if "逆転" in labels:
             penalty += 5.0
 
         # If current player is already ahead, become gentler.
@@ -3851,7 +3851,7 @@ def _wt_ja_easy_move_penalty_20260607(state, move, player):
             if lead >= 3:
                 penalty += terr * 1.5
                 penalty += cap * 6.0
-                if "BRIDGE" in labels or "CUT" in labels:
+                if "橋渡し" in labels or "分断" in labels:
                     penalty += 6.0
         except Exception:
             pass
@@ -3878,9 +3878,9 @@ def _wt_ja_choose_easy_bot_move_20260607(state):
             labels = set(last.comboLabels or [])
             aggressive = (
                 (last.captureCount or 0) > 0
-                or "BRIDGE" in labels
-                or "CUT" in labels
-                or "MEGA TERRITORY" in labels
+                or "橋渡し" in labels
+                or "分断" in labels
+                or "大領地" in labels
             )
             scored.append((_wt_ja_easy_move_penalty_20260607(state, m, player), aggressive, m))
         except Exception:
