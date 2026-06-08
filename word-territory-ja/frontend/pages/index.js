@@ -1010,7 +1010,7 @@ const [thinking, setThinking] = useState(false);
     try {
       setError("");
       setBootMsg("Preparing spectator demo…");
-      const d = await createGame({ botLevel: "strong", showcase: true, spectatorSeed: 42 });
+      const d = await createGame({ boardMode, botLevel: "strong", showcase: true, spectatorSeed: 42 });
       setGameId(d.game_id);
       setState(d.state);
       setDailyMode(false);
@@ -2112,6 +2112,13 @@ async function submitScore() {
                 )}
               </div>
             </div>
+
+              <label className="mini-select-label">盤面：
+                <select value={boardMode} onChange={e=>setBoardMode(e.target.value)} disabled={!!state && !state.winner}>
+                  <option value="standard">標準 7×7</option>
+                  <option value="quick5">クイック 5×5</option>
+                </select>
+              </label>
                                     <div className="brow">
               <button className={`ba bsubmit ${showTutorial && tutorialStep===3 ? "tut-pulse tut-submit" : ""}`} onClick={daziMode ? daziV2 : submit} disabled={!human() || rotateMode}>{daziMode ? "奪字確定" : showTutorial && tutorialStep===3 ? "語を確定 ⚔" : ok ? "領地を確定 ⚔" : "確定"}</button>
               <button className="ba bseed" onClick={seed} disabled={!human() || daziMode || rotateMode} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "種まき（無料 — 次の語 +3T）" : "種まきは領地1コスト"}>
