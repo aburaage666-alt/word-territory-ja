@@ -89,6 +89,60 @@ def select_synergy_for_match(state, match_id, force_synergy="none"):
     return state, chosen
 
 
+
+def apply_blue_komi_to_row(row, blue_komi=0.0):
+    # BLUE komi for cardless balance testing.
+    # In the 90-game scan, BLUE +4 fixed win-rate best:
+    # RED 50%, BLUE 47%, DRAW 3%.
+    try:
+        k = float(blue_komi or 0)
+    except Exception:
+        k = 0.0
+
+    row["blue_komi"] = k
+    if not k:
+        return row
+
+    def f(key, default=0.0):
+        try:
+            return float(row.get(key, default) or default)
+        except Exception:
+            return float(default)
+
+    winner = str(row.get("winner", "") or "").upper()
+    gap = abs(f("score_gap", 0.0))
+    row["winner_raw"] = winner
+    row["score_gap_raw"] = gap
+
+    red_keys = ["red_score", "RED_score", "score_red", "red_total", "territory_red", "redT", "red_t"]
+    blue_keys = ["blue_score", "BLUE_score", "score_blue", "blue_total", "territory_blue", "blueT", "blue_t"]
+    red_key = next((x for x in red_keys if x in row and str(row.get(x, "")).strip() != ""), None)
+    blue_key = next((x for x in blue_keys if x in row and str(row.get(x, "")).strip() != ""), None)
+
+    if red_key and blue_key:
+        red = f(red_key)
+        blue = f(blue_key) + k
+        row[blue_key] = blue
+    else:
+        if winner == "RED":
+            red, blue = gap, k
+        elif winner == "BLUE":
+            red, blue = 0.0, gap + k
+        else:
+            red, blue = 0.0, k
+        row["red_score_komi_view"] = red
+        row["blue_score_komi_view"] = blue
+
+    if red > blue:
+        row["winner"] = "RED"
+    elif blue > red:
+        row["winner"] = "BLUE"
+    else:
+        row["winner"] = "DRAW"
+
+    row["score_gap"] = abs(red - blue)
+    return row
+
 def summarize_match(state, match_id, selected_synergy=""):
     red = getattr(state.scores, "redTerritory", 0)
     blue = getattr(state.scores, "blueTerritory", 0)
@@ -204,7 +258,7 @@ def summarize_match(state, match_id, selected_synergy=""):
     }
 
 
-def run_match(match_id, mode="normal", bot_level="normal", max_turns=60, seed=None, force_synergy="none"):
+def run_match(match_id, mode="normal", bot_level="normal", max_turns=60, seed=None, force_synergy="none", blue_komi=0.0):
     if seed is not None:
         random.seed(seed)
     state = build_initial_state(bot_level=bot_level)
@@ -213,7 +267,7 @@ def run_match(match_id, mode="normal", bot_level="normal", max_turns=60, seed=No
     while not getattr(state, "winner", None) and safety < max_turns:
         state = safe_apply_bot(state, mode=mode)
         safety += 1
-    return summarize_match(state, match_id, selected)
+    return apply_blue_komi_to_row(summarize_match(state, match_id, selected), blue_komi)
 
 
 def avg(rows, key):
@@ -250,6 +304,7 @@ def main():
     parser.add_argument("--bot-level", choices=["easy", "normal", "strong"], default="normal")
     parser.add_argument("--max-turns", type=int, default=60)
     parser.add_argument("--seed", type=int, default=1000)
+    parser.add_argument("--blue-komi", type=float, default=4.0, help="BLUE komi for cardless balance testing.")
     parser.add_argument("--force-synergy", default="none",
                         help="active3 for 30-match active-card suite, allcards for 20-card regression, cycle/random/none/exact card id.")
     parser.add_argument("--csv", default="bot_match_results_cardless_90.csv")
@@ -259,7 +314,7 @@ def main():
 
     rows = []
     for i in range(args.games):
-        row = run_match(i + 1, args.mode, args.bot_level, args.max_turns, args.seed + i, args.force_synergy)
+        row = run_match(i + 1, args.mode, args.bot_level, args.max_turns, args.seed + i, args.force_synergy, args.blue_komi)
         rows.append(row)
         print(
             f"Match {i+1}: {row['winner']} RED {row['red_cells']} - BLUE {row['blue_cells']} "
