@@ -5,3 +5,4 @@
 const BASIC_MODE_NO_CARDS = true;
 const BASIC_MODE_SHOW_STRATEGY_CARDS = false;
 
+export default BASIC_MODE_NO_CARDS;
