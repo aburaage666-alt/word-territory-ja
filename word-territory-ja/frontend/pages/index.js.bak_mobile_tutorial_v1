@@ -1761,11 +1761,10 @@ async function submitScore() {
   );
 
   // ── render ────────────────────────────────────────────────────────────────
-  const boardSize = state?.boardSize || state?.board?.length || 7;
   return <>
     <Head>
       {/* ③ SEO + social meta tags */}
-      <title>ワードテリトリー{dailyMode&&dailyInfo?` · Daily #${dailyInfo.dayNumber}`:""}</title>
+      <title>Word Territory{dailyMode&&dailyInfo?` · Daily #${dailyInfo.dayNumber}`:""}</title>
       <meta name="description" content="Word Territory is a word-powered territory strategy game where words become the map. プレイ the デイリーチャレンジ!" />
       <meta property="og:title" content="Word Territory" />
       <meta property="og:description" content="A spatial strategy word game. デイリーチャレンジ · Combo moves · Territory control." />
@@ -1803,7 +1802,7 @@ async function submitScore() {
         <div className="tutorial-mini">
           <strong>最初の一手</strong>
           <span>{tutorialStep===0 ? "文字カードを選ぶ。" : tutorialStep===1 ? "光っているマスを選ぶ。" : tutorialStep===2 ? "単語になるようにつなぐ。" : "単語を確定する。"}</span>
-          <button onClick={finishTutorial}>スキップ</button>
+          <button onClick={finishTutorial}>Skip</button>
         </div>
       )}
       {/* ── header ── */}
