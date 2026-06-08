@@ -62,7 +62,7 @@ def labels_of(move):
     return [str(x) for x in (getattr(move, "comboLabels", None) or [])]
 
 
-def select_synergy_for_match(state, match_id, force_synergy="active3"):
+def select_synergy_for_match(state, match_id, force_synergy="none"):
     if force_synergy == "none":
         return state, getattr(state, "selectedSynergy", "") or ""
 
@@ -204,7 +204,7 @@ def summarize_match(state, match_id, selected_synergy=""):
     }
 
 
-def run_match(match_id, mode="normal", bot_level="normal", max_turns=60, seed=None, force_synergy="active3"):
+def run_match(match_id, mode="normal", bot_level="normal", max_turns=60, seed=None, force_synergy="none"):
     if seed is not None:
         random.seed(seed)
     state = build_initial_state(bot_level=bot_level)
@@ -250,11 +250,11 @@ def main():
     parser.add_argument("--bot-level", choices=["easy", "normal", "strong"], default="normal")
     parser.add_argument("--max-turns", type=int, default=60)
     parser.add_argument("--seed", type=int, default=1000)
-    parser.add_argument("--force-synergy", default="active3",
+    parser.add_argument("--force-synergy", default="none",
                         help="active3 for 30-match active-card suite, allcards for 20-card regression, cycle/random/none/exact card id.")
-    parser.add_argument("--csv", default="bot_match_results_synergy_active3_30.csv")
-    parser.add_argument("--json", default="bot_match_results_synergy_active3_30.json")
-    parser.add_argument("--summary-csv", default="bot_match_summary_by_card_active3_30.csv")
+    parser.add_argument("--csv", default="bot_match_results_cardless_90.csv")
+    parser.add_argument("--json", default="bot_match_results_cardless_90.json")
+    parser.add_argument("--summary-csv", default="bot_match_summary_cardless_90.csv")
     args = parser.parse_args()
 
     rows = []
