@@ -417,13 +417,13 @@ function updateStreak(dateStr) {
 }
 
 // ── Cell ──────────────────────────────────────────────────────────────────────
-function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePath, lockNeighbor, tutorialPlace, tutorialPath, disabled, gen, attack, inPath, threat, threatMove, rotateTarget, captureOrder, lockOrder, onClick }) {
+function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePath, lockNeighbor, tutorialPlace, tutorialPath, disabled, gen, attack, inPath, threat, threatMove, rotateTarget, captureOrder, lockOrder, onClick, daziTarget}) {
   const cls = ["cell",
     cell.owner === "RED" ? "cr" : cell.owner === "BLUE" ? "cb" : "",
     cell.fortified ? "ft" : "", sel ? "sl" : "", placed ? "pl" : "",
     legal ? "lg" : "", disabled && !sel ? "dm" : "",
     attack ? "atk" : "",   // opponent cell that can be attacked
-    threat ? "threat" : "", threatMove ? "threatMove" : "", rotateTarget ? "rotate-target" : "",
+    threat ? "threat" : "", threatMove ? "threatMove" : "", rotateTarget ? "rotate-target" : "", daziTarget ? "dazi-target" : "",
     bridgePath ? "bridge-path" : "", lockNeighbor ? "lock-neighbor" : "",
     tutorialPlace ? "tut-pulse tut-cell" : "", tutorialPath ? "tut-arrow-cell" : "",
     inPath ? "inpath" : "", // opponent cell currently in selected path (will be captured)
@@ -690,6 +690,27 @@ function wtJaTranslateRoleText(value) {
   s = s.split("Best Territorial Swing").join("最大領地変動");
   s = s.split("Top Territorial Swings").join("上位の領地変動");
   return s;
+}
+
+// WT_DAZI_TARGET_HELPER_V1
+function wtDaziEnemyOf(player) {
+  return player === "RED" ? "BLUE" : "RED";
+}
+function wtDaziPathHasEnemy(state, path) {
+  if (!state?.board || !Array.isArray(path) || path.length === 0) return false;
+  const enemy = wtDaziEnemyOf(state.currentPlayer);
+  return path.some(p => state.board?.[p.row]?.[p.col]?.owner === enemy);
+}
+function wtDaziTargetKeys(state) {
+  const keys = new Set();
+  if (!state?.board) return keys;
+  const enemy = wtDaziEnemyOf(state.currentPlayer);
+  state.board.forEach((row, r) => {
+    (row || []).forEach((cell, c) => {
+      if (cell?.letter && cell?.owner === enemy) keys.add(`${r},${c}`);
+    });
+  });
+  return keys;
 }
 
 export default function Home() {
@@ -1306,6 +1327,7 @@ const [thinking, setThinking] = useState(false);
     return new Set([asKey(r,c), asKey(r,c+1), asKey(r+1,c), asKey(r+1,c+1)]);
   }, [rotateTarget?.row, rotateTarget?.col]);
   const rotateRaidUsed = !!state?.synergyState?.rotationRaidUsed;
+  const daziTargetSet = useMemo(() => daziMode ? wtDaziTargetKeys(state) : new Set(), [daziMode, state?.board, state?.currentPlayer]);
 
   async function performRotateRaid(target = rotateTarget) {
     if (!target) { setError("2×2ブロックの左上マスを選んでください。ロック済みマスは回転できません。"); return; }
@@ -1487,7 +1509,13 @@ const [thinking, setThinking] = useState(false);
       setError("奪字する単語の文字を2文字以上つないでください。");
       return;
     }
-    try {
+    
+    // WT_DAZI_TARGET_PRECHECK_V1
+    if (!wtDaziPathHasEnemy(state, path)) {
+      setError("奪字には紫枠の敵文字を1つ以上含む単語が必要です。");
+      return;
+    }
+try {
       const payload = { path };
       const next = asyncMode ? await daziAsyncMove(gameId, asyncToken, payload) : await daziMove(gameId, payload);
       setState(next);
@@ -1844,7 +1872,7 @@ async function submitScore() {
       {synergyFlash&&<div className="bnr synergy-flash">{synergyFlash}</div>}
           {comboBanner.length>0&&<div className="bnr combo">{comboBanner.join(" · ")}</div>}
       {error&&<div className="bnr err">{error}<button className="bx" onClick={()=>setError("")}>✕</button></div>}
-      {daziMode&&<div className="bnr dazi-help-banner">{"奪字モード：敵文字を含む単語を作ると、その1マスを中立化します。ロック済みなら優先して外します。"}</div>}
+      {daziMode&&<div className="bnr dazi-help-banner">{"奪字モード：紫枠の敵文字を1つ以上含む単語を作ると、その1マスを中立化します。ロック済みなら優先して外します。"}</div>}
       
 
 
@@ -1873,7 +1901,7 @@ async function submitScore() {
                     captureOrder={capturedOrderMap.get(k)} lockOrder={lockedOrderMap.get(k)}
                     disabled={isDim(cell.row,cell.col)} gen={animGen}
                     attack={attackableSet.has(k) && !isSel(cell.row,cell.col)}
-                    threat={threatCellSet.has(k)} threatMove={threatMoveSet.has(k)} rotateTarget={rotateTargetSet.has(k)}
+                    threat={threatCellSet.has(k)} threatMove={threatMoveSet.has(k)} rotateTarget={rotateTargetSet.has(k)} daziTarget={daziTargetSet.has(k)}
                     inPath={inPathOpponentSet.has(k)}
                     onClick={()=>clickCell(cell.row,cell.col)}/>
                   {showVp && <div className={`vp-overlay vp-${vp.tier || 'basic'}`} title={vp.word ? `${vp.word} · 領地変動 +${vp.gain||0}${vp.synergyPreview ? ' · '+vp.synergyPreview : ''}` : 'Setup'}>
@@ -2089,7 +2117,7 @@ async function submitScore() {
               <button className="ba bseed" onClick={seed} disabled={!human() || daziMode || rotateMode} title={state?.selectedSynergy==="SEED_TACTICIAN" ? "種まき（無料 — 次の語 +3T）" : "種まきは領地1コスト"}>
                 <span className="seed-label">{lastStand ? "奪回" : "種まき"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "無料" : "コスト -1"}</span>}
               </button>
-              <button className={`ba bdazi ${daziMode ? "active" : ""}`} onClick={()=>{ setDaziMode(v=>!v); setRotateMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setLetter(""); setPreview(null); setError(!daziMode ? "奪字モード：既存文字だけをつなぎ、敵文字を含む有効語を作ると、その1マスを中立化します。" : ""); }} disabled={!human() || rotateMode || daziRemaining<=0} title="緑マス不要。敵文字を含む既存文字パスで発動します。">奪字 {daziMode ? "ON " : ""}{daziRemaining}/2</button>{/* WT_DAZI_V2_TOGGLE_BUTTON */}
+              <button className={`ba bdazi ${daziMode ? "active" : ""}`} onClick={()=>{ setDaziMode(v=>!v); setRotateMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setLetter(""); setPreview(null); setError(!daziMode ? "奪字モード：既存文字だけをつなぎ、紫枠の敵文字を1つ以上含む有効語を作ると、その1マスを中立化します。" : ""); }} disabled={!human() || rotateMode || daziRemaining<=0} title="緑マス不要。紫枠の敵文字を1つ以上含む既存文字パスで発動します。">奪字 {daziMode ? "ON " : ""}{daziRemaining}/2</button>{/* WT_DAZI_V2_TOGGLE_BUTTON */}
               {!rotateRaidUsed && <button className={`ba brotate ${rotateMode ? "active" : ""}`} onClick={()=>{ if(rotateTarget) performRotateRaid(); else { setRotateMode(v=>!v); setDaziMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setPreview(null); setError("2×2の左上マスを選択してください。紫の4マスが対象です。回転だけでは領地は取れません。"); } }} disabled={!human() || daziMode} title="1試合1回。敵地を含む2×2の文字だけを回転。所有権は動きません。">{rotateTarget ? "回転確定" : rotateMode ? "2×2選択中" : "回転侵略"}</button>}
               {rotateMode && <button className="ba" onClick={()=>{setRotateMode(false);setRotateTarget(null);setError("");}} disabled={!human()}>取消</button>}
               <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); setDaziMode(false); setRotateMode(false); setRotateTarget(null); }} disabled={!human()}>クリア</button>
@@ -2929,7 +2957,27 @@ async function submitScore() {
       .seed-label{display:block;font-weight:900;line-height:1}
       .seed-cost{display:block;margin-top:3px;font-size:10px;color:#b45309;font-weight:800}
 
-    `}</style>
+    `}
+        /* WT_DAZI_TARGET_CSS_V1 */
+        .cell.dazi-target{
+          box-shadow: inset 0 0 0 3px #8b5cf6, 0 0 0 3px rgba(139,92,246,.22);
+          border-color:#8b5cf6 !important;
+          background:linear-gradient(180deg,#f5f3ff,#ede9fe);
+        }
+        .cell.dazi-target::after{
+          content:"奪";
+          position:absolute;
+          right:4px;
+          bottom:3px;
+          font-size:10px;
+          font-weight:900;
+          color:#6d28d9;
+          background:#fff;
+          border:1px solid rgba(109,40,217,.35);
+          border-radius:999px;
+          padding:0 3px;
+        }
+</style>
   </>;
 }
 
