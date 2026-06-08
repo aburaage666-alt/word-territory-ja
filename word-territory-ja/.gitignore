@@ -2,3 +2,26 @@
 frontend/node_modules/
 frontend/.next/
 
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+
+# Local database
+backend/data.db
+*.db
+
+
+# Local helper scripts and backups
+apply_*.py
+health_check_*.py
+*.bak_*
+
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/.next/
+
