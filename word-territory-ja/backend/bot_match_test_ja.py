@@ -143,6 +143,44 @@ def apply_blue_komi_to_row(row, blue_komi=0.0):
     row["score_gap"] = abs(red - blue)
     return row
 
+
+def _wt_ja_pressure_metric_boost_v1(row):
+    """Recalculate presentation metrics from Japanese pressure labels.
+
+    This does not affect the match result. It only improves balance diagnostics:
+    reclaim/frontline/initiative should not stay 0 when Japanese labels exist.
+    """
+    text = " ".join([
+        str(row.get("combo_labels", "") or ""),
+        str(row.get("synergy_labels", "") or ""),
+        str(row.get("best_labels", "") or ""),
+        str(row.get("labels", "") or ""),
+    ])
+
+    def has_any(words):
+        return any(w in text for w in words)
+
+    if has_any(["押し返し", "再奪取", "劣勢反撃"]):
+        try:
+            row["reclaim_turns"] = max(float(row.get("reclaim_turns", 0) or 0), 1)
+        except Exception:
+            row["reclaim_turns"] = 1
+
+    if has_any(["前線押し上げ", "打ち込み", "押し返し"]):
+        try:
+            row["frontline_pressure_turns"] = max(float(row.get("frontline_pressure_turns", 0) or 0), 1)
+        except Exception:
+            row["frontline_pressure_turns"] = 1
+
+    if has_any(["劣勢反撃", "長語反撃", "接戦維持"]):
+        try:
+            row["second_player_initiative"] = max(float(row.get("second_player_initiative", 0) or 0), 1)
+        except Exception:
+            row["second_player_initiative"] = 1
+
+    return row
+
+
 def summarize_match(state, match_id, selected_synergy=""):
     red = getattr(state.scores, "redTerritory", 0)
     blue = getattr(state.scores, "blueTerritory", 0)
@@ -267,7 +305,7 @@ def run_match(match_id, mode="normal", bot_level="normal", max_turns=60, seed=No
     while not getattr(state, "winner", None) and safety < max_turns:
         state = safe_apply_bot(state, mode=mode)
         safety += 1
-    return apply_blue_komi_to_row(summarize_match(state, match_id, selected), blue_komi)
+    return _wt_ja_pressure_metric_boost_v1(apply_blue_komi_to_row(summarize_match(state, match_id, selected), blue_komi))
 
 
 def avg(rows, key):

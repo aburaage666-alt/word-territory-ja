@@ -4480,3 +4480,74 @@ for _wt_name in [
         _wt_wrapped._wt_quick_wrapped = True
         globals()[_wt_name] = _wt_wrapped
 
+
+# WT-JA pressure visualization labels v1 --------------------------------------
+try:
+    _wt_ja_orig_combo_labels_pressure_v1 = combo_labels
+
+    def combo_labels(*args, **kwargs):
+        """Add Japanese comeback / pressure labels without changing rules or score.
+
+        This wrapper is presentation/logging only:
+        - no legal move changes
+        - no score changes
+        - no dictionary changes
+        """
+        labels = list(_wt_ja_orig_combo_labels_pressure_v1(*args, **kwargs) or [])
+
+        try:
+            state = args[0] if len(args) > 0 else kwargs.get("state")
+            move = args[1] if len(args) > 1 else kwargs.get("move")
+            last = args[2] if len(args) > 2 else kwargs.get("last")
+            player = args[3] if len(args) > 3 else kwargs.get("player")
+
+            territory = int(getattr(last, "territoryGained", 0) or 0)
+            captures = int(getattr(last, "captureCount", 0) or 0)
+            word = ""
+            if isinstance(move, dict):
+                word = str(move.get("word", "") or "")
+
+            try:
+                gap = get_score_gap(state, player)
+            except Exception:
+                gap = 0
+
+            # positive gap means current player is behind.
+            behind = gap > 3
+            far_behind = gap > 6
+
+            # These are intentionally readable Japanese labels for UX.
+            if behind and territory >= 2:
+                labels.append("押し返し")
+
+            if behind and territory >= 3:
+                labels.append("前線押し上げ")
+
+            if behind and captures >= 1:
+                labels.append("再奪取")
+
+            if far_behind and (territory >= 2 or captures >= 1):
+                labels.append("劣勢反撃")
+
+            if abs(gap) <= 6 and (territory >= 1 or captures >= 1):
+                labels.append("接戦維持")
+
+            if behind and len(word) >= 4 and territory >= 1:
+                labels.append("長語反撃")
+
+            # Keep stable order and avoid duplicates.
+            seen = set()
+            out = []
+            for x in labels:
+                if x not in seen:
+                    seen.add(x)
+                    out.append(x)
+            return out
+
+        except Exception:
+            return labels
+
+except Exception:
+    pass
+# ---------------------------------------------------------------------------
+
