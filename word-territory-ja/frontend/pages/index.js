@@ -417,7 +417,7 @@ function updateStreak(dateStr) {
 }
 
 // ── Cell ──────────────────────────────────────────────────────────────────────
-function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePath, lockNeighbor, tutorialPlace, tutorialPath, disabled, gen, attack, inPath, threat, threatMove, rotateTarget, captureOrder, lockOrder, onClick, daziTarget}) {
+function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePath, lockNeighbor, tutorialPlace, tutorialPath, disabled, gen, attack, inPath, threat, threatMove, rotateTarget, captureOrder, lockOrder, onClick, daziTarget, rotateCandidate, rotateAnchor}) {
   const cls = ["cell",
     cell.owner === "RED" ? "cr" : cell.owner === "BLUE" ? "cb" : "",
     cell.fortified ? "ft" : "", sel ? "sl" : "", placed ? "pl" : "",
@@ -426,6 +426,7 @@ function Cell({ cell, sel, placed, legal, changed, captured, lockedNow, bridgePa
     threat ? "threat" : "", threatMove ? "threatMove" : "", rotateTarget ? "rotate-target" : "", daziTarget ? "dazi-target" : "",
     bridgePath ? "bridge-path" : "", lockNeighbor ? "lock-neighbor" : "",
     tutorialPlace ? "tut-pulse tut-cell" : "", tutorialPath ? "tut-arrow-cell" : "",
+    rotateCandidate ? "rotate-candidate" : "", rotateAnchor ? "rotate-anchor" : "",
     inPath ? "inpath" : "", // opponent cell currently in selected path (will be captured)
   ].filter(Boolean).join(" ");
   const animStyle = {
@@ -1287,6 +1288,62 @@ const [thinking, setThinking] = useState(false);
     });
     return s;
   }, [path, state?.turn]);
+
+  // 2x2 candidate blocks for 回転侵略 highlight.
+  // Visual only: this does not execute rotation or change ownership.
+  const rotateCandidateData = useMemo(() => {
+    const cells = new Set();
+    const anchors = new Set();
+    const b = state?.board;
+    if (!Array.isArray(b) || !b.length) return { cells, anchors };
+    if (state?.winner) return { cells, anchors };
+    if (!human()) return { cells, anchors };
+
+    const rotateAlreadyUsed = !!(
+      state?.rotateUsed ||
+      state?.rotationUsed ||
+      state?.rotate_used ||
+      state?.rotation_used ||
+      state?.specials?.rotateUsed ||
+      state?.specials?.rotationUsed ||
+      state?.specials?.rotate_used ||
+      state?.specials?.rotation_used
+    );
+    if (rotateAlreadyUsed) return { cells, anchors };
+
+    const opp = state?.currentPlayer === "RED" ? "BLUE" : "RED";
+    const n = b.length;
+
+    for (let r = 0; r < n - 1; r++) {
+      for (let c = 0; c < n - 1; c++) {
+        const block = [
+          b?.[r]?.[c],
+          b?.[r]?.[c + 1],
+          b?.[r + 1]?.[c],
+          b?.[r + 1]?.[c + 1],
+        ].filter(Boolean);
+
+        if (block.length !== 4) continue;
+
+        const hasOpponentLetter = block.some(x => x?.letter && x?.owner === opp);
+        const hasAtLeastTwoLetters = block.filter(x => x?.letter).length >= 2;
+
+        if (hasOpponentLetter && hasAtLeastTwoLetters) {
+          anchors.add(asKey(r, c));
+          cells.add(asKey(r, c));
+          cells.add(asKey(r, c + 1));
+          cells.add(asKey(r + 1, c));
+          cells.add(asKey(r + 1, c + 1));
+        }
+      }
+    }
+
+    return { cells, anchors };
+  }, [state?.turn, state?.currentPlayer, state?.winner, state?.board]);
+
+  const rotateCandidateSet = rotateCandidateData.cells;
+  const rotateAnchorSet = rotateCandidateData.anchors;
+
   const hasNbr = (r,c) => {
     const b = state?.board;
     if (!Array.isArray(b) || !b[r] || !b[r][c]) return false;
@@ -1756,7 +1813,48 @@ async function submitScore() {
           padding:0 3px;
         }
 
-`}</style>
+
+
+      /* ── JA v2 rotation invasion candidate highlight ───────────────────── */
+      .cell.rotate-candidate{
+        outline:3px dashed rgba(168,85,247,.78)!important;
+        outline-offset:-5px;
+        box-shadow:
+          inset 0 0 0 2px rgba(168,85,247,.16),
+          0 0 14px rgba(168,85,247,.26)!important;
+        animation:rotateHintPulse 1.45s ease-in-out infinite;
+      }
+      .cell.rotate-anchor{
+        position:relative;
+      }
+      .rotate-anchor-dot{
+        position:absolute;
+        right:3px;
+        bottom:3px;
+        width:18px;
+        height:18px;
+        border-radius:999px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        background:rgba(88,28,135,.92);
+        color:#fff;
+        font-size:12px;
+        font-weight:900;
+        line-height:1;
+        box-shadow:0 0 10px rgba(168,85,247,.55);
+        pointer-events:none;
+      }
+      @keyframes rotateHintPulse{
+        0%,100%{filter:brightness(1)}
+        50%{filter:brightness(1.09)}
+      }
+      @media(max-width:600px){
+        .cell.rotate-candidate{outline-width:2px!important;outline-offset:-4px}
+        .rotate-anchor-dot{width:16px;height:16px;font-size:11px;right:2px;bottom:2px}
+      }
+
+    `}</style>
     </main>
   );
 
@@ -1925,6 +2023,8 @@ async function submitScore() {
                     attack={attackableSet.has(k) && !isSel(cell.row,cell.col)}
                     threat={threatCellSet.has(k)} threatMove={threatMoveSet.has(k)} rotateTarget={rotateTargetSet.has(k)} daziTarget={daziTargetSet.has(k)}
                     inPath={inPathOpponentSet.has(k)}
+                    rotateCandidate={rotateCandidateSet.has(k)}
+                    rotateAnchor={rotateAnchorSet.has(k)}
                     onClick={()=>clickCell(cell.row,cell.col)}/>
                   {showVp && <div className={`vp-overlay vp-${vp.tier || 'basic'}`} title={vp.word ? `${vp.word} · 領地変動 +${vp.gain||0}${vp.synergyPreview ? ' · '+vp.synergyPreview : ''}` : 'Setup'}>
                     <span className="vp-num">{vp.tier==='strong' ? `+${vp.gain}T` : vp.tier==='frontline' ? `+${vp.gain}T` : (Number(vp.gain)||0) > 0 ? `+${vp.gain}T` : 'SET'}</span>
