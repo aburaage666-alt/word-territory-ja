@@ -1736,8 +1736,7 @@ async function submitScore() {
         </div>
       </div>
       <style>{`@keyframes loadpulse{0%{width:10%}50%{width:75%}100%{width:10%}}
-
-        /* WT_JA_TARGET_CSS_V3 */
+        /* WT_奪字_TARGET_CSS_V2 */
         .cell.dazi-target{
           box-shadow: inset 0 0 0 3px #8b5cf6, 0 0 0 3px rgba(139,92,246,.22);
           border-color:#8b5cf6 !important;
@@ -1756,6 +1755,7 @@ async function submitScore() {
           border-radius:999px;
           padding:0 3px;
         }
+
 `}</style>
     </main>
   );
