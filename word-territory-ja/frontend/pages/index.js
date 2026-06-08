@@ -531,8 +531,8 @@ function wtModernMoveText(m, moveLabel) {
   return gain ? `${word} +${gain}` : String(word);
 }
 
-function wtModernBestSwing(move履歴) {
-  const arr = Array.isArray(move履歴) ? move履歴 : [];
+function wtModernBestSwing(moveHistory) {
+  const arr = Array.isArray(moveHistory) ? moveHistory : [];
   if (!arr.length) return null;
   return arr.slice().sort((a, b) => {
     const av = Number(a.territoryGained || 0) + Number(a.captureCount || 0) * 2;
@@ -544,7 +544,7 @@ function wtModernBestSwing(move履歴) {
 function wtModernShareText({ state, redT, blueT, bestMove, moveLabel, dailyInfo, url, title="Word Territory" }) {
   const winner = state?.winner || "";
   const day = dailyInfo?.dayNumber ? ` #${dailyInfo.dayNumber}` : "";
-  const best = bestMove || wtModernBestSwing(state?.move履歴);
+  const best = bestMove || wtModernBestSwing(state?.moveHistory);
   const bestText = wtModernMoveText(best, moveLabel);
   const board = wtModernBoardEmoji(state?.board);
   const result = winner === "DRAW" ? "DRAW" : winner ? `${winner} WIN` : "RESULT";
@@ -560,7 +560,7 @@ function wtModernShareText({ state, redT, blueT, bestMove, moveLabel, dailyInfo,
 
 function wtModernDownloadShareCard({ state, redT, blueT, bestMove, moveLabel, dailyInfo, title="Word Territory" }) {
   if (typeof document === "undefined") return;
-  const best = bestMove || wtModernBestSwing(state?.move履歴);
+  const best = bestMove || wtModernBestSwing(state?.moveHistory);
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
   canvas.height = 1350;
@@ -618,7 +618,7 @@ function wtModernDownloadShareCard({ state, redT, blueT, bestMove, moveLabel, da
 }
 
 function wtModernReplayBestSwing({ state, bestMove, moveLabel, setBoardBannerText }) {
-  const best = bestMove || wtModernBestSwing(state?.move履歴);
+  const best = bestMove || wtModernBestSwing(state?.moveHistory);
   const text = `最大スイング：${wtModernMoveText(best, moveLabel)}`;
   try { navigator.vibrate?.([70, 40, 100]); } catch {}
   try {
@@ -880,7 +880,7 @@ const [thinking, setThinking] = useState(false);
   const [showFreeInput, setShowFreeInput] = useState(false);
   const [wildMode, setWildMode] = useState(false);
   // Tutorial UX: track how many turns have been played
-  const tutTurns = (state?.move履歴?.length || 0);
+  const tutTurns = (state?.moveHistory?.length || 0);
   const isTutorial = tutTurns < 3;
   const WT_JA_LAST_STAND_FIX_20260606 = true;
   const lastStand = Boolean(
@@ -1088,8 +1088,8 @@ const [thinking, setThinking] = useState(false);
     if (tutorialStep === 0 && letter) setTutorialStep(1);
     else if (tutorialStep === 1 && placed) setTutorialStep(2);
     else if (tutorialStep === 2 && path.length >= 3) setTutorialStep(3);
-    else if (tutorialStep === 3 && (state?.move履歴?.length || 0) > 0) finishTutorial();
-  }, [showTutorial, tutorialStep, letter, placed?.row, placed?.col, path.length, state?.move履歴?.length]);
+    else if (tutorialStep === 3 && (state?.moveHistory?.length || 0) > 0) finishTutorial();
+  }, [showTutorial, tutorialStep, letter, placed?.row, placed?.col, path.length, state?.moveHistory?.length]);
 
 
   // ── state tick ───────────────────────────────────────────────────────────
@@ -1160,7 +1160,7 @@ const [thinking, setThinking] = useState(false);
         reset();
         try { setSugg(await getSuggestions(gameId)); } catch { setSugg([]); }
         try { set脅威s(await get脅威(gameId)); } catch { set脅威s([]); }
-        const last = next.move履歴?.[next.move履歴.length - 1];
+        const last = next.moveHistory?.[next.moveHistory.length - 1];
         if (last?.comboLabels?.length) {
           setSpectatorNote(`${last.人} reshaped the map: ${terrainMoveLabel(last)}`);
         } else if (last?.word && last.word !== "SEED") {
@@ -1192,7 +1192,7 @@ const [thinking, setThinking] = useState(false);
     setSum(true);
 
     if (dailyMode && dailyInfo) {
-      const wm = state.move履歴.filter(m => m.moveType === "WORD");
+      const wm = state.moveHistory.filter(m => m.moveType === "WORD");
       const best = [...wm].sort((a, b) =>
         (b.territoryGained*2 + b.wordScoreGained*1.5 + b.fortifiedCellsGained*2 + (b.captureCount?5:0)) -
         (a.territoryGained*2 + a.wordScoreGained*1.5 + a.fortifiedCellsGained*2 + (a.captureCount?5:0))
@@ -1226,7 +1226,7 @@ const [thinking, setThinking] = useState(false);
     }
   }, [state?.winner]);
 
-  useEffect(() => { if (histRef.current) histRef.current.scrollTop = histRef.current.scrollHeight; }, [state?.move履歴?.length]);
+  useEffect(() => { if (histRef.current) histRef.current.scrollTop = histRef.current.scrollHeight; }, [state?.moveHistory?.length]);
 
   // ── preview ──────────────────────────────────────────────────────────────
   const currentWord = useMemo(() => {
@@ -1658,7 +1658,7 @@ async function submitScore() {
   const daziUsed = Number((state?.daziUses || {})[state?.current遊ぶer] || 0);
   const daziRemaining = Math.max(0, 2 - daziUsed);
   const daziLabel = daziMode ? "奪字ON" : "奪字";
-  const topMoves = [...(state?.move履歴||[])].filter(m=>m.moveType==="WORD")
+  const topMoves = [...(state?.moveHistory||[])].filter(m=>m.moveType==="WORD")
     .sort((a,b)=>(b.territoryGained*2+b.wordScoreGained*1.5+b.fortifiedCellsGained*2+(b.captureCount?5:0)+(b.comboLabels?.length||0)*1.5)
                 -(a.territoryGained*2+a.wordScoreGained*1.5+a.fortifiedCellsGained*2+(a.captureCount?5:0)+(a.comboLabels?.length||0)*1.5))
     .slice(0,3);
@@ -1683,7 +1683,7 @@ async function submitScore() {
     });
     return s;
   }, [JSON.stringify(threatList)]);
-  const lastMove = (state?.move履歴 || [])[Math.max((state?.move履歴?.length || 0) - 1, 0)] || null;
+  const lastMove = (state?.moveHistory || [])[Math.max((state?.moveHistory?.length || 0) - 1, 0)] || null;
   const lastMoveInsights = moveInsightLines(lastMove);
   const lastMoveIsSwing = !!lastMove && (
     (lastMove.captureCount || 0) > 0 ||
@@ -2067,7 +2067,7 @@ async function submitScore() {
                 </div>
                 {bestMove && <div className="report-best"><span>最大領地変動</span><strong>{moveLabel(bestMove)}</strong></div>}
                 <div className="report-stats">
-                  <span>最大奪取: {Math.max(0, ...((state.move履歴||[]).map(m=>m.captureCount||0)))} cells</span>
+                  <span>最大奪取: {Math.max(0, ...((state.moveHistory||[]).map(m=>m.captureCount||0)))} cells</span>
                   <span>大きな変動: {topMoves.length}</span>
                   <span>開始形: {state.openingName}</span>
                 </div>
@@ -2321,8 +2321,8 @@ async function submitScore() {
             </div>
             {show履歴&&(
               <div className="hist" ref={histRef}>
-                {!state.move履歴.length&&<div className="muted">まだ履歴はありません</div>}
-                {state.move履歴.map((m,i)=><HistItem key={i} m={m}/>)}
+                {!state.moveHistory.length&&<div className="muted">まだ履歴はありません</div>}
+                {state.moveHistory.map((m,i)=><HistItem key={i} m={m}/>)}
               </div>
             )}
           </div>
