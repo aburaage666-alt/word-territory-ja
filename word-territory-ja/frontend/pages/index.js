@@ -727,7 +727,6 @@ const [thinking, setThinking] = useState(false);
   const [synergyOpts, setSynergyOpts] = useState([]);
   const [synergy,     setSynergy]     = useState("");
   const [valuePrev,   setValuePrev]   = useState([]); // Territory Preview candidates
-  const [daziMode,   setDaziMode]   = useState(false); // Disarm / 奪字: next word can neutralize one enemy LOCK
   const [threatsRaw,  _setThreats]    = useState([]); // opponent capture threats, raw API payload
   const threats = useMemo(() => normalizeThreats(threatsRaw), [threatsRaw]);
   const setThreats = (value) => _setThreats(normalizeThreats(value));
