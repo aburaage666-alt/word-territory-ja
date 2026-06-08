@@ -2,7 +2,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyランキング,
+  botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyLeaderboard,
   getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, getThreat, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, rotateAsyncBlock, passAsyncTurn,
   joinWaitlist, passTurn, previewMove, rotateBlock, seedMove, submitDailyScore, submitMove,
   useFreeLetter, swapLetter,
@@ -474,7 +474,7 @@ function ランキングModal({ on閉じる, dailyInfo, myRank }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    getDailyランキング().then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+    getDailyLeaderboard().then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
   return (
