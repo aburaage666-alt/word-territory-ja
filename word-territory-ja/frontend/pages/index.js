@@ -716,6 +716,264 @@ function wtDaziTargetKeys(state) {
 
 export default function Home() {
 
+  // WT_JA_SHARE_IMAGE_ENHANCE_V1
+  // React構造を壊さない共有画像生成。盤面DOMをCanvas化する。
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const ROOT_ID = "wt-ja-share-image-root-v1";
+    const STYLE_ID = "wt-ja-share-image-style-v1";
+
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = [
+        ".wt-share-fab{position:fixed;left:18px;bottom:18px;z-index:9998;border:1px solid #0284c7;background:#fff;color:#075985;border-radius:999px;padding:10px 13px;font-weight:950;font-size:13px;box-shadow:0 10px 30px rgba(15,23,42,.16);cursor:pointer}",
+        ".wt-share-fab:active{transform:translateY(1px)}",
+        ".wt-share-toast{position:fixed;left:18px;bottom:66px;z-index:9998;max-width:min(360px,calc(100vw - 36px));background:#0f172a;color:#fff;border-radius:14px;padding:9px 11px;font-size:12px;font-weight:800;box-shadow:0 12px 34px rgba(15,23,42,.24)}",
+        ".wt-share-toast[hidden]{display:none}",
+        "@media(max-width:700px){.wt-share-fab{left:12px;bottom:12px;font-size:12px;padding:9px 11px}.wt-share-toast{left:12px;bottom:58px}}"
+      ].join("\\n");
+      document.head.appendChild(style);
+    }
+
+    let root = document.getElementById(ROOT_ID);
+    if (!root) {
+      root = document.createElement("div");
+      root.id = ROOT_ID;
+      root.innerHTML = [
+        "<button type='button' class='wt-share-fab' data-wt-share-image='1'>📸 共有画像</button>",
+        "<div class='wt-share-toast' data-wt-share-toast='1' hidden>共有画像を作成しました</div>"
+      ].join("");
+      document.body.appendChild(root);
+    }
+
+    const btn = root.querySelector("[data-wt-share-image]");
+    const toast = root.querySelector("[data-wt-share-toast]");
+
+    const showToast = (msg) => {
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.hidden = false;
+      window.setTimeout(() => { toast.hidden = true; }, 2400);
+    };
+
+    const cellOwner = (el) => {
+      const cls = String(el.className || "").toLowerCase();
+      const style = window.getComputedStyle(el);
+      const bg = String(style.backgroundColor || "");
+      const border = String(style.borderColor || "");
+
+      if (cls.includes("red") || cls.includes("p1") || cls.includes("owner-red") || bg.includes("239") || bg.includes("254, 226, 226")) return "RED";
+      if (cls.includes("blue") || cls.includes("p2") || cls.includes("owner-blue") || bg.includes("37, 99, 235") || bg.includes("219, 234, 254")) return "BLUE";
+      if (border.includes("34, 197, 94") || bg.includes("240, 253, 244")) return "OPEN";
+      return "NEUTRAL";
+    };
+
+    const cellText = (el) => {
+      const raw = String(el.textContent || "").trim();
+      const cleaned = raw.replace(/[↻⚔★☆・･·•\s]/g, "");
+      if (!cleaned) return "";
+      const m = cleaned.match(/[ぁ-んァ-ンーA-Za-z*]/);
+      return m ? m[0] : cleaned.slice(0, 1);
+    };
+
+    const getBoardCells = () => {
+      const cells = Array.from(document.querySelectorAll(".cell"));
+      if (!cells.length) return [];
+      const n = Math.round(Math.sqrt(cells.length));
+      if (n >= 5 && n * n === cells.length) return cells;
+      return cells;
+    };
+
+    const readScoreLine = () => {
+      const candidates = Array.from(document.querySelectorAll("body *"))
+        .slice(0, 240)
+        .map((el) => String(el.textContent || "").replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+
+      const scoreish = candidates.find((t) => {
+        return /RED|BLUE|cells|同点|勝|点|ターン|Round/i.test(t) && t.length < 90;
+      });
+
+      return scoreish || "Word Territory 日本語版";
+    };
+
+    const drawRoundRect = (ctx, x, y, w, h, r) => {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.lineTo(x + w - rr, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+      ctx.lineTo(x + w, y + h - rr);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+      ctx.lineTo(x + rr, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+      ctx.lineTo(x, y + rr);
+      ctx.quadraticCurveTo(x, y, x + rr, y);
+      ctx.closePath();
+    };
+
+    const canvasToBlob = (canvas) => new Promise((resolve) => canvas.toBlob(resolve, "image/png", 0.95));
+
+    const makeImage = async () => {
+      const cells = getBoardCells();
+      if (!cells.length) {
+        showToast("盤面が見つかりません");
+        return;
+      }
+
+      const n = Math.round(Math.sqrt(cells.length));
+      if (!n || n * n !== cells.length) {
+        showToast("盤面サイズを判定できません");
+        return;
+      }
+
+      const scale = 2;
+      const cell = 62;
+      const gap = 8;
+      const pad = 44;
+      const titleH = 116;
+      const footH = 74;
+      const boardW = n * cell + (n - 1) * gap;
+      const w = Math.max(720, boardW + pad * 2);
+      const h = titleH + boardW + footH;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, "#f8fafc");
+      grad.addColorStop(1, "#fff7ed");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "900 34px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("WORD TERRITORY", pad, 48);
+
+      ctx.fillStyle = "#475569";
+      ctx.font = "800 16px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("日本語版 · 単語で陣地を奪い合う", pad, 76);
+
+      ctx.fillStyle = "#334155";
+      ctx.font = "700 14px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText(readScoreLine().slice(0, 70), pad, 100);
+
+      const startX = Math.round((w - boardW) / 2);
+      const startY = titleH;
+
+      ctx.shadowColor = "rgba(15,23,42,.18)";
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetY = 8;
+      ctx.fillStyle = "rgba(255,255,255,.72)";
+      drawRoundRect(ctx, startX - 18, startY - 18, boardW + 36, boardW + 36, 24);
+      ctx.fill();
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+
+      const palette = {
+        RED: { bg: "#fee2e2", stroke: "#ef4444", text: "#7f1d1d" },
+        BLUE: { bg: "#dbeafe", stroke: "#2563eb", text: "#1e3a8a" },
+        OPEN: { bg: "#f0fdf4", stroke: "#22c55e", text: "#166534" },
+        NEUTRAL: { bg: "#fffaf0", stroke: "#e7d8bd", text: "#374151" },
+      };
+
+      for (let i = 0; i < cells.length; i++) {
+        const r = Math.floor(i / n);
+        const c = i % n;
+        const x = startX + c * (cell + gap);
+        const y = startY + r * (cell + gap);
+        const owner = cellOwner(cells[i]);
+        const p = palette[owner] || palette.NEUTRAL;
+        const txt = cellText(cells[i]);
+
+        ctx.fillStyle = p.bg;
+        ctx.strokeStyle = p.stroke;
+        ctx.lineWidth = 2;
+        drawRoundRect(ctx, x, y, cell, cell, 12);
+        ctx.fill();
+        ctx.stroke();
+
+        if (txt) {
+          ctx.fillStyle = p.text;
+          ctx.font = "900 28px system-ui, -apple-system, Segoe UI, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(txt, x + cell / 2, y + cell / 2 + 1);
+          ctx.textAlign = "start";
+          ctx.textBaseline = "alphabetic";
+        } else {
+          ctx.fillStyle = "rgba(15,23,42,.12)";
+          ctx.beginPath();
+          ctx.arc(x + cell / 2, y + cell / 2, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      const url = window.location.origin || "https://word-territory-ja-web.onrender.com";
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "900 18px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText("作れる言葉が、盤面を変える。", pad, h - 42);
+
+      ctx.fillStyle = "#64748b";
+      ctx.font = "700 13px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.fillText(url, pad, h - 20);
+
+      const blob = await canvasToBlob(canvas);
+      if (!blob) {
+        showToast("画像生成に失敗しました");
+        return;
+      }
+
+      const file = new File([blob], "word-territory-ja-result.png", { type: "image/png" });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+        try {
+          await navigator.share({
+            title: "Word Territory 日本語版",
+            text: "単語で陣地を奪い合うゲーム",
+            files: [file],
+          });
+          showToast("共有しました");
+          return;
+        } catch (_) {}
+      }
+
+      const a = document.createElement("a");
+      const obj = URL.createObjectURL(blob);
+      a.href = obj;
+      a.download = "word-territory-ja-result.png";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(obj), 1200);
+      showToast("PNGを保存しました");
+    };
+
+    if (btn && !btn.dataset.bound) {
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", makeImage);
+    }
+
+    return () => {
+      const existing = document.getElementById(ROOT_ID);
+      if (existing) existing.remove();
+      const style = document.getElementById(STYLE_ID);
+      if (style) style.remove();
+    };
+  }, []);
+  // END WT_JA_SHARE_IMAGE_ENHANCE_V1
+
+
+
   // WT_JA_SAFE_TUTORIAL_OVERLAY_V1
   // React構造を壊さない安全な日本語チュートリアル。
   // SSR HTMLは変更せず、client mount後に補助UIだけを追加する。
