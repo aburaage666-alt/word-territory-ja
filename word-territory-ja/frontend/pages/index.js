@@ -716,6 +716,102 @@ function wtDaziTargetKeys(state) {
 
 export default function Home() {
 
+  // WT_JA_SAFE_TUTORIAL_OVERLAY_V1
+  // React構造を壊さない安全な日本語チュートリアル。
+  // SSR HTMLは変更せず、client mount後に補助UIだけを追加する。
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const ROOT_ID = "wt-ja-tutorial-root-v1";
+    const STYLE_ID = "wt-ja-tutorial-style-v1";
+    const STORAGE_KEY = "wt-ja-tutorial-dismissed-v1";
+
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = [
+        ".wt-tutorial-fab{position:fixed;right:18px;bottom:18px;z-index:9999;border:1px solid #7c3aed;background:#fff;color:#5b21b6;border-radius:999px;padding:10px 13px;font-weight:950;font-size:13px;box-shadow:0 10px 30px rgba(15,23,42,.18);cursor:pointer}",
+        ".wt-tutorial-panel{position:fixed;right:18px;bottom:70px;z-index:9999;width:min(420px,calc(100vw - 28px));background:rgba(255,255,255,.98);border:1px solid #ddd6fe;border-radius:18px;box-shadow:0 18px 60px rgba(15,23,42,.22);padding:15px;color:#0f172a;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}",
+        ".wt-tutorial-panel[hidden]{display:none}",
+        ".wt-tutorial-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}",
+        ".wt-tutorial-title{font-size:16px;font-weight:950}",
+        ".wt-tutorial-close{border:0;background:#f1f5f9;border-radius:999px;width:28px;height:28px;font-size:18px;line-height:26px;cursor:pointer;color:#475569}",
+        ".wt-tutorial-lead{font-size:13px;line-height:1.55;color:#475569;font-weight:750;margin:0 0 10px}",
+        ".intro-stepcards.wt-tutorial-steps{display:grid;grid-template-columns:1fr;gap:8px;margin:9px 0}",
+        ".wt-tutorial-step{display:grid;grid-template-columns:64px 1fr;gap:9px;align-items:center;border:1px solid #e2e8f0;background:linear-gradient(180deg,#fff,#f8fafc);border-radius:14px;padding:9px}",
+        ".wt-tutorial-badge{background:#111827;color:#fff;border-radius:999px;text-align:center;font-size:11px;font-weight:950;padding:5px 7px}",
+        ".wt-tutorial-step strong{display:block;font-size:13px;margin-bottom:2px}",
+        ".wt-tutorial-step span{display:block;font-size:12px;color:#475569;line-height:1.45;font-weight:750}",
+        ".wt-tutorial-tips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}",
+        ".wt-tutorial-tips span{font-size:11px;font-weight:900;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:999px;padding:4px 8px}",
+        "@media(max-width:700px){.wt-tutorial-fab{right:12px;bottom:12px}.wt-tutorial-panel{right:10px;bottom:62px}.wt-tutorial-step{grid-template-columns:58px 1fr}.wt-tutorial-title{font-size:15px}}"
+      ].join("\\n");
+      document.head.appendChild(style);
+    }
+
+    let root = document.getElementById(ROOT_ID);
+    if (!root) {
+      root = document.createElement("div");
+      root.id = ROOT_ID;
+      root.innerHTML = [
+        "<button type='button' class='wt-tutorial-fab' data-wt-tutorial-open='1'>？遊び方</button>",
+        "<div class='wt-tutorial-panel' data-wt-tutorial-panel='1'>",
+        "  <div class='wt-tutorial-head'>",
+        "    <div class='wt-tutorial-title'>30秒でわかる遊び方</div>",
+        "    <button type='button' class='wt-tutorial-close' data-wt-tutorial-close='1'>×</button>",
+        "  </div>",
+        "  <p class='wt-tutorial-lead'>通常モードはカードなし。単語を作り、陣地を広げ、奪字と回転侵略で逆転を狙います。</p>",
+        "  <div class='intro-stepcards wt-tutorial-steps'>",
+        "    <div class='wt-tutorial-step'><div class='wt-tutorial-badge'>STEP 1</div><div><strong>緑のマスに1文字を置く</strong><span>まずは光っているマスを押し、ひらがなを1文字置きます。</span></div></div>",
+        "    <div class='wt-tutorial-step'><div class='wt-tutorial-badge'>STEP 2</div><div><strong>文字をつないで単語を作る</strong><span>隣り合う文字を選び、3文字以上の言葉を作ります。置いた文字は途中でも使えます。</span></div></div>",
+        "    <div class='wt-tutorial-step'><div class='wt-tutorial-badge'>STEP 3</div><div><strong>陣地を取り、敵文字を奪う</strong><span>単語に使った経路が自分の色になります。敵文字を含む単語なら奪字が発動します。</span></div></div>",
+        "    <div class='wt-tutorial-step'><div class='wt-tutorial-badge'>SPECIAL</div><div><strong>回転侵略は1試合1回</strong><span>2x2の文字だけを回転させます。所有権は動かないので、逆転の準備に使います。</span></div></div>",
+        "  </div>",
+        "  <div class='wt-tutorial-tips'><span>初心者は5x5推奨</span><span>4文字以上は強い</span><span>困ったらSeedで準備</span></div>",
+        "</div>"
+      ].join("");
+      document.body.appendChild(root);
+    }
+
+    const panel = root.querySelector("[data-wt-tutorial-panel]");
+    const open = root.querySelector("[data-wt-tutorial-open]");
+    const close = root.querySelector("[data-wt-tutorial-close]");
+
+    const show = () => {
+      if (panel) panel.hidden = false;
+    };
+
+    const hide = () => {
+      if (panel) panel.hidden = true;
+      try { window.localStorage.setItem(STORAGE_KEY, "1"); } catch (_) {}
+    };
+
+    if (open && !open.dataset.bound) {
+      open.dataset.bound = "1";
+      open.addEventListener("click", show);
+    }
+
+    if (close && !close.dataset.bound) {
+      close.dataset.bound = "1";
+      close.addEventListener("click", hide);
+    }
+
+    let dismissed = false;
+    try { dismissed = window.localStorage.getItem(STORAGE_KEY) === "1"; } catch (_) {}
+
+    if (panel) panel.hidden = dismissed;
+
+    return () => {
+      const existing = document.getElementById(ROOT_ID);
+      if (existing) existing.remove();
+      const style = document.getElementById(STYLE_ID);
+      if (style) style.remove();
+    };
+  }, []);
+  // END WT_JA_SAFE_TUTORIAL_OVERLAY_V1
+
+
+
   // WT_JA_ROTATE_DOM_HIGHLIGHT_V1
   // 回転侵略候補ハイライト。React構造を壊さないDOM補助。
   useEffect(() => {
