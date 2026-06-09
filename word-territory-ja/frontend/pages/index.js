@@ -669,7 +669,7 @@ function wtJaTranslateRoleText(value) {
     ["端到達", "端到達"],
     ["逆転", "逆転"],
     ["後手の主導権", "後手の主導権"],
-    ["回転侵略", "回転侵略"],
+    ["2x2回転", "2x2回転"],
     ["奪字", "奪字"],
     ["奪字", "奪字"],
     ["捕獲", "捕獲"],
@@ -715,6 +715,147 @@ function wtDaziTargetKeys(state) {
 }
 
 export default function Home() {
+
+  // WT_JA_FINAL_UI_POLISH_V1
+  // 公開前UI整理: 今日の盤面の単独表示を収納、2x2回転表記、上部余白、短い遊び方、紫ハイライト抑制。
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const GUIDE_ID = "wt-ja-quick-guide-v1";
+    const STYLE_ID = "wt-ja-final-ui-polish-style-v1";
+
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = [
+        "html,body,#__next{scroll-padding-top:14px;}",
+        "#__next{padding-top:8px;}",
+        "/* 今日の盤面は補助メニューに収納。DOM自体は残すので補助メニューからのclickは可能 */",
+        "#wt-ja-daily-root-v1{display:none!important;}",
+        ".wt-ja-quick-guide{max-width:min(720px,calc(100vw - 24px));margin:8px auto 10px;padding:8px 12px;border:1px solid #bbf7d0;background:#f0fdf4;color:#14532d;border-radius:999px;font-size:13px;font-weight:900;text-align:center;line-height:1.45;box-shadow:0 4px 16px rgba(15,23,42,.06)}",
+        ".cell.wt-rotate-candidate,.cell.rotate-candidate,.cell.threat,.cell.threat-cell{outline-width:2px!important;box-shadow:0 0 0 2px rgba(124,58,237,.10),0 0 8px rgba(124,58,237,.14)!important;}",
+        ".cell.wt-rotate-anchor::after,.cell.rotate-anchor::after{transform:scale(.78);opacity:.82;}",
+        "body.wt-ja-muted-purple .cell.wt-rotate-candidate:nth-of-type(n+13),body.wt-ja-muted-purple .cell.rotate-candidate:nth-of-type(n+13){outline:none!important;box-shadow:none!important;}",
+        "@media(max-width:700px){#__next{padding-top:6px}.wt-ja-quick-guide{border-radius:14px;font-size:12px;margin:6px auto 8px;padding:7px 9px}}"
+      ].join("\\n");
+      document.head.appendChild(style);
+    }
+
+    const localizeText = () => {
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        const t = String(node.nodeValue || "");
+        if (
+          t.includes("Swap is only available when no current market tile can make a word") ||
+          t.includes("Now tap connected letters to make a word.") ||
+          t.includes("Keep connecting") ||
+          t.includes("Selected") ||
+          t.includes("回転略") ||
+          t.includes("回転侵略") ||
+          t.includes("Daily #")
+        ) {
+          nodes.push(node);
+        }
+      }
+
+      nodes.forEach((node) => {
+        let t = String(node.nodeValue || "");
+        t = t.replaceAll("Swap is only available when no current market tile can make a word", "現在の文字カードで単語を作れない場合のみ、読み交換できます");
+        t = t.replaceAll("Now tap connected letters to make a word.", "隣り合う文字をつないで単語を作ってください。");
+        t = t.replaceAll("Keep connecting — need 3–6 letters total.", "3文字以上になるまでつないでください。");
+        t = t.replaceAll("Selected", "選択中");
+        t = t.replaceAll("回転略", "2x2回転");
+        t = t.replaceAll("回転侵略", "2x2回転");
+        t = t.replaceAll("Daily #", "今日の盤面 #");
+        node.nodeValue = t;
+      });
+    };
+
+    const hideStandaloneDaily = () => {
+      Array.from(document.querySelectorAll("button")).forEach((btn) => {
+        const t = String(btn.textContent || "").trim();
+        if (!t) return;
+
+        const inHelper = !!btn.closest("#wt-ja-helper-menu-root-v1");
+        const inDailyRoot = !!btn.closest("#wt-ja-daily-root-v1");
+
+        if (!inHelper && !inDailyRoot && (t.includes("今日の盤面") || t.includes("Daily"))) {
+          btn.style.display = "none";
+        }
+      });
+    };
+
+    const trimPurple = () => {
+      const candidates = Array.from(document.querySelectorAll(".cell.wt-rotate-candidate,.cell.rotate-candidate,.cell.threat,.cell.threat-cell"));
+      candidates.forEach((el, idx) => {
+        if (idx >= 12) {
+          el.classList.remove("wt-rotate-candidate");
+          el.classList.remove("rotate-candidate");
+          el.classList.remove("wt-rotate-anchor");
+          el.classList.remove("rotate-anchor");
+          el.classList.remove("threat");
+          el.classList.remove("threat-cell");
+        }
+      });
+
+      const anchors = Array.from(document.querySelectorAll(".cell.wt-rotate-anchor,.cell.rotate-anchor"));
+      anchors.forEach((el, idx) => {
+        if (idx > 0) {
+          el.classList.remove("wt-rotate-anchor");
+          el.classList.remove("rotate-anchor");
+        }
+      });
+    };
+
+    const insertGuide = () => {
+      if (document.getElementById(GUIDE_ID)) return;
+
+      const cells = Array.from(document.querySelectorAll(".cell"));
+      if (!cells.length) return;
+
+      let board = cells[0].parentElement;
+      for (let i = 0; i < 4 && board && board.parentElement; i++) {
+        const count = board.querySelectorAll ? board.querySelectorAll(".cell").length : 0;
+        if (count >= 25) break;
+        board = board.parentElement;
+      }
+
+      const guide = document.createElement("div");
+      guide.id = GUIDE_ID;
+      guide.className = "wt-ja-quick-guide";
+      guide.textContent = "緑のマスに1文字を置き、隣り合う文字をつないで3文字以上の単語を作ります。敵文字を含む単語で奪字、2x2回転は1試合1回です。";
+
+      if (board && board.parentElement) {
+        board.parentElement.insertBefore(guide, board);
+      } else {
+        document.body.insertBefore(guide, document.body.firstChild);
+      }
+    };
+
+    const tick = () => {
+      localizeText();
+      hideStandaloneDaily();
+      trimPurple();
+      insertGuide();
+    };
+
+    const timer = window.setInterval(tick, 350);
+    tick();
+
+    return () => {
+      window.clearInterval(timer);
+      const guide = document.getElementById(GUIDE_ID);
+      if (guide) guide.remove();
+      const style = document.getElementById(STYLE_ID);
+      if (style) style.remove();
+    };
+  }, []);
+  // END WT_JA_FINAL_UI_POLISH_V1
+
+
 
   // WT_JA_UI_CLEANUP_LOCALIZATION_V1
   // 補助ボタン統合・紫ハイライト抑制・残存英語対策。
@@ -852,9 +993,9 @@ export default function Home() {
         const node = walker.currentNode;
         const text = String(node.nodeValue || "");
         if (
-          text.includes("Swap is only available when no current market tile can make a word") ||
-          text.includes("Now tap connected letters to make a word.") ||
-          text.includes("Selected") ||
+          text.includes("現在の文字カードで単語を作れない場合のみ、読み交換できます") ||
+          text.includes("隣り合う文字をつないで単語を作ってください。") ||
+          text.includes("選択中") ||
           text.includes("Keep connecting")
         ) {
           targets.push(node);
@@ -863,10 +1004,10 @@ export default function Home() {
 
       targets.forEach((node) => {
         let t = String(node.nodeValue || "");
-        t = t.replaceAll("Swap is only available when no current market tile can make a word", "現在の文字カードで単語を作れない場合のみ、読み交換できます");
-        t = t.replaceAll("Now tap connected letters to make a word.", "隣り合う文字をつないで単語を作ってください。");
-        t = t.replaceAll("Keep connecting — need 3–6 letters total.", "3文字以上になるまでつないでください。");
-        t = t.replaceAll("Selected", "選択中");
+        t = t.replaceAll("現在の文字カードで単語を作れない場合のみ、読み交換できます", "現在の文字カードで単語を作れない場合のみ、読み交換できます");
+        t = t.replaceAll("隣り合う文字をつないで単語を作ってください。", "隣り合う文字をつないで単語を作ってください。");
+        t = t.replaceAll("3文字以上になるまでつないでください。", "3文字以上になるまでつないでください。");
+        t = t.replaceAll("選択中", "選択中");
         node.nodeValue = t;
       });
     };
@@ -1914,12 +2055,12 @@ export default function Home() {
         "    <div class='wt-tutorial-title'>30秒でわかる遊び方</div>",
         "    <button type='button' class='wt-tutorial-close' data-wt-tutorial-close='1'>×</button>",
         "  </div>",
-        "  <p class='wt-tutorial-lead'>通常モードはカードなし。単語を作り、陣地を広げ、奪字と回転侵略で逆転を狙います。</p>",
+        "  <p class='wt-tutorial-lead'>通常モードはカードなし。単語を作り、陣地を広げ、奪字と2x2回転で逆転を狙います。</p>",
         "  <div class='intro-stepcards wt-tutorial-steps'>",
         "    <div class='wt-tutorial-step'><div class='wt-tutorial-badge'>STEP 1</div><div><strong>緑のマスに1文字を置く</strong><span>まずは光っているマスを押し、ひらがなを1文字置きます。</span></div></div>",
         "    <div class='wt-tutorial-step'><div class='wt-tutorial-badge'>STEP 2</div><div><strong>文字をつないで単語を作る</strong><span>隣り合う文字を選び、3文字以上の言葉を作ります。置いた文字は途中でも使えます。</span></div></div>",
         "    <div class='wt-tutorial-step'><div class='wt-tutorial-badge'>STEP 3</div><div><strong>陣地を取り、敵文字を奪う</strong><span>単語に使った経路が自分の色になります。敵文字を含む単語なら奪字が発動します。</span></div></div>",
-        "    <div class='wt-tutorial-step'><div class='wt-tutorial-badge'>SPECIAL</div><div><strong>回転侵略は1試合1回</strong><span>2x2の文字だけを回転させます。所有権は動かないので、逆転の準備に使います。</span></div></div>",
+        "    <div class='wt-tutorial-step'><div class='wt-tutorial-badge'>SPECIAL</div><div><strong>2x2回転は1試合1回</strong><span>2x2の文字だけを回転させます。所有権は動かないので、逆転の準備に使います。</span></div></div>",
         "  </div>",
         "  <div class='wt-tutorial-tips'><span>初心者は5x5推奨</span><span>4文字以上は強い</span><span>困ったらSeedで準備</span></div>",
         "</div>"
@@ -1967,7 +2108,7 @@ export default function Home() {
 
 
   // WT_JA_ROTATE_DOM_HIGHLIGHT_V1
-  // 回転侵略候補ハイライト。React構造を壊さないDOM補助。
+  // 2x2回転候補ハイライト。React構造を壊さないDOM補助。
   useEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") return;
 
@@ -2005,7 +2146,7 @@ export default function Home() {
     const findRotateButtons = () => {
       return Array.from(document.querySelectorAll("button")).filter((b) => {
         const t = String(b.textContent || "");
-        return t.includes("回転侵略") || t.includes("回転") || /rotate/i.test(t);
+        return t.includes("2x2回転") || t.includes("回転") || /rotate/i.test(t);
       });
     };
 
@@ -2653,7 +2794,7 @@ const [thinking, setThinking] = useState(false);
     return s;
   }, [path, state?.turn]);
 
-  // 2x2 candidate blocks for 回転侵略 highlight.
+  // 2x2 candidate blocks for 2x2回転 highlight.
   // Visual only: this does not execute rotation or change ownership.
   const rotateCandidateData = useMemo(() => {
     const cells = new Set();
@@ -2759,7 +2900,7 @@ const [thinking, setThinking] = useState(false);
       setRotateMode(false);
       setRotateTarget(null);
       setPath([]); setPlaced(null); setPreview(null); setValuePrev([]);
-      setCombo(["回転侵略", "次の語で打ち込みを狙え"]);
+      setCombo(["2x2回転", "次の語で打ち込みを狙え"]);
       try { navigator.vibrate && navigator.vibrate([20, 25, 35]); } catch {}
       await refresh(gameId);
     } catch(e) { setError(e.message || "Rotation Raid failed"); }
@@ -3273,7 +3414,7 @@ async function submitScore() {
         <div className="hdr-l">
           <h1>WORD TERRITORY{dailyMode&&dailyInfo&&<span className="dpill">今日の盤面 #{dailyInfo.dayNumber}</span>}</h1>
           <p className="sub">開始形: {state.openingName} · {spectatorMode ? `観戦モード · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "ボット対ボット" : thinking?"ボット思考中…":asyncMode ? (state.currentPlayer===asyncRole?`あなたの手番 (${asyncRole})`:`待機中: ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"ボットの手番":`あなたの手番 (${state.currentPlayer})`} · {state.boardSize===5?'Quick 5×5':'標準 7×7'} · ラウンド {state.turn}</p>
-          <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。 通常モードはカードなしで、単語・陣地・奪字・回転侵略に集中します。一手ごとに盤面が変わる。まずは5x5で短く遊び、緑のマスに1文字を置き、文字をつないで単語を作ります。"}</p>
+          <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。 通常モードはカードなしで、単語・陣地・奪字・2x2回転に集中します。一手ごとに盤面が変わる。まずは5x5で短く遊び、緑のマスに1文字を置き、文字をつないで単語を作ります。"}</p>
         </div>
         <div className="hdr-r">
           <button className="bsm sound-toggle" onClick={()=>set音On(v=>!v)} title="音の切替">{soundOn ? "🔊 音" : "🔇 ミュート"}</button>
@@ -3611,7 +3752,7 @@ async function submitScore() {
                 <span className="seed-label">{lastStand ? "奪回" : "種まき"}</span>{state?.selectedSynergy!=="SEED_TACTICIAN" && <span className="seed-cost">{lastStand ? "無料" : "コスト -1"}</span>}
               </button>
               <button className={`ba bdazi ${daziMode ? "active" : ""}`} onClick={()=>{ setDaziMode(v=>!v); setRotateMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setLetter(""); setPreview(null); setError(!daziMode ? "奪字モード：既存文字だけをつなぎ、紫枠の敵文字を1つ以上含む有効語を作ると、その1マスを中立化します。" : ""); }} disabled={!human() || rotateMode || daziRemaining<=0} title="緑マス不要。紫枠の敵文字を1つ以上含む既存文字パスで発動します。">奪字 {daziMode ? "ON " : ""}{daziRemaining}/2</button>{/* WT_奪字_V2_TOGGLE_BUTTON */}
-              {!rotateRaidUsed && <button className={`ba brotate ${rotateMode ? "active" : ""}`} onClick={()=>{ if(rotateTarget) performRotateRaid(); else { setRotateMode(v=>!v); setDaziMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setPreview(null); setError("2×2の左上マスを選択してください。紫の4マスが対象です。回転だけでは領地は取れません。"); } }} disabled={!human() || daziMode} title="1試合1回。敵地を含む2×2の文字だけを回転。所有権は動きません。">{rotateTarget ? "回転確定" : rotateMode ? "2×2選択中" : "回転侵略"}</button>}
+              {!rotateRaidUsed && <button className={`ba brotate ${rotateMode ? "active" : ""}`} onClick={()=>{ if(rotateTarget) performRotateRaid(); else { setRotateMode(v=>!v); setDaziMode(false); setRotateTarget(null); setPath([]); setPlaced(null); setPreview(null); setError("2×2の左上マスを選択してください。紫の4マスが対象です。回転だけでは領地は取れません。"); } }} disabled={!human() || daziMode} title="1試合1回。敵地を含む2×2の文字だけを回転。所有権は動きません。">{rotateTarget ? "回転確定" : rotateMode ? "2×2選択中" : "2x2回転"}</button>}
               {rotateMode && <button className="ba" onClick={()=>{setRotateMode(false);setRotateTarget(null);setError("");}} disabled={!human()}>取消</button>}
               <button className="ba" onClick={()=>{ setPath([]); setPlaced(null); setError(''); setPreview(null); setDaziMode(false); setRotateMode(false); setRotateTarget(null); }} disabled={!human()}>クリア</button>
               <button className="ba" onClick={pass} disabled={!human() || daziMode || rotateMode}>パス</button>
