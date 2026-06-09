@@ -716,6 +716,259 @@ function wtDaziTargetKeys(state) {
 
 export default function Home() {
 
+  // WT_JA_ONE_TAP_CANDIDATES_V1
+  // 画面上のヒント候補から単語を拾い、盤面上の対応パスを自動クリックする安全補助。
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const ROOT_ID = "wt-ja-one-tap-root-v1";
+    const STYLE_ID = "wt-ja-one-tap-style-v1";
+
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = [
+        ".wt-onetap-root{position:fixed;left:18px;top:18px;z-index:9997;display:flex;flex-direction:column;align-items:flex-start;gap:7px}",
+        ".wt-onetap-btn{border:1px solid #16a34a;background:#fff;color:#166534;border-radius:999px;padding:10px 13px;font-size:13px;font-weight:950;box-shadow:0 10px 30px rgba(15,23,42,.16);cursor:pointer}",
+        ".wt-onetap-panel{width:min(380px,calc(100vw - 36px));background:rgba(255,255,255,.98);border:1px solid #bbf7d0;border-radius:16px;box-shadow:0 16px 46px rgba(15,23,42,.20);padding:11px}",
+        ".wt-onetap-panel[hidden]{display:none}",
+        ".wt-onetap-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;color:#14532d;font-size:13px;font-weight:950}",
+        ".wt-onetap-close{border:0;background:#f1f5f9;border-radius:999px;width:26px;height:26px;font-size:16px;line-height:24px;cursor:pointer;color:#475569}",
+        ".wt-onetap-list{display:flex;flex-wrap:wrap;gap:6px}",
+        ".wt-onetap-word{border:1px solid #86efac;background:#f0fdf4;color:#14532d;border-radius:999px;padding:6px 9px;font-size:13px;font-weight:950;cursor:pointer}",
+        ".wt-onetap-word:active{transform:translateY(1px)}",
+        ".wt-onetap-help{margin-top:8px;color:#64748b;font-size:11px;font-weight:750;line-height:1.45}",
+        ".wt-onetap-toast{background:#0f172a;color:#fff;border-radius:12px;padding:8px 10px;font-size:12px;font-weight:800;box-shadow:0 12px 30px rgba(15,23,42,.22)}",
+        ".wt-onetap-toast[hidden]{display:none}",
+        "@media(max-width:700px){.wt-onetap-root{left:10px;top:10px}.wt-onetap-btn{font-size:12px;padding:8px 10px}.wt-onetap-panel{width:calc(100vw - 20px)}}"
+      ].join("\\n");
+      document.head.appendChild(style);
+    }
+
+    let root = document.getElementById(ROOT_ID);
+    if (!root) {
+      root = document.createElement("div");
+      root.id = ROOT_ID;
+      root.className = "wt-onetap-root";
+      root.innerHTML = [
+        "<button type='button' class='wt-onetap-btn' data-wt-onetap-open='1'>💡 候補語</button>",
+        "<div class='wt-onetap-panel' data-wt-onetap-panel='1' hidden>",
+        "  <div class='wt-onetap-head'><span>候補語ワンタップ</span><button type='button' class='wt-onetap-close' data-wt-onetap-close='1'>×</button></div>",
+        "  <div class='wt-onetap-list' data-wt-onetap-list='1'></div>",
+        "  <div class='wt-onetap-help'>画面上のヒントから候補語を拾います。候補を押すと、盤面上の文字を順番に選択します。</div>",
+        "</div>",
+        "<div class='wt-onetap-toast' data-wt-onetap-toast='1' hidden></div>"
+      ].join("");
+      document.body.appendChild(root);
+    }
+
+    const panel = root.querySelector("[data-wt-onetap-panel]");
+    const open = root.querySelector("[data-wt-onetap-open]");
+    const close = root.querySelector("[data-wt-onetap-close]");
+    const list = root.querySelector("[data-wt-onetap-list]");
+    const toast = root.querySelector("[data-wt-onetap-toast]");
+
+    const showToast = (msg) => {
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.hidden = false;
+      window.setTimeout(() => { toast.hidden = true; }, 2200);
+    };
+
+    const cleanWord = (s) => {
+      return String(s || "")
+        .replace(/[ァ-ン]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+        .replace(/[^ぁ-んー]/g, "");
+    };
+
+    const cellText = (el) => {
+      const raw = String(el.textContent || "").trim();
+      const cleaned = raw.replace(/[↻⚔★☆・･·•\s]/g, "");
+      const m = cleaned.match(/[ぁ-んァ-ンー*]/);
+      if (!m) return "";
+      return cleanWord(m[0]);
+    };
+
+    const getCells = () => {
+      const cells = Array.from(document.querySelectorAll(".cell"));
+      const n = Math.round(Math.sqrt(cells.length));
+      if (n < 5 || n * n !== cells.length) return { cells: [], n: 0 };
+      return { cells, n };
+    };
+
+    const neighbors = (idx, n) => {
+      const r = Math.floor(idx / n);
+      const c = idx % n;
+      const out = [];
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const rr = r + dr;
+          const cc = c + dc;
+          if (rr >= 0 && rr < n && cc >= 0 && cc < n) out.push(rr * n + cc);
+        }
+      }
+      return out;
+    };
+
+    const findPath = (word) => {
+      const { cells, n } = getCells();
+      if (!cells.length) return null;
+
+      const letters = cells.map(cellText);
+      const chars = Array.from(cleanWord(word));
+
+      if (chars.length < 3) return null;
+
+      const dfs = (idx, pos, used, path) => {
+        if (letters[idx] !== chars[pos] && letters[idx] !== "*") return null;
+
+        const nextPath = path.concat(idx);
+
+        if (pos === chars.length - 1) return nextPath;
+
+        const used2 = new Set(used);
+        used2.add(idx);
+
+        for (const nb of neighbors(idx, n)) {
+          if (used2.has(nb)) continue;
+          const hit = dfs(nb, pos + 1, used2, nextPath);
+          if (hit) return hit;
+        }
+
+        return null;
+      };
+
+      for (let i = 0; i < cells.length; i++) {
+        const hit = dfs(i, 0, new Set(), []);
+        if (hit) return hit;
+      }
+
+      return null;
+    };
+
+    const clickPath = async (word) => {
+      const { cells } = getCells();
+      const path = findPath(word);
+
+      if (!path) {
+        showToast("「" + word + "」は今の盤面では選択できません");
+        return;
+      }
+
+      for (const idx of path) {
+        const el = cells[idx];
+        if (!el) continue;
+        el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+        el.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+        el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+        await new Promise((resolve) => window.setTimeout(resolve, 70));
+      }
+
+      showToast("「" + word + "」を選択しました");
+    };
+
+    const extractCandidates = () => {
+      const words = new Map();
+
+      const likely = Array.from(document.querySelectorAll("body *")).filter((el) => {
+        const cls = String(el.className || "").toLowerCase();
+        const txt = String(el.textContent || "");
+        if (!txt || txt.length > 220) return false;
+        if (
+          cls.includes("hint") ||
+          cls.includes("suggest") ||
+          cls.includes("almost") ||
+          cls.includes("candidate") ||
+          cls.includes("word") ||
+          txt.includes("候補") ||
+          txt.includes("ヒント") ||
+          txt.includes("作れ") ||
+          txt.includes("Suggested") ||
+          txt.includes("Almost")
+        ) return true;
+        return false;
+      });
+
+      for (const el of likely) {
+        const txt = String(el.textContent || "");
+        const matches = txt.match(/[ぁ-んァ-ンー]{3,8}/g) || [];
+        for (const m of matches) {
+          const w = cleanWord(m);
+          if (w.length >= 3 && w.length <= 8) words.set(w, true);
+        }
+      }
+
+      // 盤面にある文字だけで本当に作れるものを優先表示。
+      const playable = [];
+      const fallback = [];
+
+      for (const w of words.keys()) {
+        if (findPath(w)) playable.push(w);
+        else fallback.push(w);
+      }
+
+      playable.sort((a, b) => b.length - a.length || a.localeCompare(b, "ja"));
+      fallback.sort((a, b) => b.length - a.length || a.localeCompare(b, "ja"));
+
+      return playable.concat(fallback).slice(0, 12);
+    };
+
+    const render = () => {
+      if (!list) return;
+      const candidates = extractCandidates();
+
+      list.innerHTML = "";
+
+      if (!candidates.length) {
+        const empty = document.createElement("div");
+        empty.className = "wt-onetap-help";
+        empty.textContent = "候補語がまだありません。文字を置くか、ヒント欄を表示してください。";
+        list.appendChild(empty);
+        return;
+      }
+
+      for (const word of candidates) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "wt-onetap-word";
+        b.textContent = word;
+        b.addEventListener("click", () => clickPath(word));
+        list.appendChild(b);
+      }
+    };
+
+    if (open && !open.dataset.bound) {
+      open.dataset.bound = "1";
+      open.addEventListener("click", () => {
+        render();
+        if (panel) panel.hidden = !panel.hidden;
+      });
+    }
+
+    if (close && !close.dataset.bound) {
+      close.dataset.bound = "1";
+      close.addEventListener("click", () => {
+        if (panel) panel.hidden = true;
+      });
+    }
+
+    const timer = window.setInterval(() => {
+      if (panel && !panel.hidden) render();
+    }, 1200);
+
+    return () => {
+      window.clearInterval(timer);
+      const existing = document.getElementById(ROOT_ID);
+      if (existing) existing.remove();
+      const style = document.getElementById(STYLE_ID);
+      if (style) style.remove();
+    };
+  }, []);
+  // END WT_JA_ONE_TAP_CANDIDATES_V1
+
+
+
   // WT_JA_DAILY_SEED_V1
   // 日本時間の日付から固定seedを作り、Dailyモード時だけ /games 作成に注入する。
   useEffect(() => {
