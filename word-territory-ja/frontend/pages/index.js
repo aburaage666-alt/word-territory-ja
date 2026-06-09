@@ -575,7 +575,7 @@ function wtModernDownloadShareCard({ state, redT, blueT, bestMove, moveLabel, da
   ctx.font = "bold 64px system-ui, sans-serif";
   ctx.fillText(title, 70, 110);
   ctx.font = "34px system-ui, sans-serif";
-  const day = dailyInfo?.dayNumber ? `Daily #${dailyInfo.dayNumber}` : "フリープレイ";
+  const day = dailyInfo?.dayNumber ? `今日の盤面 #${dailyInfo.dayNumber}` : "フリープレイ";
   ctx.fillText(day, 72, 165);
   ctx.font = "bold 58px system-ui, sans-serif";
   ctx.fillStyle = red;
@@ -715,6 +715,181 @@ function wtDaziTargetKeys(state) {
 }
 
 export default function Home() {
+
+  // WT_JA_UI_CLEANUP_LOCALIZATION_V1
+  // 補助ボタン統合・紫ハイライト抑制・残存英語対策。
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const ROOT_ID = "wt-ja-helper-menu-root-v1";
+    const STYLE_ID = "wt-ja-helper-menu-style-v1";
+
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = [
+        "/* 補助ボタンを個別表示せず、補助メニューに収納 */",
+        "#wt-ja-daily-root-v1 [data-wt-daily-play],#wt-ja-daily-root-v1 [data-wt-daily-chip],#wt-ja-one-tap-root-v1 [data-wt-onetap-open],#wt-ja-share-image-root-v1 [data-wt-share-image],#wt-ja-max-swing-root-v1 [data-wt-swing-open],#wt-ja-tutorial-root-v1 [data-wt-tutorial-open]{display:none!important;}",
+        ".wt-helper-root{position:fixed;right:18px;top:18px;z-index:10020;display:flex;flex-direction:column;align-items:flex-end;gap:8px;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}",
+        ".wt-helper-main{border:1px solid #334155;background:#111827;color:#fff;border-radius:999px;padding:10px 13px;font-size:13px;font-weight:950;box-shadow:0 12px 32px rgba(15,23,42,.24);cursor:pointer}",
+        ".wt-helper-panel{width:min(260px,calc(100vw - 32px));background:rgba(255,255,255,.98);border:1px solid #cbd5e1;border-radius:16px;box-shadow:0 18px 54px rgba(15,23,42,.22);padding:10px}",
+        ".wt-helper-panel[hidden]{display:none}",
+        ".wt-helper-title{font-size:12px;font-weight:950;color:#334155;margin:2px 4px 8px}",
+        ".wt-helper-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}",
+        ".wt-helper-item{border:1px solid #e2e8f0;background:#f8fafc;color:#0f172a;border-radius:12px;padding:8px 7px;font-size:12px;font-weight:900;cursor:pointer;text-align:center}",
+        ".wt-helper-item:hover{background:#eef2ff;border-color:#c4b5fd;color:#4c1d95}",
+        ".wt-helper-toast{max-width:min(300px,calc(100vw - 32px));background:#0f172a;color:#fff;border-radius:12px;padding:8px 10px;font-size:12px;font-weight:800;box-shadow:0 12px 30px rgba(15,23,42,.22)}",
+        ".wt-helper-toast[hidden]{display:none}",
+        "/* 紫ハイライトの情報量を抑える */",
+        ".cell.wt-rotate-candidate,.cell.rotate-candidate,.cell.threat,.cell.threat-cell{outline-width:2px!important;box-shadow:0 0 0 2px rgba(124,58,237,.12),0 0 10px rgba(124,58,237,.18)!important;}",
+        ".cell.wt-rotate-anchor::after,.cell.rotate-anchor::after{transform:scale(.82);opacity:.88;}",
+        ".wt-readable-muted-purple .cell.wt-rotate-candidate:nth-of-type(n+21){outline:none!important;box-shadow:none!important;}",
+        "@media(max-width:700px){.wt-helper-root{right:10px;top:10px}.wt-helper-main{font-size:12px;padding:8px 10px}.wt-helper-grid{grid-template-columns:1fr}.wt-helper-panel{width:min(230px,calc(100vw - 20px))}}"
+      ].join("\\n");
+      document.head.appendChild(style);
+    }
+
+    let root = document.getElementById(ROOT_ID);
+    if (!root) {
+      root = document.createElement("div");
+      root.id = ROOT_ID;
+      root.className = "wt-helper-root";
+      root.innerHTML = [
+        "<button type='button' class='wt-helper-main' data-wt-helper-open='1'>☰ 補助</button>",
+        "<div class='wt-helper-panel' data-wt-helper-panel='1' hidden>",
+        "  <div class='wt-helper-title'>補助機能</div>",
+        "  <div class='wt-helper-grid'>",
+        "    <button type='button' class='wt-helper-item' data-wt-helper-action='daily'>📅 今日</button>",
+        "    <button type='button' class='wt-helper-item' data-wt-helper-action='candidates'>💡 候補語</button>",
+        "    <button type='button' class='wt-helper-item' data-wt-helper-action='share'>📸 共有</button>",
+        "    <button type='button' class='wt-helper-item' data-wt-helper-action='swing'>🏆 最大手</button>",
+        "    <button type='button' class='wt-helper-item' data-wt-helper-action='tutorial'>？遊び方</button>",
+        "    <button type='button' class='wt-helper-item' data-wt-helper-action='mute-purple'>紫を弱める</button>",
+        "  </div>",
+        "</div>",
+        "<div class='wt-helper-toast' data-wt-helper-toast='1' hidden></div>"
+      ].join("");
+      document.body.appendChild(root);
+    }
+
+    const main = root.querySelector("[data-wt-helper-open]");
+    const panel = root.querySelector("[data-wt-helper-panel]");
+    const toast = root.querySelector("[data-wt-helper-toast]");
+
+    const showToast = (msg) => {
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.hidden = false;
+      window.setTimeout(() => { toast.hidden = true; }, 2200);
+    };
+
+    const clickFirst = (selectors, label) => {
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el) {
+          el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+          return true;
+        }
+      }
+      showToast(label + " はまだ利用できません");
+      return false;
+    };
+
+    const actions = {
+      daily: () => clickFirst(["#wt-ja-daily-root-v1 [data-wt-daily-play]"], "今日の盤面"),
+      candidates: () => clickFirst(["#wt-ja-one-tap-root-v1 [data-wt-onetap-open]"], "候補語"),
+      share: () => clickFirst(["#wt-ja-share-image-root-v1 [data-wt-share-image]"], "共有画像"),
+      swing: () => clickFirst(["#wt-ja-max-swing-root-v1 [data-wt-swing-open]"], "最大スイング"),
+      tutorial: () => clickFirst(["#wt-ja-tutorial-root-v1 [data-wt-tutorial-open]"], "遊び方"),
+      "mute-purple": () => {
+        document.body.classList.toggle("wt-readable-muted-purple");
+        showToast(document.body.classList.contains("wt-readable-muted-purple") ? "紫ハイライトを弱めました" : "紫ハイライトを通常表示に戻しました");
+      }
+    };
+
+    if (main && !main.dataset.bound) {
+      main.dataset.bound = "1";
+      main.addEventListener("click", () => {
+        if (panel) panel.hidden = !panel.hidden;
+      });
+    }
+
+    root.querySelectorAll("[data-wt-helper-action]").forEach((btn) => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-wt-helper-action");
+        if (actions[key]) actions[key]();
+      });
+    });
+
+    const trimPurple = () => {
+      const candidates = Array.from(document.querySelectorAll(".cell.wt-rotate-candidate,.cell.rotate-candidate"));
+      if (candidates.length <= 20) return;
+
+      candidates.forEach((el, idx) => {
+        if (idx >= 20) {
+          el.classList.remove("wt-rotate-candidate");
+          el.classList.remove("rotate-candidate");
+          el.classList.remove("wt-rotate-anchor");
+          el.classList.remove("rotate-anchor");
+        }
+      });
+
+      const anchors = Array.from(document.querySelectorAll(".cell.wt-rotate-anchor,.cell.rotate-anchor"));
+      anchors.forEach((el, idx) => {
+        if (idx > 0) {
+          el.classList.remove("wt-rotate-anchor");
+          el.classList.remove("rotate-anchor");
+        }
+      });
+    };
+
+    const localizeRuntimeText = () => {
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      const targets = [];
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        const text = String(node.nodeValue || "");
+        if (
+          text.includes("Swap is only available when no current market tile can make a word") ||
+          text.includes("Now tap connected letters to make a word.") ||
+          text.includes("Selected") ||
+          text.includes("Keep connecting")
+        ) {
+          targets.push(node);
+        }
+      }
+
+      targets.forEach((node) => {
+        let t = String(node.nodeValue || "");
+        t = t.replaceAll("Swap is only available when no current market tile can make a word", "現在の文字カードで単語を作れない場合のみ、読み交換できます");
+        t = t.replaceAll("Now tap connected letters to make a word.", "隣り合う文字をつないで単語を作ってください。");
+        t = t.replaceAll("Keep connecting — need 3–6 letters total.", "3文字以上になるまでつないでください。");
+        t = t.replaceAll("Selected", "選択中");
+        node.nodeValue = t;
+      });
+    };
+
+    const timer = window.setInterval(() => {
+      trimPurple();
+      localizeRuntimeText();
+    }, 300);
+
+    trimPurple();
+    localizeRuntimeText();
+
+    return () => {
+      window.clearInterval(timer);
+      const existing = document.getElementById(ROOT_ID);
+      if (existing) existing.remove();
+      const style = document.getElementById(STYLE_ID);
+      if (style) style.remove();
+    };
+  }, []);
+  // END WT_JA_UI_CLEANUP_LOCALIZATION_V1
+
+
 
   // WT_JA_MAX_SWING_REPLAY_V1
   // 最大スイング表示。React状態を直接触らず、履歴DOMと盤面DOMから安全に推定する。
@@ -1268,7 +1443,7 @@ export default function Home() {
     const getDaily = () => {
       const date = todayJst();
       const seed = seedFromDate(date);
-      return { date, seed, label: "Daily #" + date.replaceAll("-", "") };
+      return { date, seed, label: "今日の盤面 #" + date.replaceAll("-", "") };
     };
 
     const enableDailyMode = () => {
@@ -1295,7 +1470,7 @@ export default function Home() {
         const storedDate = window.sessionStorage.getItem(DATE_KEY);
         const storedSeed = Number(window.sessionStorage.getItem(SEED_KEY));
         if (storedDate === d.date && Number.isFinite(storedSeed) && storedSeed > 0) {
-          return { date: storedDate, seed: storedSeed, label: "Daily #" + storedDate.replaceAll("-", "") };
+          return { date: storedDate, seed: storedSeed, label: "今日の盤面 #" + storedDate.replaceAll("-", "") };
         }
       } catch (_) {}
       return d;
@@ -1400,7 +1575,7 @@ export default function Home() {
           t.includes("新しいゲーム") ||
           t.includes("プレイ") ||
           t.includes("Play") ||
-          t.includes("New Game") ||
+          t.includes("新しいゲーム") ||
           t.includes("Start")
         ) && !t.includes("今日の盤面");
       });
@@ -3052,7 +3227,7 @@ async function submitScore() {
   return <>
     <Head>
       {/* ③ SEO + social meta tags */}
-      <title>ワードテリトリー{dailyMode&&dailyInfo?` · Daily #${dailyInfo.dayNumber}`:""}</title>
+      <title>ワードテリトリー{dailyMode&&dailyInfo?` · 今日の盤面 #${dailyInfo.dayNumber}`:""}</title>
       <meta name="description" content="Word Territory is a word-powered territory strategy game where words become the map. プレイ the デイリーチャレンジ!" />
       <meta property="og:title" content="Word Territory" />
       <meta property="og:description" content="A spatial strategy word game. デイリーチャレンジ · Combo moves · Territory control." />
@@ -3096,7 +3271,7 @@ async function submitScore() {
       {/* ── header ── */}
       <div className="hdr">
         <div className="hdr-l">
-          <h1>WORD TERRITORY{dailyMode&&dailyInfo&&<span className="dpill">Daily #{dailyInfo.dayNumber}</span>}</h1>
+          <h1>WORD TERRITORY{dailyMode&&dailyInfo&&<span className="dpill">今日の盤面 #{dailyInfo.dayNumber}</span>}</h1>
           <p className="sub">開始形: {state.openingName} · {spectatorMode ? `観戦モード · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "ボット対ボット" : thinking?"ボット思考中…":asyncMode ? (state.currentPlayer===asyncRole?`あなたの手番 (${asyncRole})`:`待機中: ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"ボットの手番":`あなたの手番 (${state.currentPlayer})`} · {state.boardSize===5?'Quick 5×5':'標準 7×7'} · ラウンド {state.turn}</p>
           <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。 通常モードはカードなしで、単語・陣地・奪字・回転侵略に集中します。一手ごとに盤面が変わる。まずは5x5で短く遊び、緑のマスに1文字を置き、文字をつないで単語を作ります。"}</p>
         </div>
@@ -3173,7 +3348,7 @@ async function submitScore() {
       )}
 
       {/* ── banners ── */}
-      {dailyMode&&<div className="dbanner">🗓️ Daily #{dailyInfo?.dayNumber} · {dailyInfo?.dateStr} · 強い Bot · {state.botStyle || "Raider"}{streak>1?` · 🔥 ${streak} 日連続`:""}</div>}
+      {dailyMode&&<div className="dbanner">🗓️ 今日の盤面 #{dailyInfo?.dayNumber} · {dailyInfo?.dateStr} · 強い Bot · {state.botStyle || "Raider"}{streak>1?` · 🔥 ${streak} 日連続`:""}</div>}
       {asyncMode&&inviteUrl&&<div className="dbanner async-banner">🔗 Async PvP invite: <button className="link-copy" onClick={async()=>{try{await navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(()=>setCopied(false),2000);}catch{}}}>{copied?'Copied!':'Copy BLUE link'}</button></div>}
       {spectatorMode&&<div className="dbanner demo-banner">🎬 観戦モード · ボット対ボット · {spectatorNote || "Words become territory. Watch the map reshape itself."}</div>}
       {thinking&&<div className="bnr thinking">{spectatorMode?"Spectator bots are moving…":"Bot is thinking…"}</div>}
@@ -3376,7 +3551,7 @@ async function submitScore() {
           {/* move controls */}
           {!state.winner && <div className="mpanel">
             <div className="mrow">
-              <label className="mlbl">{market.active.length > 0 ? "Selected" : "Letter"}</label>
+              <label className="mlbl">{market.active.length > 0 ? "選択中" : "Letter"}</label>
               <input ref={letterRef}
                 className={`minput${market.active.length > 0 && !letter ? ' minput-empty' : ''}`}
                 value={letter} maxLength={8} lang="ja" inputMode="text" autoComplete="off"
@@ -3415,10 +3590,10 @@ async function submitScore() {
                       : !letter
                       ? "ひらがな1文字・ー・ゃゅょっを入力してください。"
                       : path.length < 2
-                      ? "Now tap connected letters to make a word."
+                      ? "隣り合う文字をつないで単語を作ってください。"
                       : !incPlaced
                       ? "Path must include your placed letter."
-                      : "Keep connecting — need 3–6 letters total."}
+                      : "3文字以上になるまでつないでください。"}
                   </div>
                 )}
               </div>
@@ -3560,7 +3735,7 @@ async function submitScore() {
           <div className="modal">
             {dailyMode&&dailyInfo?(
               <>
-                <h2>Daily #{dailyInfo.dayNumber} {streak>1?`🔥 ${streak}`:""}
+                <h2>今日の盤面 #{dailyInfo.dayNumber} {streak>1?`🔥 ${streak}`:""}
                 </h2>
                 <p className="muted">{dailyInfo.dateStr} · {dailyInfo.openingName}</p>
                 <div className="scard">
