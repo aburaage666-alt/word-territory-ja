@@ -716,6 +716,213 @@ function wtDaziTargetKeys(state) {
 
 export default function Home() {
 
+  // WT_JA_DAILY_SEED_V1
+  // 日本時間の日付から固定seedを作り、Dailyモード時だけ /games 作成に注入する。
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const ROOT_ID = "wt-ja-daily-root-v1";
+    const STYLE_ID = "wt-ja-daily-style-v1";
+    const MODE_KEY = "wt-ja-daily-mode-v1";
+    const DATE_KEY = "wt-ja-daily-date-v1";
+    const SEED_KEY = "wt-ja-daily-seed-v1";
+
+    const todayJst = () => {
+      try {
+        return new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Tokyo",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit"
+        }).format(new Date());
+      } catch (_) {
+        const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
+        return d.toISOString().slice(0, 10);
+      }
+    };
+
+    const seedFromDate = (dateText) => {
+      const s = "WORD_TERRITORY_JA_DAILY_" + String(dateText || "");
+      let h = 2166136261;
+      for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return Math.abs(h >>> 0);
+    };
+
+    const getDaily = () => {
+      const date = todayJst();
+      const seed = seedFromDate(date);
+      return { date, seed, label: "Daily #" + date.replaceAll("-", "") };
+    };
+
+    const enableDailyMode = () => {
+      const d = getDaily();
+      try {
+        window.sessionStorage.setItem(MODE_KEY, "1");
+        window.sessionStorage.setItem(DATE_KEY, d.date);
+        window.sessionStorage.setItem(SEED_KEY, String(d.seed));
+      } catch (_) {}
+      return d;
+    };
+
+    const isDailyMode = () => {
+      try {
+        return window.sessionStorage.getItem(MODE_KEY) === "1";
+      } catch (_) {
+        return false;
+      }
+    };
+
+    const getDailyFromStorage = () => {
+      const d = getDaily();
+      try {
+        const storedDate = window.sessionStorage.getItem(DATE_KEY);
+        const storedSeed = Number(window.sessionStorage.getItem(SEED_KEY));
+        if (storedDate === d.date && Number.isFinite(storedSeed) && storedSeed > 0) {
+          return { date: storedDate, seed: storedSeed, label: "Daily #" + storedDate.replaceAll("-", "") };
+        }
+      } catch (_) {}
+      return d;
+    };
+
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = [
+        ".wt-daily-wrap{position:fixed;right:18px;top:18px;z-index:9998;display:flex;flex-direction:column;align-items:flex-end;gap:7px}",
+        ".wt-daily-btn{border:1px solid #f59e0b;background:#111827;color:white;border-radius:999px;padding:10px 13px;font-size:13px;font-weight:950;box-shadow:0 12px 32px rgba(15,23,42,.22);cursor:pointer}",
+        ".wt-daily-chip{background:#fff7ed;color:#92400e;border:1px solid #fed7aa;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:900;box-shadow:0 8px 22px rgba(15,23,42,.12)}",
+        ".wt-daily-toast{max-width:min(340px,calc(100vw - 36px));background:#0f172a;color:#fff;border-radius:14px;padding:9px 11px;font-size:12px;font-weight:800;box-shadow:0 12px 34px rgba(15,23,42,.24)}",
+        ".wt-daily-toast[hidden]{display:none}",
+        "@media(max-width:700px){.wt-daily-wrap{right:10px;top:10px}.wt-daily-btn{font-size:12px;padding:8px 10px}.wt-daily-chip{font-size:10px}}"
+      ].join("\\n");
+      document.head.appendChild(style);
+    }
+
+    let root = document.getElementById(ROOT_ID);
+    if (!root) {
+      const d = getDaily();
+      root = document.createElement("div");
+      root.id = ROOT_ID;
+      root.className = "wt-daily-wrap";
+      root.innerHTML = [
+        "<button type='button' class='wt-daily-btn' data-wt-daily-play='1'>📅 今日の盤面</button>",
+        "<div class='wt-daily-chip' data-wt-daily-chip='1'>" + d.label + "</div>",
+        "<div class='wt-daily-toast' data-wt-daily-toast='1' hidden>Daily seed enabled</div>"
+      ].join("");
+      document.body.appendChild(root);
+    }
+
+    const btn = root.querySelector("[data-wt-daily-play]");
+    const chip = root.querySelector("[data-wt-daily-chip]");
+    const toast = root.querySelector("[data-wt-daily-toast]");
+
+    const showToast = (msg) => {
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.hidden = false;
+      window.setTimeout(() => { toast.hidden = true; }, 2600);
+    };
+
+    const updateChip = () => {
+      const d = getDailyFromStorage();
+      if (chip) chip.textContent = d.label + " / seed " + d.seed;
+    };
+
+    updateChip();
+
+    if (!window.__WT_JA_DAILY_FETCH_PATCHED_V1__) {
+      window.__WT_JA_DAILY_FETCH_PATCHED_V1__ = true;
+      const originalFetch = window.fetch.bind(window);
+
+      window.fetch = async (input, init) => {
+        try {
+          const url = typeof input === "string" ? input : String(input && input.url || "");
+          const method = String((init && init.method) || (input && input.method) || "GET").toUpperCase();
+
+          if (isDailyMode() && method === "POST" && /\/games\/?$/.test(url)) {
+            const d = getDailyFromStorage();
+            const nextInit = Object.assign({}, init || {});
+            const headers = new Headers(nextInit.headers || {});
+            headers.set("Content-Type", "application/json");
+            nextInit.headers = headers;
+
+            let body = {};
+            try {
+              if (nextInit.body) body = JSON.parse(String(nextInit.body));
+            } catch (_) {
+              body = {};
+            }
+
+            body.seed = d.seed;
+            body.dailySeed = d.seed;
+            body.dailyDate = d.date;
+            body.daily = true;
+            body.fixedSeed = true;
+
+            nextInit.body = JSON.stringify(body);
+
+            const res = await originalFetch(input, nextInit);
+
+            try {
+              window.sessionStorage.removeItem(MODE_KEY);
+            } catch (_) {}
+
+            return res;
+          }
+        } catch (_) {}
+
+        return originalFetch(input, init);
+      };
+    }
+
+    const clickStartButton = () => {
+      const buttons = Array.from(document.querySelectorAll("button"));
+      const candidates = buttons.filter((b) => {
+        const t = String(b.textContent || "").trim();
+        return (
+          t.includes("新しいゲーム") ||
+          t.includes("プレイ") ||
+          t.includes("Play") ||
+          t.includes("New Game") ||
+          t.includes("Start")
+        ) && !t.includes("今日の盤面");
+      });
+
+      const target = candidates[0];
+      if (target) {
+        target.click();
+        return true;
+      }
+      return false;
+    };
+
+    if (btn && !btn.dataset.bound) {
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => {
+        const d = enableDailyMode();
+        updateChip();
+        showToast(d.label + " を開始します。同じ日は同じseedです。");
+        window.setTimeout(() => {
+          const clicked = clickStartButton();
+          if (!clicked) showToast("Daily seedを有効化しました。次の新規ゲームに適用されます。");
+        }, 80);
+      });
+    }
+
+    return () => {
+      const existing = document.getElementById(ROOT_ID);
+      if (existing) existing.remove();
+      const style = document.getElementById(STYLE_ID);
+      if (style) style.remove();
+    };
+  }, []);
+  // END WT_JA_DAILY_SEED_V1
+
+
+
   // WT_JA_SHARE_IMAGE_ENHANCE_V1
   // React構造を壊さない共有画像生成。盤面DOMをCanvas化する。
   useEffect(() => {
