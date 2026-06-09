@@ -4480,3 +4480,236 @@ for _wt_name in [
         _wt_wrapped._wt_quick_wrapped = True
         globals()[_wt_name] = _wt_wrapped
 
+# WT_JA_ATTACHED_BOT_TUNING_SAFE_V1
+# Safe wrapper distilled from attached engine.py.
+# Goals:
+# - Easy bot: beginner-friendly, avoids tactical crushing.
+# - Normal bot: active but beatable, does not always select maximum move.
+# - Market: consumed tile only is replaced; no full reshuffle feeling.
+# Strong bot remains unchanged.
+
+def _wt_ja_attached_is_ja_v1():
+    try:
+        return globals().get("_LANG") == "ja"
+    except Exception:
+        return False
+
+
+def _wt_ja_attached_is_kana_v1(x):
+    if x == "*":
+        return True
+    if not isinstance(x, str) or len(x) != 1:
+        return False
+    o = ord(x)
+    return (0x3041 <= o <= 0x3096) or x == "\u30fc"
+
+
+def _wt_ja_attached_pool_v1():
+    try:
+        pool = [x for x in _ALL_LETTERS if _wt_ja_attached_is_kana_v1(x) and x != "*"]
+        if pool:
+            return pool
+    except Exception:
+        pass
+    return list("あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ")
+
+
+def _wt_ja_attached_fill_letter_v1(existing=None, offset=0):
+    existing = set(existing or [])
+    pool = _wt_ja_attached_pool_v1()
+    for i in range(len(pool)):
+        c = pool[(i + offset) % len(pool)]
+        if c not in existing:
+            return c
+    return pool[offset % len(pool)]
+
+
+def _wt_ja_attached_clean_market_v1(seq, existing=None, allow_wild=True, offset=0):
+    if not _wt_ja_attached_is_ja_v1():
+        return seq
+
+    existing = set(existing or [])
+    out = []
+
+    for x in seq or []:
+        if x == "*" and allow_wild and "*" not in out:
+            out.append(x)
+        elif _wt_ja_attached_is_kana_v1(x) and x != "*" and x not in out:
+            out.append(x)
+
+    while len(out) < 3:
+        out.append(_wt_ja_attached_fill_letter_v1(existing | set(out), offset + len(out)))
+
+    return out[:3]
+
+
+try:
+    _wt_ja_attached_orig_advance_market_v1 = advance_market
+
+    def advance_market(state, used_letter):
+        if not _wt_ja_attached_is_ja_v1():
+            return _wt_ja_attached_orig_advance_market_v1(state, used_letter)
+
+        active = _wt_ja_attached_clean_market_v1(
+            getattr(state, "marketLetters", []) or [],
+            allow_wild=True,
+            offset=0,
+        )
+        preview = _wt_ja_attached_clean_market_v1(
+            getattr(state, "previewLetters", []) or [],
+            existing=set(active),
+            allow_wild=False,
+            offset=7,
+        )
+
+        while len(active) < 3:
+            active.append(_wt_ja_attached_fill_letter_v1(active, len(active)))
+
+        while len(preview) < 3:
+            preview.append(_wt_ja_attached_fill_letter_v1(set(active) | set(preview), 7 + len(preview)))
+
+        new_active = list(active[:3])
+
+        try:
+            replace_idx = new_active.index(used_letter)
+        except ValueError:
+            replace_idx = 0
+
+        replacement = preview[0] if preview else _wt_ja_attached_fill_letter_v1(new_active, 11)
+        new_active[replace_idx] = replacement
+
+        new_preview = [x for x in preview[1:] if x not in new_active and _wt_ja_attached_is_kana_v1(x)]
+        while len(new_preview) < 3:
+            new_preview.append(_wt_ja_attached_fill_letter_v1(set(new_active) | set(new_preview), 17 + len(new_preview)))
+
+        return new_active[:3], new_preview[:3]
+
+except Exception:
+    pass
+
+
+def _wt_ja_attached_move_score_v1(state, move, player, easy=False):
+    try:
+        ns = simulate_move(state, move)
+        last = ns.moveHistory[-1]
+        labels = set(last.comboLabels or [])
+        word = _norm_word(move.get("word", "") or "")
+        n = len(word)
+
+        territory = max(0, int(last.territoryGained or 0))
+        captures = max(0, int(last.captureCount or 0))
+        locks = max(0, int(last.fortifiedCellsGained or 0))
+
+        score = 0.0
+        score += word_score(word) * (0.70 if easy else 0.90)
+        score += len(move.get("path", []) or []) * 0.20
+        score += territory * (0.18 if easy else 0.42)
+
+        if n <= 2:
+            score -= 4.0
+        elif n == 3:
+            score += 0.4 if easy else 0.2
+        elif n == 4:
+            score += 0.2 if easy else 0.7
+        elif n >= 5:
+            score -= 3.5 if easy else 1.4
+
+        if easy:
+            score -= captures * 8.0
+            score -= territory * 1.2
+            score -= locks * 1.5
+            if "橋渡し" in labels:
+                score -= 7.0
+            if "分断" in labels:
+                score -= 7.0
+            if "大領地" in labels:
+                score -= 8.0
+            if "大奪取" in labels:
+                score -= 8.0
+            if "逆転" in labels:
+                score -= 5.0
+        else:
+            score -= captures * 2.5
+            if "橋渡し" in labels:
+                score -= 2.0
+            if "分断" in labels:
+                score -= 2.0
+            if "連続ロック" in labels:
+                score -= 1.4
+
+        try:
+            lead = -get_score_gap(state, player)
+            if lead >= 4:
+                score -= captures * (6.0 if easy else 3.5)
+                score -= max(0, territory - 2) * (2.0 if easy else 1.1)
+                if "橋渡し" in labels or "分断" in labels:
+                    score -= 4.0 if easy else 2.5
+            elif lead <= -6 and not easy:
+                score += territory * 0.4
+        except Exception:
+            pass
+
+        return score
+    except Exception:
+        try:
+            return word_score(move.get("word", "")) * 0.25
+        except Exception:
+            return -999.0
+
+
+try:
+    _wt_ja_attached_orig_choose_bot_move_v1 = choose_bot_move
+
+    def choose_bot_move(state):
+        if not _wt_ja_attached_is_ja_v1():
+            return _wt_ja_attached_orig_choose_bot_move_v1(state)
+
+        level = str(getattr(state, "botLevel", "normal") or "normal").lower()
+
+        if level not in ("easy", "normal"):
+            return _wt_ja_attached_orig_choose_bot_move_v1(state)
+
+        try:
+            moves = generate_normal_moves(state)
+        except Exception:
+            moves = []
+
+        if not moves:
+            return None
+
+        player = state.currentPlayer
+        easy = level == "easy"
+
+        scored = []
+        for m in moves:
+            scored.append((_wt_ja_attached_move_score_v1(state, m, player, easy=easy), m))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        if not scored:
+            return None
+
+        try:
+            lead = -get_score_gap(state, player)
+        except Exception:
+            lead = 0
+
+        if easy:
+            # Beginner bot: avoid best move. Prefer lower-middle playable moves.
+            idx = min(len(scored) - 1, max(0, (len(scored) * 2) // 3))
+        else:
+            if lead >= 4:
+                # If bot/current player is already ahead, soften.
+                idx = min(len(scored) - 1, max(0, len(scored) // 2))
+            elif lead <= -6:
+                # If losing badly, allow a better move.
+                idx = min(len(scored) - 1, max(0, len(scored) // 4))
+            else:
+                # Normal: active but not maximizer.
+                idx = min(len(scored) - 1, max(0, len(scored) // 3))
+
+        return scored[idx][1]
+
+except Exception:
+    pass
+# END WT_JA_ATTACHED_BOT_TUNING_SAFE_V1

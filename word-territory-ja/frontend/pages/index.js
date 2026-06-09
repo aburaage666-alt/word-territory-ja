@@ -575,7 +575,7 @@ function wtModernDownloadShareCard({ state, redT, blueT, bestMove, moveLabel, da
   ctx.font = "bold 64px system-ui, sans-serif";
   ctx.fillText(title, 70, 110);
   ctx.font = "34px system-ui, sans-serif";
-  const day = dailyInfo?.dayNumber ? `Daily #${dailyInfo.dayNumber}` : "Free Play";
+  const day = dailyInfo?.dayNumber ? `Daily #${dailyInfo.dayNumber}` : "フリープレイ";
   ctx.fillText(day, 72, 165);
   ctx.font = "bold 58px system-ui, sans-serif";
   ctx.fillStyle = red;
@@ -1909,7 +1909,7 @@ async function submitScore() {
         <div className="hdr-l">
           <h1>WORD TERRITORY{dailyMode&&dailyInfo&&<span className="dpill">Daily #{dailyInfo.dayNumber}</span>}</h1>
           <p className="sub">開始形: {state.openingName} · {spectatorMode ? `観戦モード · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "ボット対ボット" : thinking?"ボット思考中…":asyncMode ? (state.currentPlayer===asyncRole?`あなたの手番 (${asyncRole})`:`待機中: ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"ボットの手番":`あなたの手番 (${state.currentPlayer})`} · {state.boardSize===5?'Quick 5×5':'標準 7×7'} · ラウンド {state.turn}</p>
-          <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。一手ごとに盤面が変わる。"}</p>
+          <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。一手ごとに盤面が変わる。まずは5x5で短く遊び、緑のマスに1文字を置き、文字をつないで単語を作ります。"}</p>
         </div>
         <div className="hdr-r">
           <button className="bsm sound-toggle" onClick={()=>set音On(v=>!v)} title="音の切替">{soundOn ? "🔊 音" : "🔇 ミュート"}</button>
