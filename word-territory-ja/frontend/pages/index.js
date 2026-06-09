@@ -972,7 +972,7 @@ const [thinking, setThinking] = useState(false);
         getSynergyOptions(d.game_id).then(r => {
           setSynergyOpts(r.options||[]);
           setSynergy(r.selected||"");
-          if (!r.selected && r.options?.length > 0) setShowSynergy(true);
+          if (!r.selected && r.options?.length > 0) setShowSynergy(false);
         }).catch(() => {});
         return;
       } catch(e) {
@@ -1002,7 +1002,7 @@ const [thinking, setThinking] = useState(false);
       getSynergyOptions(d.game_id).then(r => {
         setSynergyOpts(r.options||[]);
         setSynergy(r.selected||"");
-        if (!r.selected && r.options?.length > 0) setShowSynergy(true);
+        if (!r.selected && r.options?.length > 0) setShowSynergy(false);
       }).catch(() => {});
     getSuggestions(d.game_id).then(x => setSugg(wtJaToTextList(x))).catch(() => setSugg([]));
   }
@@ -1909,7 +1909,7 @@ async function submitScore() {
         <div className="hdr-l">
           <h1>WORD TERRITORY{dailyMode&&dailyInfo&&<span className="dpill">Daily #{dailyInfo.dayNumber}</span>}</h1>
           <p className="sub">開始形: {state.openingName} · {spectatorMode ? `観戦モード · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "ボット対ボット" : thinking?"ボット思考中…":asyncMode ? (state.currentPlayer===asyncRole?`あなたの手番 (${asyncRole})`:`待機中: ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"ボットの手番":`あなたの手番 (${state.currentPlayer})`} · {state.boardSize===5?'Quick 5×5':'標準 7×7'} · ラウンド {state.turn}</p>
-          <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。一手ごとに盤面が変わる。まずは5x5で短く遊び、緑のマスに1文字を置き、文字をつないで単語を作ります。"}</p>
+          <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。 通常モードはカードなしで、単語・陣地・奪字・回転侵略に集中します。一手ごとに盤面が変わる。まずは5x5で短く遊び、緑のマスに1文字を置き、文字をつないで単語を作ります。"}</p>
         </div>
         <div className="hdr-r">
           <button className="bsm sound-toggle" onClick={()=>set音On(v=>!v)} title="音の切替">{soundOn ? "🔊 音" : "🔇 ミュート"}</button>
@@ -2340,7 +2340,7 @@ async function submitScore() {
       {showSynergy && !synergy && (
         <div className="modal-bg" onClick={e => e.target===e.currentTarget&&setShowSynergy(false)}>
           <div className="modal syn-modal">
-            <h2 style={{marginBottom:6}}>🎴 戦略カードを選ぶ</h2>
+            <h2 style={{marginBottom:6}}></h2>
             <p style={{fontSize:13,color:'#888',marginBottom:20}}>カードを1枚選んでください。効果は対局中ずっと続きます。</p>
             <div className="syn-cards">
               {(synergyOpts||[]).map(card => (
