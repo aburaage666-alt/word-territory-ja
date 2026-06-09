@@ -298,6 +298,9 @@ def main() -> int:
     project = Path.cwd()
     help_text = read_help(project)
     size_flag = detect_size_arg(help_text)
+    # WT_JA_REQUIRE_REAL_BOARD_SIZE_V1
+    if size_flag is None:
+        raise SystemExit("bot_match_test_ja.py に --board-size が無いため、5x5/7x7別テストを実行できません。先にboard-size CLIを追加してください。")
     has_komi = detect_blue_komi(help_text)
 
     seeds = [int(x.strip()) for x in args.seeds.split(",") if x.strip()]

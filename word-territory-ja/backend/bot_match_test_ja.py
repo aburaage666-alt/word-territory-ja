@@ -1,5 +1,31 @@
 ﻿# JP_BOT_MATCH_TEST_V1
 import os
+
+
+# WT_JA_BOARD_SIZE_CLI_V1
+def _wt_ja_make_game_with_optional_board_size(factory, board_size, *args, **kwargs):
+    if board_size is None:
+        return factory(*args, **kwargs)
+
+    # Try common parameter names used across versions.
+    for key in ("board_size", "boardSize", "size", "grid_size", "gridSize"):
+        try:
+            kw = dict(kwargs)
+            kw[key] = board_size
+            return factory(*args, **kw)
+        except TypeError:
+            pass
+
+    # Fallback: create default state and annotate. This keeps old versions runnable.
+    state = factory(*args, **kwargs)
+    for key in ("board_size", "boardSize", "size", "grid_size", "gridSize"):
+        try:
+            setattr(state, key, board_size)
+        except Exception:
+            pass
+    return state
+# END WT_JA_BOARD_SIZE_CLI_V1
+
 os.environ.setdefault('WT_LANG', 'ja')
 # BALANCE_TEST_V18_ACTIVE3_AND_ALLCARDS
 # BALANCE_TEST_V19_2PI2_BLUE_EXPANDER_BUILDER
@@ -258,7 +284,7 @@ def summarize_match(state, match_id, selected_synergy=""):
     }
 
 
-def run_match(match_id, mode="normal", bot_level="normal", max_turns=60, seed=None, force_synergy="none", blue_komi=0.0):
+def run_match(match_id, mode="normal", bot_level="normal", max_turns=60, seed=None, force_synergy="none", blue_komi=0.0, board_size=None):
     if seed is not None:
         random.seed(seed)
     state = build_initial_state(bot_level=bot_level)
@@ -303,6 +329,8 @@ def main():
     parser.add_argument("--mode", choices=["demo", "normal"], default="normal")
     parser.add_argument("--bot-level", choices=["easy", "normal", "strong"], default="normal")
     parser.add_argument("--max-turns", type=int, default=60)
+    parser.add_argument("--board-size", type=int, default=None, choices=[5, 7],
+                        help="board size for balance tests: 5 or 7")
     parser.add_argument("--seed", type=int, default=1000)
     parser.add_argument("--blue-komi", type=float, default=4.0, help="BLUE komi for cardless balance testing.")
     parser.add_argument("--force-synergy", default="none",
