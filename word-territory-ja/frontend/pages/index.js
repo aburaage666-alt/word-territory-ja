@@ -715,6 +715,120 @@ function wtDaziTargetKeys(state) {
 }
 
 export default function Home() {
+
+  // WT_JA_ROTATE_DOM_HIGHLIGHT_V1
+  // 回転侵略候補ハイライト。React構造を壊さないDOM補助。
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const STYLE_ID = "wt-ja-rotate-highlight-style-v1";
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = [
+        ".cell.wt-rotate-candidate{outline:3px solid rgba(124,58,237,.88)!important;box-shadow:0 0 0 4px rgba(124,58,237,.16),0 0 18px rgba(124,58,237,.28)!important;position:relative;z-index:4;}",
+        ".cell.wt-rotate-anchor::after{content:\"↻\";position:absolute;right:4px;top:3px;width:18px;height:18px;border-radius:999px;background:#7c3aed;color:white;font-size:12px;font-weight:950;line-height:18px;text-align:center;box-shadow:0 3px 10px rgba(124,58,237,.35);pointer-events:none;}",
+        "body.wt-rotate-hint-on .brot,body.wt-rotate-hint-on button{transition:box-shadow .18s ease;}",
+        "@media(max-width:700px){.cell.wt-rotate-candidate{outline-width:2px!important}.cell.wt-rotate-anchor::after{right:2px;top:2px;width:16px;height:16px;font-size:11px;line-height:16px}}"
+      ].join("\\n");
+      document.head.appendChild(style);
+    }
+
+    let hintUntil = 0;
+
+    const isLetterCell = (el) => {
+      const txt = String(el.textContent || "").trim();
+      if (!txt) return false;
+      const cleaned = txt.replace(/[・･·•\s]/g, "");
+      if (!cleaned) return false;
+      return /[ぁ-んァ-ンーA-Za-z*]/.test(cleaned);
+    };
+
+    const clear = () => {
+      document.querySelectorAll(".cell.wt-rotate-candidate,.cell.wt-rotate-anchor").forEach((el) => {
+        el.classList.remove("wt-rotate-candidate");
+        el.classList.remove("wt-rotate-anchor");
+      });
+      document.body.classList.remove("wt-rotate-hint-on");
+    };
+
+    const findRotateButtons = () => {
+      return Array.from(document.querySelectorAll("button")).filter((b) => {
+        const t = String(b.textContent || "");
+        return t.includes("回転侵略") || t.includes("回転") || /rotate/i.test(t);
+      });
+    };
+
+    const activate = () => {
+      hintUntil = Date.now() + 6500;
+      render();
+    };
+
+    const render = () => {
+      const active = Date.now() < hintUntil;
+      clear();
+      if (!active) return;
+
+      const cells = Array.from(document.querySelectorAll(".cell"));
+      if (!cells.length) return;
+
+      const n = Math.round(Math.sqrt(cells.length));
+      if (n < 5 || n * n !== cells.length) return;
+
+      let firstAnchor = null;
+
+      for (let r = 0; r < n - 1; r++) {
+        for (let c = 0; c < n - 1; c++) {
+          const block = [
+            cells[r * n + c],
+            cells[r * n + c + 1],
+            cells[(r + 1) * n + c],
+            cells[(r + 1) * n + c + 1],
+          ];
+
+          const letters = block.filter(isLetterCell).length;
+
+          if (letters >= 2) {
+            block.forEach((el) => el.classList.add("wt-rotate-candidate"));
+            if (!firstAnchor) firstAnchor = block[0];
+          }
+        }
+      }
+
+      if (firstAnchor) {
+        firstAnchor.classList.add("wt-rotate-anchor");
+        document.body.classList.add("wt-rotate-hint-on");
+      }
+    };
+
+    const attach = () => {
+      findRotateButtons().forEach((btn) => {
+        if (btn.dataset.wtRotateHighlightBound === "1") return;
+        btn.dataset.wtRotateHighlightBound = "1";
+        btn.addEventListener("mouseenter", activate);
+        btn.addEventListener("focus", activate);
+        btn.addEventListener("click", activate);
+        btn.addEventListener("touchstart", activate, { passive: true });
+      });
+    };
+
+    const timer = window.setInterval(() => {
+      attach();
+      render();
+    }, 350);
+
+    attach();
+
+    return () => {
+      window.clearInterval(timer);
+      clear();
+      const style = document.getElementById(STYLE_ID);
+      if (style) style.remove();
+    };
+  }, []);
+  // END WT_JA_ROTATE_DOM_HIGHLIGHT_V1
+
+
   const [gameId, setGameId]     = useState("");
   const [state,  setState]      = useState(null);
   const [path,   setPath]       = useState([]);
