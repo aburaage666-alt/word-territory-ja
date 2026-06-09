@@ -716,6 +716,267 @@ function wtDaziTargetKeys(state) {
 
 export default function Home() {
 
+  // WT_JA_MAX_SWING_REPLAY_V1
+  // 最大スイング表示。React状態を直接触らず、履歴DOMと盤面DOMから安全に推定する。
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const ROOT_ID = "wt-ja-max-swing-root-v1";
+    const STYLE_ID = "wt-ja-max-swing-style-v1";
+
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = [
+        ".wt-swing-root{position:fixed;right:18px;bottom:122px;z-index:9996;display:flex;flex-direction:column;align-items:flex-end;gap:7px}",
+        ".wt-swing-btn{border:1px solid #dc2626;background:#fff;color:#991b1b;border-radius:999px;padding:10px 13px;font-size:13px;font-weight:950;box-shadow:0 10px 30px rgba(15,23,42,.16);cursor:pointer}",
+        ".wt-swing-panel{width:min(420px,calc(100vw - 36px));background:rgba(255,255,255,.98);border:1px solid #fecaca;border-radius:16px;box-shadow:0 16px 46px rgba(15,23,42,.20);padding:12px;color:#0f172a}",
+        ".wt-swing-panel[hidden]{display:none}",
+        ".wt-swing-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;color:#991b1b;font-size:13px;font-weight:950}",
+        ".wt-swing-close{border:0;background:#f1f5f9;border-radius:999px;width:26px;height:26px;font-size:16px;line-height:24px;cursor:pointer;color:#475569}",
+        ".wt-swing-main{background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:10px;margin-bottom:8px}",
+        ".wt-swing-value{font-size:28px;font-weight:1000;color:#9a3412;line-height:1.1}",
+        ".wt-swing-label{font-size:12px;font-weight:900;color:#92400e;margin-top:2px}",
+        ".wt-swing-line{font-size:12px;color:#334155;font-weight:750;line-height:1.55;word-break:break-word}",
+        ".wt-swing-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}",
+        ".wt-swing-small{border:1px solid #e2e8f0;background:#fff;color:#334155;border-radius:999px;padding:6px 9px;font-size:12px;font-weight:900;cursor:pointer}",
+        ".wt-swing-flash{outline:3px solid #f97316!important;box-shadow:0 0 0 5px rgba(249,115,22,.22),0 0 24px rgba(249,115,22,.35)!important;transition:outline .2s ease,box-shadow .2s ease}",
+        ".wt-swing-board-flash .cell{animation:wtSwingPulse .55s ease-in-out 0s 3 alternate}",
+        "@keyframes wtSwingPulse{from{filter:saturate(1)}to{filter:saturate(1.45) brightness(1.07)}}",
+        "@media(max-width:700px){.wt-swing-root{right:10px;bottom:108px}.wt-swing-btn{font-size:12px;padding:8px 10px}.wt-swing-panel{width:calc(100vw - 20px)}}"
+      ].join("\\n");
+      document.head.appendChild(style);
+    }
+
+    let root = document.getElementById(ROOT_ID);
+    if (!root) {
+      root = document.createElement("div");
+      root.id = ROOT_ID;
+      root.className = "wt-swing-root";
+      root.innerHTML = [
+        "<button type='button' class='wt-swing-btn' data-wt-swing-open='1'>🏆 最大スイング</button>",
+        "<div class='wt-swing-panel' data-wt-swing-panel='1' hidden>",
+        "  <div class='wt-swing-head'><span>最大スイングリプレイ</span><button type='button' class='wt-swing-close' data-wt-swing-close='1'>×</button></div>",
+        "  <div class='wt-swing-main'>",
+        "    <div class='wt-swing-value' data-wt-swing-value='1'>--</div>",
+        "    <div class='wt-swing-label' data-wt-swing-label='1'>試合中に最も盤面差が動いた候補</div>",
+        "  </div>",
+        "  <div class='wt-swing-line' data-wt-swing-line='1'>履歴を解析しています。</div>",
+        "  <div class='wt-swing-actions'>",
+        "    <button type='button' class='wt-swing-small' data-wt-swing-jump='1'>履歴を見る</button>",
+        "    <button type='button' class='wt-swing-small' data-wt-swing-flash='1'>盤面を点滅</button>",
+        "  </div>",
+        "</div>"
+      ].join("");
+      document.body.appendChild(root);
+    }
+
+    const panel = root.querySelector("[data-wt-swing-panel]");
+    const open = root.querySelector("[data-wt-swing-open]");
+    const close = root.querySelector("[data-wt-swing-close]");
+    const valueEl = root.querySelector("[data-wt-swing-value]");
+    const labelEl = root.querySelector("[data-wt-swing-label]");
+    const lineEl = root.querySelector("[data-wt-swing-line]");
+    const jumpBtn = root.querySelector("[data-wt-swing-jump]");
+    const flashBtn = root.querySelector("[data-wt-swing-flash]");
+
+    let lastTarget = null;
+
+    const cellOwner = (el) => {
+      const cls = String(el.className || "").toLowerCase();
+      const style = window.getComputedStyle(el);
+      const bg = String(style.backgroundColor || "");
+      if (cls.includes("red") || cls.includes("p1") || cls.includes("owner-red") || bg.includes("254, 226, 226") || bg.includes("239, 68, 68")) return "RED";
+      if (cls.includes("blue") || cls.includes("p2") || cls.includes("owner-blue") || bg.includes("219, 234, 254") || bg.includes("37, 99, 235")) return "BLUE";
+      return "NEUTRAL";
+    };
+
+    const currentBoardSwing = () => {
+      const cells = Array.from(document.querySelectorAll(".cell"));
+      let red = 0;
+      let blue = 0;
+      for (const c of cells) {
+        const o = cellOwner(c);
+        if (o === "RED") red++;
+        if (o === "BLUE") blue++;
+      }
+      return { red, blue, diff: Math.abs(red - blue), cells: cells.length };
+    };
+
+    const parseNumber = (s) => {
+      const n = Number(String(s || "").replace(/[^\d.-]/g, ""));
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const scoreFromText = (txt) => {
+      const t = String(txt || "").replace(/\s+/g, " ").trim();
+
+      let m = t.match(/RED\s*(\d+)\s*[-:]\s*BLUE\s*(\d+)/i);
+      if (m) {
+        return { red: Number(m[1]), blue: Number(m[2]), diff: Math.abs(Number(m[1]) - Number(m[2])) };
+      }
+
+      m = t.match(/赤\s*(\d+)\s*[-:]\s*青\s*(\d+)/);
+      if (m) {
+        return { red: Number(m[1]), blue: Number(m[2]), diff: Math.abs(Number(m[1]) - Number(m[2])) };
+      }
+
+      m = t.match(/gap\s*[=:]?\s*(-?\d+(?:\.\d+)?)/i);
+      if (m) {
+        return { red: null, blue: null, diff: Math.abs(Number(m[1])) };
+      }
+
+      m = t.match(/(?:swing|変化|差)\s*[=:]?\s*(-?\d+(?:\.\d+)?)/i);
+      if (m) {
+        return { red: null, blue: null, diff: Math.abs(Number(m[1])) };
+      }
+
+      return null;
+    };
+
+    const findHistoryRows = () => {
+      const candidates = Array.from(document.querySelectorAll("body *")).filter((el) => {
+        const txt = String(el.textContent || "").replace(/\s+/g, " ").trim();
+        if (!txt || txt.length > 180) return false;
+        const cls = String(el.className || "").toLowerCase();
+        return (
+          cls.includes("hist") ||
+          cls.includes("log") ||
+          cls.includes("move") ||
+          txt.includes("RED") ||
+          txt.includes("BLUE") ||
+          txt.includes("赤") ||
+          txt.includes("青") ||
+          txt.includes("gap") ||
+          txt.includes("奪") ||
+          txt.includes("Capture") ||
+          txt.includes("陣地")
+        );
+      });
+
+      const unique = [];
+      const seen = new Set();
+      for (const el of candidates) {
+        const txt = String(el.textContent || "").replace(/\s+/g, " ").trim();
+        if (!txt || seen.has(txt)) continue;
+        seen.add(txt);
+        unique.push({ el, txt });
+      }
+      return unique;
+    };
+
+    const analyze = () => {
+      const rows = findHistoryRows();
+      let best = null;
+
+      for (const row of rows) {
+        const parsed = scoreFromText(row.txt);
+        if (!parsed) continue;
+
+        const bonus =
+          (row.txt.includes("奪") || row.txt.includes("Capture") ? 1.5 : 0) +
+          (row.txt.includes("回転") || row.txt.includes("Rotate") ? 2.0 : 0) +
+          (row.txt.includes("逆転") || row.txt.includes("Comeback") ? 2.0 : 0);
+
+        const value = parsed.diff + bonus;
+
+        if (!best || value > best.value) {
+          best = { value, diff: parsed.diff, row, parsed };
+        }
+      }
+
+      if (best) {
+        return {
+          mode: "history",
+          swing: best.diff,
+          line: best.row.txt,
+          target: best.row.el,
+        };
+      }
+
+      const board = currentBoardSwing();
+      return {
+        mode: "board",
+        swing: board.diff,
+        line: "履歴から最大手を特定できないため、現在盤面の支配差を表示しています。RED " + board.red + " / BLUE " + board.blue + " / cells " + board.cells,
+        target: null,
+      };
+    };
+
+    const render = () => {
+      const result = analyze();
+      lastTarget = result.target;
+
+      if (valueEl) valueEl.textContent = String(result.swing);
+      if (labelEl) {
+        labelEl.textContent = result.mode === "history"
+          ? "履歴から推定した最大スイング"
+          : "現在盤面の支配差";
+      }
+      if (lineEl) lineEl.textContent = result.line;
+    };
+
+    const jump = () => {
+      if (!lastTarget) {
+        flashBoard();
+        return;
+      }
+
+      document.querySelectorAll(".wt-swing-flash").forEach((el) => el.classList.remove("wt-swing-flash"));
+      lastTarget.classList.add("wt-swing-flash");
+      lastTarget.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      window.setTimeout(() => {
+        if (lastTarget) lastTarget.classList.remove("wt-swing-flash");
+      }, 2600);
+    };
+
+    const flashBoard = () => {
+      document.body.classList.add("wt-swing-board-flash");
+      window.setTimeout(() => document.body.classList.remove("wt-swing-board-flash"), 1800);
+    };
+
+    if (open && !open.dataset.bound) {
+      open.dataset.bound = "1";
+      open.addEventListener("click", () => {
+        render();
+        if (panel) panel.hidden = !panel.hidden;
+      });
+    }
+
+    if (close && !close.dataset.bound) {
+      close.dataset.bound = "1";
+      close.addEventListener("click", () => {
+        if (panel) panel.hidden = true;
+      });
+    }
+
+    if (jumpBtn && !jumpBtn.dataset.bound) {
+      jumpBtn.dataset.bound = "1";
+      jumpBtn.addEventListener("click", jump);
+    }
+
+    if (flashBtn && !flashBtn.dataset.bound) {
+      flashBtn.dataset.bound = "1";
+      flashBtn.addEventListener("click", flashBoard);
+    }
+
+    const timer = window.setInterval(() => {
+      if (panel && !panel.hidden) render();
+    }, 1600);
+
+    return () => {
+      window.clearInterval(timer);
+      const existing = document.getElementById(ROOT_ID);
+      if (existing) existing.remove();
+      const style = document.getElementById(STYLE_ID);
+      if (style) style.remove();
+    };
+  }, []);
+  // END WT_JA_MAX_SWING_REPLAY_V1
+
+
+
   // WT_JA_ONE_TAP_CANDIDATES_V1
   // 画面上のヒント候補から単語を拾い、盤面上の対応パスを自動クリックする安全補助。
   useEffect(() => {
