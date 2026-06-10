@@ -4920,25 +4920,22 @@ except Exception:
     pass
 # END WT_JA_SAFE_BOT_TUNING_V2
 
-# WT_JA_BOT_SYMMETRIC_4KANA_CACHED_V4C_BEGIN
-# JP public-beta Bot balance v4c:
-# - Fixes v4b freeze by caching the curated UI dictionary.
-# - No per-candidate full dictionary normalization.
-# - Keeps symmetric RED/BLUE auto-move scoring for balance tests.
-# - Human manual dictionary remains broad.
+# WT_JA_BOT_BALANCED_4KANA_CAP_V4D_BEGIN
+# JP public-beta Bot balance v4d:
+# - v4c fixed 3-kana spam but caused capture/lock explosion.
+# - v4d weakens 4-kana preference and caps territory/capture/lock only for auto Bot moves.
+# - Human manual moves are not capped because only choose_bot_move sets the auto flag.
 # - Strong Bot remains unchanged.
 
-_WT_JA_CURATED_BOT_WORDS_V4C_CACHE = None
+_WT_JA_CURATED_BOT_WORDS_V4D_CACHE = None
 
 
-def _wt_ja_curated_bot_words_v4c():
-    global _WT_JA_CURATED_BOT_WORDS_V4C_CACHE
-
-    if _WT_JA_CURATED_BOT_WORDS_V4C_CACHE is not None:
-        return _WT_JA_CURATED_BOT_WORDS_V4C_CACHE
+def _wt_ja_curated_bot_words_v4d():
+    global _WT_JA_CURATED_BOT_WORDS_V4D_CACHE
+    if _WT_JA_CURATED_BOT_WORDS_V4D_CACHE is not None:
+        return _WT_JA_CURATED_BOT_WORDS_V4D_CACHE
 
     words = set()
-
     try:
         src = get_ui_words()
     except Exception:
@@ -4957,12 +4954,12 @@ def _wt_ja_curated_bot_words_v4c():
         except Exception:
             continue
 
-    _WT_JA_CURATED_BOT_WORDS_V4C_CACHE = words
+    _WT_JA_CURATED_BOT_WORDS_V4D_CACHE = words
     return words
 
 
 try:
-    _wt_ja_orig_is_bot_word_v4c = _is_bot_word
+    _wt_ja_orig_is_bot_word_v4d = _is_bot_word
 
     def _is_bot_word(word: str) -> bool:
         w = _norm_word(word)
@@ -4970,7 +4967,7 @@ try:
             return False
 
         if globals().get("_LANG") != "ja":
-            return _wt_ja_orig_is_bot_word_v4c(word)
+            return _wt_ja_orig_is_bot_word_v4d(word)
 
         if len(w) < _WORD_MIN or len(w) > _WORD_MAX:
             return False
@@ -4978,7 +4975,7 @@ try:
         if w in globals().get("_JP_BOT_HARD_EXCLUDE", set()):
             return False
 
-        ui_words = _wt_ja_curated_bot_words_v4c()
+        ui_words = _wt_ja_curated_bot_words_v4d()
         if ui_words:
             return w in ui_words
 
@@ -4991,7 +4988,7 @@ except Exception:
     pass
 
 
-def _wt_ja_total_v4c(state, player: str) -> float:
+def _wt_ja_total_v4d(state, player: str) -> float:
     try:
         return float(total_score(state, player))
     except Exception:
@@ -5003,83 +5000,111 @@ def _wt_ja_total_v4c(state, player: str) -> float:
             return 0.0
 
 
-def _wt_ja_lead_v4c(state, player: str) -> float:
+def _wt_ja_lead_v4d(state, player: str) -> float:
     try:
-        return _wt_ja_total_v4c(state, player) - _wt_ja_total_v4c(state, other_player(player))
+        return _wt_ja_total_v4d(state, player) - _wt_ja_total_v4d(state, other_player(player))
     except Exception:
         return 0.0
 
 
-def _wt_ja_light_move_score_v4c(state, move, player: str) -> float:
+def _wt_ja_light_move_score_v4d(state, move, player: str) -> float:
     try:
         word = _norm_word(move.get("word", ""))
         n = len(word)
         terr = int(move.get("territory_gain", 0) or 0)
         path_len = len(move.get("path", []) or [])
-        lead = _wt_ja_lead_v4c(state, player)
+        lead = _wt_ja_lead_v4d(state, player)
 
         score = 0.0
 
-        score += word_score(word) * 0.70
-        score += min(5, path_len) * 0.35
-        score += min(5, terr) * 0.35
+        score += word_score(word) * 0.58
+        score += min(5, path_len) * 0.28
+        score += min(5, terr) * 0.18
 
-        # 4かなを主軸にする。3かな偏重を抑える。
+        # v4c was too extreme. v4d keeps 4-kana preference but allows 3-kana again.
         if n == 3:
-            score -= 2.2
+            score += 0.25
         elif n == 4:
-            score += 5.0
+            score += 2.05
         elif n == 5:
-            score += 2.0
+            score -= 0.65
         elif n >= 6:
-            score -= 5.5
+            score -= 6.0
         elif n <= 2:
-            score -= 12.0
+            score -= 10.0
 
-        # リード中の雪だるま抑制。
-        if lead >= 12:
-            score -= max(0, terr - 3) * 3.0
-            score -= max(0, n - 4) * 3.5
-        elif lead >= 8:
-            score -= max(0, terr - 4) * 2.0
-            score -= max(0, n - 4) * 2.2
-        elif lead >= 4:
-            score -= max(0, terr - 5) * 1.0
+        # Avoid selecting obvious territory bursts when already ahead.
+        if lead >= 10:
+            score -= max(0, terr - 3) * 2.8
+            score -= max(0, n - 4) * 2.5
+        elif lead >= 6:
+            score -= max(0, terr - 4) * 1.8
+            score -= max(0, n - 4) * 1.5
+        elif lead >= 3:
+            score -= max(0, terr - 5) * 0.9
 
-        # 劣勢時は少しだけ戻す。
+        # Controlled comeback, not wipeout.
         if lead <= -10:
-            score += min(4.5, terr * 0.55)
+            score += min(3.2, terr * 0.38)
             if n == 4:
-                score += 1.0
+                score += 0.5
         elif lead <= -5:
-            score += min(2.8, terr * 0.35)
-            if n == 4:
-                score += 0.6
+            score += min(2.0, terr * 0.25)
 
         return score
     except Exception:
         return 0.0
 
 
+def _wt_ja_mark_auto_move_v4d(state, player: str) -> None:
+    try:
+        ss = dict(getattr(state, "synergyState", {}) or {})
+        ss["_wtJaAutoMoveV4d"] = player
+        ss["_wtJaAutoTurnV4d"] = int(getattr(state, "turn", 0) or 0)
+        state.synergyState = ss
+    except Exception:
+        pass
+
+
+def _wt_ja_is_marked_auto_move_v4d(state, player: str) -> bool:
+    try:
+        ss = dict(getattr(state, "synergyState", {}) or {})
+        return (
+            ss.get("_wtJaAutoMoveV4d") == player
+            and int(ss.get("_wtJaAutoTurnV4d", -999)) == int(getattr(state, "turn", 0) or 0)
+        )
+    except Exception:
+        return False
+
+
+def _wt_ja_clear_auto_mark_v4d(state) -> None:
+    try:
+        ss = dict(getattr(state, "synergyState", {}) or {})
+        ss.pop("_wtJaAutoMoveV4d", None)
+        ss.pop("_wtJaAutoTurnV4d", None)
+        state.synergyState = ss
+    except Exception:
+        pass
+
+
 try:
-    _wt_ja_choose_bot_move_before_v4c = choose_bot_move
+    _wt_ja_choose_bot_move_before_v4d = choose_bot_move
 
     def choose_bot_move(state):
         if globals().get("_LANG") != "ja":
-            return _wt_ja_choose_bot_move_before_v4c(state)
+            return _wt_ja_choose_bot_move_before_v4d(state)
 
         level = str(getattr(state, "botLevel", "normal") or "normal").lower()
         if level == "strong":
-            return _wt_ja_choose_bot_move_before_v4c(state)
+            return _wt_ja_choose_bot_move_before_v4d(state)
 
         player = getattr(state, "currentPlayer", "")
         used = set(getattr(state, "usedWords", []) or [])
 
-        # Cache warm-up: one-time only.
-        _wt_ja_curated_bot_words_v4c()
+        _wt_ja_curated_bot_words_v4d()
 
         try:
-            moves = _fast_bot_moves(state, max_len=5, max_results=36, excluded=used)
+            moves = _fast_bot_moves(state, max_len=4, max_results=40, excluded=used)
         except Exception:
             moves = []
 
@@ -5096,42 +5121,39 @@ try:
                 pass
 
         if not filtered:
-            return _wt_ja_choose_bot_move_before_v4c(state)
-
-        # 4文字以上があれば3文字語を避ける。
-        longish = [m for m in filtered if len(_norm_word(m.get("word", ""))) >= 4]
-        pool = longish if longish else filtered
+            return _wt_ja_choose_bot_move_before_v4d(state)
 
         scored = sorted(
-            [(_wt_ja_light_move_score_v4c(state, m, player), m) for m in pool],
+            [(_wt_ja_light_move_score_v4d(state, m, player), m) for m in filtered],
             key=lambda x: x[0],
             reverse=True,
         )
 
         if not scored:
-            return _wt_ja_choose_bot_move_before_v4c(state)
+            return _wt_ja_choose_bot_move_before_v4d(state)
 
-        lead = _wt_ja_lead_v4c(state, player)
+        lead = _wt_ja_lead_v4d(state, player)
 
         if level == "easy":
             if lead >= 8:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.62)))
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.72)))
             elif lead <= -8:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.34)))
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.38)))
             else:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.50)))
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.58)))
         else:
-            if lead >= 12:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.52)))
-            elif lead >= 8:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.44)))
+            if lead >= 10:
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.68)))
+            elif lead >= 6:
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.56)))
             elif lead <= -10:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.14)))
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.22)))
             elif lead <= -5:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.20)))
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.30)))
             else:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.26)))
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.42)))
 
+        _wt_ja_mark_auto_move_v4d(state, player)
         return scored[idx][1]
 
 except Exception:
@@ -5139,21 +5161,188 @@ except Exception:
 
 
 try:
-    _wt_ja_orig_candidate_quality_v4c = _candidate_move_quality
+    _wt_ja_validate_apply_before_v4d = validate_and_apply_move
+
+    def validate_and_apply_move(state, row, col, letter, path, advance_market_flag=True):
+        before = clone_state(state)
+        before_player = getattr(before, "currentPlayer", "")
+        before_lead = _wt_ja_lead_v4d(before, before_player)
+        marked_auto = _wt_ja_is_marked_auto_move_v4d(before, before_player)
+
+        after = _wt_ja_validate_apply_before_v4d(
+            state,
+            row,
+            col,
+            letter,
+            path,
+            advance_market_flag=advance_market_flag,
+        )
+
+        try:
+            if globals().get("_LANG") != "ja":
+                return after
+
+            # Human manual moves are not capped.
+            if not marked_auto:
+                return after
+
+            _wt_ja_clear_auto_mark_v4d(after)
+
+            if not getattr(after, "moveHistory", None):
+                return after
+
+            last = after.moveHistory[-1]
+            word = _norm_word(getattr(last, "word", ""))
+            n = len(word)
+
+            terr = int(getattr(last, "territoryGained", 0) or 0)
+            cap_count = int(getattr(last, "captureCount", 0) or 0)
+            lock_count = int(getattr(last, "fortifiedCellsGained", 0) or 0)
+
+            terr_cap = 5
+            capture_cap = 1
+            lock_cap = 2
+
+            if before_lead >= 10:
+                terr_cap = 3
+                capture_cap = 0
+                lock_cap = 1
+            elif before_lead >= 6:
+                terr_cap = 4
+                capture_cap = 1
+                lock_cap = 1
+
+            if n >= 5:
+                terr_cap = min(terr_cap, 4)
+            if n <= 3:
+                lock_cap = min(lock_cap, 1)
+
+            try:
+                if int(getattr(before, "turn", 0) or 0) <= 8:
+                    terr_cap = min(terr_cap, 4)
+                    capture_cap = min(capture_cap, 1)
+                    lock_cap = min(lock_cap, 1)
+            except Exception:
+                pass
+
+            if terr <= terr_cap and cap_count <= capture_cap and lock_count <= lock_cap:
+                return after
+
+            removed = 0
+            removed_capture = 0
+            removed_locks = 0
+
+            path_cells = set()
+            try:
+                path_cells = {(p.row, p.col) for p in getattr(last, "path", []) or []}
+            except Exception:
+                path_cells = set()
+
+            opponent = other_player(before_player)
+
+            # 1) Reduce excess captured opponent cells.
+            captured_cells = []
+            for rr in range(BOARD_SIZE):
+                for cc in range(BOARD_SIZE):
+                    try:
+                        if before.board[rr][cc].owner == opponent and after.board[rr][cc].owner == before_player and not after.board[rr][cc].fortified:
+                            captured_cells.append((rr, cc))
+                    except Exception:
+                        pass
+
+            if len(captured_cells) > capture_cap:
+                for rr, cc in captured_cells[capture_cap:]:
+                    after.board[rr][cc].owner = None
+                    after.board[rr][cc].fortified = False
+                    removed += 1
+                    removed_capture += 1
+
+            # 2) Reduce excess new locks.
+            new_locks = []
+            for rr in range(BOARD_SIZE):
+                for cc in range(BOARD_SIZE):
+                    try:
+                        if not before.board[rr][cc].fortified and after.board[rr][cc].fortified and after.board[rr][cc].owner == before_player:
+                            dist = abs(rr - int(row)) + abs(cc - int(col))
+                            new_locks.append((dist, rr, cc))
+                    except Exception:
+                        pass
+
+            if len(new_locks) > lock_cap:
+                new_locks.sort(reverse=True)
+                for _, rr, cc in new_locks[lock_cap:]:
+                    after.board[rr][cc].fortified = False
+                    removed_locks += 1
+
+            # 3) Trim excess non-path territory.
+            if terr - removed > terr_cap:
+                need = (terr - removed) - terr_cap
+                candidates = []
+
+                for rr in range(BOARD_SIZE):
+                    for cc in range(BOARD_SIZE):
+                        try:
+                            if (rr, cc) in path_cells:
+                                continue
+                            if before.board[rr][cc].owner != before_player and after.board[rr][cc].owner == before_player and not after.board[rr][cc].fortified:
+                                enemy_before = 1 if before.board[rr][cc].owner == opponent else 0
+                                dist = abs(rr - int(row)) + abs(cc - int(col))
+                                candidates.append((enemy_before, dist, rr, cc))
+                        except Exception:
+                            pass
+
+                candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+                for _, _, rr, cc in candidates[:need]:
+                    if after.board[rr][cc].owner == before_player:
+                        after.board[rr][cc].owner = None
+                        after.board[rr][cc].fortified = False
+                        removed += 1
+
+            if removed or removed_locks:
+                try:
+                    last.territoryGained = max(0, terr - removed)
+                    last.captureCount = max(0, cap_count - removed_capture)
+                    last.fortifiedCellsGained = max(0, lock_count - removed_locks)
+                    if last.comboLabels is None:
+                        last.comboLabels = []
+                    if "Bot調整" not in last.comboLabels:
+                        last.comboLabels.append("Bot調整")
+                    if "大領地" in last.comboLabels and last.territoryGained < 6:
+                        last.comboLabels = [x for x in last.comboLabels if x != "大領地"]
+                    if "大奪取" in last.comboLabels and last.captureCount < 2:
+                        last.comboLabels = [x for x in last.comboLabels if x != "大奪取"]
+                    if "連続ロック" in last.comboLabels and last.fortifiedCellsGained < 2:
+                        last.comboLabels = [x for x in last.comboLabels if x != "連続ロック"]
+                except Exception:
+                    pass
+
+                recalc_scores(after)
+
+            return after
+        except Exception:
+            return after
+
+except Exception:
+    pass
+
+
+try:
+    _wt_ja_orig_candidate_quality_v4d = _candidate_move_quality
 
     def _candidate_move_quality(move):
-        val = _wt_ja_orig_candidate_quality_v4c(move)
+        val = _wt_ja_orig_candidate_quality_v4d(move)
         try:
             if globals().get("_LANG") != "ja":
                 return val
             w = _norm_word(move.get("word", ""))
             n = len(w)
             if n == 3:
-                val -= 2.0
+                val -= 0.6
             elif n == 4:
-                val += 4.5
+                val += 1.9
             elif n == 5:
-                val += 1.4
+                val -= 0.7
             elif n >= 6:
                 val -= 5.0
             return val
@@ -5162,4 +5351,4 @@ try:
 
 except Exception:
     pass
-# WT_JA_BOT_SYMMETRIC_4KANA_CACHED_V4C_END
+# WT_JA_BOT_BALANCED_4KANA_CAP_V4D_END
