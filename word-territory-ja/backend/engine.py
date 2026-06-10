@@ -4920,12 +4920,78 @@ except Exception:
     pass
 # END WT_JA_SAFE_BOT_TUNING_V2
 
-# WT_JA_BOT_ANTIBLOWOUT_BALANCE_V2_BEGIN
-# Public beta balance v2:
-# Normal/Easy Bot must not snowball after it is already ahead.
-# Strong Bot remains strong for testing.
+# WT_JA_BOT_SYMMETRIC_4KANA_CACHED_V4C_BEGIN
+# JP public-beta Bot balance v4c:
+# - Fixes v4b freeze by caching the curated UI dictionary.
+# - No per-candidate full dictionary normalization.
+# - Keeps symmetric RED/BLUE auto-move scoring for balance tests.
+# - Human manual dictionary remains broad.
+# - Strong Bot remains unchanged.
 
-def _wt_ja_score_total_v2(state, player: str) -> float:
+_WT_JA_CURATED_BOT_WORDS_V4C_CACHE = None
+
+
+def _wt_ja_curated_bot_words_v4c():
+    global _WT_JA_CURATED_BOT_WORDS_V4C_CACHE
+
+    if _WT_JA_CURATED_BOT_WORDS_V4C_CACHE is not None:
+        return _WT_JA_CURATED_BOT_WORDS_V4C_CACHE
+
+    words = set()
+
+    try:
+        src = get_ui_words()
+    except Exception:
+        src = []
+
+    for w in src:
+        try:
+            raw = str(w or "").strip()
+            if not raw:
+                continue
+            nw = _norm_word(raw)
+            if not nw:
+                continue
+            if 3 <= len(nw) <= min(_WORD_MAX, 6):
+                words.add(nw)
+        except Exception:
+            continue
+
+    _WT_JA_CURATED_BOT_WORDS_V4C_CACHE = words
+    return words
+
+
+try:
+    _wt_ja_orig_is_bot_word_v4c = _is_bot_word
+
+    def _is_bot_word(word: str) -> bool:
+        w = _norm_word(word)
+        if not w:
+            return False
+
+        if globals().get("_LANG") != "ja":
+            return _wt_ja_orig_is_bot_word_v4c(word)
+
+        if len(w) < _WORD_MIN or len(w) > _WORD_MAX:
+            return False
+
+        if w in globals().get("_JP_BOT_HARD_EXCLUDE", set()):
+            return False
+
+        ui_words = _wt_ja_curated_bot_words_v4c()
+        if ui_words:
+            return w in ui_words
+
+        try:
+            return dict_is_ui_word(w)
+        except Exception:
+            return is_valid_word(w)
+
+except Exception:
+    pass
+
+
+def _wt_ja_total_v4c(state, player: str) -> float:
     try:
         return float(total_score(state, player))
     except Exception:
@@ -4937,129 +5003,83 @@ def _wt_ja_score_total_v2(state, player: str) -> float:
             return 0.0
 
 
-def _wt_ja_player_lead_v2(state, player: str) -> float:
+def _wt_ja_lead_v4c(state, player: str) -> float:
     try:
-        opp = other_player(player)
-        return _wt_ja_score_total_v2(state, player) - _wt_ja_score_total_v2(state, opp)
+        return _wt_ja_total_v4c(state, player) - _wt_ja_total_v4c(state, other_player(player))
     except Exception:
         return 0.0
 
 
-def _wt_ja_bot_is_public_v2(state, player: str) -> bool:
-    try:
-        if globals().get("_LANG") != "ja":
-            return False
-        if player != getattr(state, "botPlayer", "BLUE"):
-            return False
-        level = str(getattr(state, "botLevel", "normal") or "normal").lower()
-        return level != "strong"
-    except Exception:
-        return False
-
-
-def _wt_ja_move_public_score_v2(state, move, player: str) -> float:
-    """Score Bot moves for public-beta Normal/Easy play.
-
-    Higher is better, but once Bot is ahead, capture/bridge/long-word snowballs
-    receive heavy penalties.
-    """
+def _wt_ja_light_move_score_v4c(state, move, player: str) -> float:
     try:
         word = _norm_word(move.get("word", ""))
         n = len(word)
-        lead = _wt_ja_player_lead_v2(state, player)
-
-        ns = simulate_move(state, move)
-        last = ns.moveHistory[-1]
-        labels = set(last.comboLabels or [])
-
-        terr = int(getattr(last, "territoryGained", 0) or 0)
-        cap = int(getattr(last, "captureCount", 0) or 0)
-        lock = int(getattr(last, "fortifiedCellsGained", 0) or 0)
+        terr = int(move.get("territory_gain", 0) or 0)
+        path_len = len(move.get("path", []) or [])
+        lead = _wt_ja_lead_v4c(state, player)
 
         score = 0.0
 
-        # Basic language play: still make words, but do not always maximize.
-        score += word_score(word) * 0.45
-        score += min(4, n) * 0.25
+        score += word_score(word) * 0.70
+        score += min(5, path_len) * 0.35
+        score += min(5, terr) * 0.35
 
-        # Territory is useful, but weaker than before.
-        score += min(4, terr) * 0.30
-
-        # Prefer readable 3-4 kana words in public Normal Bot.
+        # 4かなを主軸にする。3かな偏重を抑える。
         if n == 3:
-            score += 0.7
+            score -= 2.2
         elif n == 4:
-            score += 0.9
+            score += 5.0
         elif n == 5:
-            score -= 3.5
+            score += 2.0
         elif n >= 6:
-            score -= 6.5
+            score -= 5.5
+        elif n <= 2:
+            score -= 12.0
 
-        # Captures and tactical labels are exciting but cause blowouts.
-        score -= cap * 4.0
-        score -= lock * 0.9
+        # リード中の雪だるま抑制。
+        if lead >= 12:
+            score -= max(0, terr - 3) * 3.0
+            score -= max(0, n - 4) * 3.5
+        elif lead >= 8:
+            score -= max(0, terr - 4) * 2.0
+            score -= max(0, n - 4) * 2.2
+        elif lead >= 4:
+            score -= max(0, terr - 5) * 1.0
 
-        if "大奪取" in labels:
-            score -= 4.5
-        if "橋渡し" in labels:
-            score -= 3.5
-        if "分断" in labels:
-            score -= 3.5
-        if "大領地" in labels:
-            score -= 3.0
-        if "連続ロック" in labels:
-            score -= 2.0
-        if "領地変動" in labels:
-            score -= 2.0
-
-        # Anti-blowout:
-        # If Bot is already leading, it should choose quieter valid moves.
-        if lead >= 10:
-            score -= max(0, terr - 2) * 3.2
-            score -= cap * 8.0
-            score -= max(0, n - 4) * 4.0
-            if "橋渡し" in labels or "分断" in labels:
-                score -= 6.0
-        elif lead >= 6:
-            score -= max(0, terr - 3) * 2.4
-            score -= cap * 6.0
-            score -= max(0, n - 4) * 3.0
-        elif lead >= 3:
-            score -= max(0, terr - 4) * 1.5
-            score -= cap * 3.5
-            score -= max(0, n - 5) * 2.0
-
-        # If Bot is behind, allow moderate comeback but still avoid wipeout.
-        if lead <= -8:
-            score += min(3.0, terr * 0.35)
-            if cap <= 1:
+        # 劣勢時は少しだけ戻す。
+        if lead <= -10:
+            score += min(4.5, terr * 0.55)
+            if n == 4:
                 score += 1.0
-            if n >= 6:
-                score -= 2.0
+        elif lead <= -5:
+            score += min(2.8, terr * 0.35)
+            if n == 4:
+                score += 0.6
 
         return score
     except Exception:
-        try:
-            return word_score(move.get("word", "")) * 0.2
-        except Exception:
-            return 0.0
+        return 0.0
 
 
 try:
-    _wt_ja_choose_bot_move_before_antiblowout_v2 = choose_bot_move
+    _wt_ja_choose_bot_move_before_v4c = choose_bot_move
 
     def choose_bot_move(state):
         if globals().get("_LANG") != "ja":
-            return _wt_ja_choose_bot_move_before_antiblowout_v2(state)
+            return _wt_ja_choose_bot_move_before_v4c(state)
+
+        level = str(getattr(state, "botLevel", "normal") or "normal").lower()
+        if level == "strong":
+            return _wt_ja_choose_bot_move_before_v4c(state)
 
         player = getattr(state, "currentPlayer", "")
-        if not _wt_ja_bot_is_public_v2(state, player):
-            return _wt_ja_choose_bot_move_before_antiblowout_v2(state)
-
         used = set(getattr(state, "usedWords", []) or [])
 
+        # Cache warm-up: one-time only.
+        _wt_ja_curated_bot_words_v4c()
+
         try:
-            moves = _fast_bot_moves(state, max_len=4, max_results=44, excluded=used)
+            moves = _fast_bot_moves(state, max_len=5, max_results=36, excluded=used)
         except Exception:
             moves = []
 
@@ -5076,38 +5096,41 @@ try:
                 pass
 
         if not filtered:
-            return _wt_ja_choose_bot_move_before_antiblowout_v2(state)
+            return _wt_ja_choose_bot_move_before_v4c(state)
+
+        # 4文字以上があれば3文字語を避ける。
+        longish = [m for m in filtered if len(_norm_word(m.get("word", ""))) >= 4]
+        pool = longish if longish else filtered
 
         scored = sorted(
-            [(_wt_ja_move_public_score_v2(state, m, player), m) for m in filtered],
+            [(_wt_ja_light_move_score_v4c(state, m, player), m) for m in pool],
             key=lambda x: x[0],
             reverse=True,
         )
 
         if not scored:
-            return _wt_ja_choose_bot_move_before_antiblowout_v2(state)
+            return _wt_ja_choose_bot_move_before_v4c(state)
 
-        lead = _wt_ja_player_lead_v2(state, player)
-        level = str(getattr(state, "botLevel", "normal") or "normal").lower()
+        lead = _wt_ja_lead_v4c(state, player)
 
-        # Choose from different bands.
-        # Strong is excluded above. Easy is intentionally weaker.
         if level == "easy":
-            if lead >= 6:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.78)))
-            elif lead <= -8:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.45)))
-            else:
+            if lead >= 8:
                 idx = min(len(scored) - 1, max(0, int(len(scored) * 0.62)))
-        else:
-            if lead >= 10:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.72)))
-            elif lead >= 6:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.60)))
             elif lead <= -8:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.28)))
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.34)))
             else:
-                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.45)))
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.50)))
+        else:
+            if lead >= 12:
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.52)))
+            elif lead >= 8:
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.44)))
+            elif lead <= -10:
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.14)))
+            elif lead <= -5:
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.20)))
+            else:
+                idx = min(len(scored) - 1, max(0, int(len(scored) * 0.26)))
 
         return scored[idx][1]
 
@@ -5116,144 +5139,27 @@ except Exception:
 
 
 try:
-    _wt_ja_validate_apply_before_antiblowout_v2 = validate_and_apply_move
+    _wt_ja_orig_candidate_quality_v4c = _candidate_move_quality
 
-    def validate_and_apply_move(state, row, col, letter, path, advance_market_flag=True):
-        before = clone_state(state)
-        before_player = getattr(before, "currentPlayer", "")
-        before_level = str(getattr(before, "botLevel", "normal") or "normal").lower()
-        before_lead = _wt_ja_player_lead_v2(before, before_player)
-
-        after = _wt_ja_validate_apply_before_antiblowout_v2(
-            state,
-            row,
-            col,
-            letter,
-            path,
-            advance_market_flag=advance_market_flag,
-        )
-
+    def _candidate_move_quality(move):
+        val = _wt_ja_orig_candidate_quality_v4c(move)
         try:
             if globals().get("_LANG") != "ja":
-                return after
-            if before_level == "strong":
-                return after
-            if not _wt_ja_bot_is_public_v2(before, before_player):
-                return after
-            if not getattr(after, "moveHistory", None):
-                return after
-
-            last = after.moveHistory[-1]
-            word = _norm_word(getattr(last, "word", ""))
-            n = len(word)
-            terr = int(getattr(last, "territoryGained", 0) or 0)
-            cap_count = int(getattr(last, "captureCount", 0) or 0)
-
-            # Dynamic caps based on Bot lead.
-            terr_cap = 6
-            capture_cap = 2
-
-            if before_lead >= 10:
-                terr_cap = 3
-                capture_cap = 0
-            elif before_lead >= 6:
-                terr_cap = 4
-                capture_cap = 1
-            elif before_lead >= 3:
-                terr_cap = 5
-                capture_cap = 1
-
-            # Long words by Bot should not become automatic blowouts.
-            if n >= 6:
-                terr_cap = min(terr_cap, 4)
+                return val
+            w = _norm_word(move.get("word", ""))
+            n = len(w)
+            if n == 3:
+                val -= 2.0
+            elif n == 4:
+                val += 4.5
             elif n == 5:
-                terr_cap = min(terr_cap, 5)
-
-            # Opening snowball control.
-            try:
-                if int(getattr(before, "turn", 0) or 0) <= 8:
-                    terr_cap = min(terr_cap, 4)
-                    capture_cap = min(capture_cap, 1)
-            except Exception:
-                pass
-
-            removed = 0
-            removed_capture = 0
-
-            path_cells = set()
-            try:
-                path_cells = {(p.row, p.col) for p in getattr(last, "path", []) or []}
-            except Exception:
-                path_cells = set()
-
-            human = other_player(before_player)
-
-            # First neutralize excess captured human cells if Bot is ahead.
-            captured_cells = []
-            for rr in range(BOARD_SIZE):
-                for cc in range(BOARD_SIZE):
-                    try:
-                        b_owner = before.board[rr][cc].owner
-                        a_cell = after.board[rr][cc]
-                        if b_owner == human and a_cell.owner == before_player and not a_cell.fortified:
-                            captured_cells.append((rr, cc))
-                    except Exception:
-                        pass
-
-            if len(captured_cells) > capture_cap:
-                for rr, cc in captured_cells[capture_cap:]:
-                    after.board[rr][cc].owner = None
-                    removed += 1
-                    removed_capture += 1
-
-            # Then trim excess non-path territory.
-            if terr - removed > terr_cap:
-                need = (terr - removed) - terr_cap
-                candidates = []
-
-                for rr in range(BOARD_SIZE):
-                    for cc in range(BOARD_SIZE):
-                        try:
-                            if (rr, cc) in path_cells:
-                                continue
-                            b_owner = before.board[rr][cc].owner
-                            a_cell = after.board[rr][cc]
-                            if b_owner != before_player and a_cell.owner == before_player and not a_cell.fortified:
-                                dist = abs(rr - int(row)) + abs(cc - int(col))
-                                enemy_before = 1 if b_owner == human else 0
-                                candidates.append((enemy_before, dist, rr, cc))
-                        except Exception:
-                            pass
-
-                # Trim captured cells first, then far peripheral cells.
-                candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
-
-                for _, _, rr, cc in candidates[:need]:
-                    if after.board[rr][cc].owner == before_player:
-                        after.board[rr][cc].owner = None
-                        removed += 1
-
-            if removed:
-                try:
-                    last.territoryGained = max(0, terr - removed)
-                    last.captureCount = max(0, cap_count - removed_capture)
-                    if last.comboLabels is None:
-                        last.comboLabels = []
-                    if "Bot手加減" not in last.comboLabels:
-                        last.comboLabels.append("Bot手加減")
-                    if "大領地" in last.comboLabels and last.territoryGained < 6:
-                        last.comboLabels = [x for x in last.comboLabels if x != "大領地"]
-                    if "大奪取" in last.comboLabels and last.captureCount < 2:
-                        last.comboLabels = [x for x in last.comboLabels if x != "大奪取"]
-                except Exception:
-                    pass
-
-                recalc_scores(after)
-
-            return after
+                val += 1.4
+            elif n >= 6:
+                val -= 5.0
+            return val
         except Exception:
-            return after
+            return val
 
 except Exception:
     pass
-# WT_JA_BOT_ANTIBLOWOUT_BALANCE_V2_END
+# WT_JA_BOT_SYMMETRIC_4KANA_CACHED_V4C_END
