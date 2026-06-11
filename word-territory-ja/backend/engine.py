@@ -5379,15 +5379,16 @@ def decide_winner(state):
     return "DRAW"
 # WT_JA_SECOND_PLAYER_KOMI4_V1_END
 
-# WT_JA_ALLOW_2LETTER_DAZI_PREVIEW_COMPAT_V1_BEGIN
-# Japanese public-beta rule:
+# WT_JA_DAZI_COUNTER_AND_2LETTER_COMPAT_V1_BEGIN
+# Japanese public beta compatibility:
 # - 2-letter words are legal.
-# - 2-letter words are weak: existing engine caps their territory and prevents short-word LOCKs.
-# - preview_move must use _WORD_MIN/_WORD_MAX, not hard-coded 3..6.
-# - validate_and_apply_move accepts dazi safely even if an intermediate wrapper does not.
+# - 2-letter words stay weak through existing capture cap / short-lock suppression.
+# - Dazi uses are synchronized across synergyState and public daziUses.
+# - preview_move uses _WORD_MIN/_WORD_MAX instead of hard-coded 3..6.
+# - validate_and_apply_move accepts dazi safely across wrapper versions.
 
 try:
-    import inspect as _wt_ja_inspect_2letter_v1
+    import inspect as _wt_ja_inspect_dazi_v1
 
     if globals().get("_LANG") == "ja":
         try:
@@ -5395,21 +5396,68 @@ try:
         except Exception:
             _WORD_MIN = 2
 
-    _wt_ja_base_validate_2letter_v1 = validate_and_apply_move
-    _wt_ja_base_validate_params_2letter_v1 = set(
-        _wt_ja_inspect_2letter_v1.signature(_wt_ja_base_validate_2letter_v1).parameters.keys()
+    def _wt_ja_dazi_key_v1(player: str) -> str:
+        return f"_daziUses_{player}"
+
+    def _wt_ja_read_dazi_public_v1(state, player: str) -> int:
+        try:
+            ss = getattr(state, "synergyState", {}) or {}
+            val = int(ss.get(_wt_ja_dazi_key_v1(player), 0) or 0)
+        except Exception:
+            val = 0
+
+        try:
+            dm = getattr(state, "daziUses", {}) or {}
+            if isinstance(dm, dict):
+                val = max(val, int(dm.get(player, dm.get(player.lower(), 0)) or 0))
+            else:
+                val = max(val, int(getattr(dm, player, getattr(dm, player.lower(), 0)) or 0))
+        except Exception:
+            pass
+
+        return max(0, min(2, val))
+
+    def _wt_ja_sync_dazi_public_v1(state):
+        try:
+            ss = dict(getattr(state, "synergyState", {}) or {})
+            red = _wt_ja_read_dazi_public_v1(state, "RED")
+            blue = _wt_ja_read_dazi_public_v1(state, "BLUE")
+            ss[_wt_ja_dazi_key_v1("RED")] = red
+            ss[_wt_ja_dazi_key_v1("BLUE")] = blue
+            state.synergyState = ss
+            try:
+                state.daziUses = {"RED": red, "BLUE": blue}
+            except Exception:
+                pass
+        except Exception:
+            pass
+        return state
+
+    _wt_ja_base_validate_dazi_v1 = validate_and_apply_move
+    _wt_ja_base_validate_params_dazi_v1 = set(
+        _wt_ja_inspect_dazi_v1.signature(_wt_ja_base_validate_dazi_v1).parameters.keys()
     )
 
-    def _wt_ja_call_validate_2letter_v1(state, row, col, letter, path, advance_market_flag=False, dazi=False):
+    def _wt_ja_call_validate_dazi_v1(state, row, col, letter, path, advance_market_flag=False, dazi=False):
         kwargs = {}
-        if "advance_market_flag" in _wt_ja_base_validate_params_2letter_v1:
+        if "advance_market_flag" in _wt_ja_base_validate_params_dazi_v1:
             kwargs["advance_market_flag"] = advance_market_flag
-        if "dazi" in _wt_ja_base_validate_params_2letter_v1:
+        if "dazi" in _wt_ja_base_validate_params_dazi_v1:
             kwargs["dazi"] = dazi
-        return _wt_ja_base_validate_2letter_v1(state, row, col, letter, path, **kwargs)
+
+        out = _wt_ja_base_validate_dazi_v1(state, row, col, letter, path, **kwargs)
+
+        # If this was a dazi-style word move and the underlying code stored it
+        # in daziUses only, mirror it into synergyState for the UI.
+        try:
+            out = _wt_ja_sync_dazi_public_v1(out)
+        except Exception:
+            pass
+
+        return out
 
     def validate_and_apply_move(state, row, col, letter, path, advance_market_flag=False, dazi=False):
-        return _wt_ja_call_validate_2letter_v1(
+        return _wt_ja_call_validate_dazi_v1(
             state,
             row,
             col,
@@ -5419,7 +5467,14 @@ try:
             dazi=dazi,
         )
 
-    _wt_ja_base_preview_move_2letter_v1 = preview_move
+    if "apply_dazi_move" in globals():
+        _wt_ja_base_apply_dazi_v1 = apply_dazi_move
+
+        def apply_dazi_move(state, path):
+            out = _wt_ja_base_apply_dazi_v1(state, path)
+            return _wt_ja_sync_dazi_public_v1(out)
+
+    _wt_ja_base_preview_dazi_v1 = preview_move
 
     def preview_move(state, row: int, col: int, letter: str, path):
         try:
@@ -5449,6 +5504,18 @@ try:
         except Exception as exc:
             return PreviewMoveResponse(errorMessage=str(exc))
 
+    # Ensure newly created / advanced states expose a stable public dazi counter.
+    for _wt_name in ["build_initial_state", "apply_seed_move", "pass_turn", "apply_bot_move"]:
+        _fn = globals().get(_wt_name)
+        if callable(_fn) and not getattr(_fn, "_wt_dazi_sync_wrapped_v1", False):
+            def _make_wrap(fn):
+                def _wrapped(*args, **kwargs):
+                    return _wt_ja_sync_dazi_public_v1(fn(*args, **kwargs))
+                _wrapped.__name__ = getattr(fn, "__name__", "wrapped")
+                _wrapped._wt_dazi_sync_wrapped_v1 = True
+                return _wrapped
+            globals()[_wt_name] = _make_wrap(_fn)
+
 except Exception:
     pass
-# WT_JA_ALLOW_2LETTER_DAZI_PREVIEW_COMPAT_V1_END
+# WT_JA_DAZI_COUNTER_AND_2LETTER_COMPAT_V1_END

@@ -4652,90 +4652,150 @@ async function submitScore() {
 })();
 // WT_JA_SUPPRESS_STALE_INTERNAL_ERROR_V1_END
 
-// WT_JA_ALLOW_2LETTER_PAYLOAD_NORMALIZER_V2_BEGIN
-// Japanese rule correction:
-// 2-letter words are legal. This only fixes malformed/nested payloads and
-// learned candidate paths. It never blocks 2-letter moves.
+// WT_JA_FREE_KANA_AND_DAZI_SYNC_V1_BEGIN
+// Japanese public-beta safety:
+// - Free / USE kana input must accept all hiragana, not only vowels.
+// - Dazi counter fields are normalized from synergyState into daziUses.
+// - This does not change scoring, bot logic, or backend rules.
 
 (() => {
   if (typeof window === "undefined") return;
-  if (window.__WT_JA_ALLOW_2LETTER_PAYLOAD_NORMALIZER_V2__) return;
-  window.__WT_JA_ALLOW_2LETTER_PAYLOAD_NORMALIZER_V2__ = true;
+  if (window.__WT_JA_FREE_KANA_AND_DAZI_SYNC_V1__) return;
+  window.__WT_JA_FREE_KANA_AND_DAZI_SYNC_V1__ = true;
+
+  const KANA_RE = /[\u3041-\u3096ー]/;
+  const KANA_ALL = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ";
+
+  const firstKana = (v) => {
+    for (const ch of Array.from(String(v || ""))) {
+      if (KANA_RE.test(ch)) return ch;
+    }
+    return "";
+  };
+
+  const normalizeDazi = (obj) => {
+    if (!obj || typeof obj !== "object") return obj;
+
+    const ss = obj.synergyState || {};
+    const old = obj.daziUses || {};
+
+    const red = Math.max(
+      Number(ss._daziUses_RED || ss["_daziUses_RED"] || 0),
+      Number(old.RED || old.red || 0)
+    );
+
+    const blue = Math.max(
+      Number(ss._daziUses_BLUE || ss["_daziUses_BLUE"] || 0),
+      Number(old.BLUE || old.blue || 0)
+    );
+
+    obj.daziUses = { RED: red, BLUE: blue };
+
+    if (obj.state && typeof obj.state === "object") normalizeDazi(obj.state);
+    if (obj.game && typeof obj.game === "object") normalizeDazi(obj.game);
+
+    return obj;
+  };
+
+  // Capture-phase input normalizer for Free / USE inputs.
+  document.addEventListener("input", (ev) => {
+    const el = ev && ev.target;
+    if (!el || !("value" in el)) return;
+
+    const meta = [
+      el.name || "",
+      el.id || "",
+      el.placeholder || "",
+      el.getAttribute && (el.getAttribute("aria-label") || ""),
+      el.closest && el.closest("button,div,section,form")?.textContent || "",
+    ].join(" ");
+
+    if (!/自由|USE|Free|Wild|ワイルド|任意/.test(meta)) return;
+
+    const k = firstKana(el.value);
+    if (k && el.value !== k) {
+      el.value = k;
+    }
+  }, true);
+
+  // In case the free-letter UI uses fixed English vowel buttons, add a compact kana picker.
+  const installKanaPicker = () => {
+    try {
+      if (document.getElementById("wt-ja-free-kana-picker-v1")) return;
+
+      const text = document.body ? document.body.textContent || "" : "";
+      if (!/自由|USE|Free|Wild|ワイルド|任意/.test(text)) return;
+
+      const host = Array.from(document.querySelectorAll("div,section,form"))
+        .find(x => /自由|USE|Free|Wild|ワイルド|任意/.test(x.textContent || ""));
+
+      if (!host) return;
+
+      const box = document.createElement("div");
+      box.id = "wt-ja-free-kana-picker-v1";
+      box.style.display = "flex";
+      box.style.flexWrap = "wrap";
+      box.style.gap = "4px";
+      box.style.marginTop = "6px";
+      box.style.maxWidth = "480px";
+
+      for (const ch of Array.from(KANA_ALL)) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = ch;
+        b.style.fontSize = "12px";
+        b.style.padding = "3px 6px";
+        b.style.border = "1px solid #ddd";
+        b.style.borderRadius = "6px";
+        b.style.background = "#fff";
+
+        b.addEventListener("click", () => {
+          const input = host.querySelector("input,textarea");
+          if (input) {
+            input.value = ch;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+
+          // Also expose the choice for any existing click handler that reads window state.
+          window.__WT_JA_FREE_KANA_SELECTED__ = ch;
+        });
+
+        box.appendChild(b);
+      }
+
+      host.appendChild(box);
+    } catch (_) {}
+  };
 
   const originalFetch = window.fetch.bind(window);
-  const learnedPathByCell = new Map();
-
-  const parseJson = (s) => {
-    try { return JSON.parse(s); } catch (_) { return null; }
-  };
-
-  const keyOf = (row, col, letter) => `${row}:${col}:${letter || ""}`;
-
-  const isLetterPreviewUrl = (url) =>
-    typeof url === "string" && url.includes("/letter-preview/");
-
-  const isMoveUrl = (url) =>
-    typeof url === "string" && (url.includes("/move") || url.includes("/preview-move"));
-
-  const normalizePayload = (body) => {
-    if (!body || typeof body !== "object") return body;
-
-    let row = body.row;
-    let col = body.col;
-    let letter = body.letter;
-    let path = Array.isArray(body.path) ? body.path : [];
-
-    if (row && typeof row === "object") {
-      const candidate = row;
-      row = candidate.row;
-      col = candidate.col;
-      letter = candidate.letter || letter;
-      if ((!path || path.length === 0) && Array.isArray(candidate.path)) {
-        path = candidate.path;
-      }
-    }
-
-    const learned = learnedPathByCell.get(keyOf(row, col, letter));
-    if (learned && learned.length >= 2 && (!Array.isArray(path) || path.length < learned.length)) {
-      path = learned;
-    }
-
-    return { ...body, row, col, letter, path: Array.isArray(path) ? path : [] };
-  };
 
   window.fetch = async (input, init = {}) => {
-    const url = typeof input === "string" ? input : input && input.url;
-
-    if (isMoveUrl(url) && init && typeof init.body === "string") {
-      const parsed = parseJson(init.body);
-      const normalized = normalizePayload(parsed);
-      if (normalized && normalized.letter) {
-        init = { ...init, body: JSON.stringify(normalized) };
-      }
-    }
-
     const response = await originalFetch(input, init);
 
-    if (isLetterPreviewUrl(url)) {
-      try {
+    try {
+      const url = typeof input === "string" ? input : input && input.url;
+      if (typeof url === "string" && /\/games|\/move|\/dazi|\/disarm/.test(url)) {
         const data = await response.clone().json();
-        const moves = Array.isArray(data && data.moves) ? data.moves : [];
-        for (const m of moves) {
-          if (
-            m &&
-            Number.isInteger(m.row) &&
-            Number.isInteger(m.col) &&
-            m.letter &&
-            Array.isArray(m.path) &&
-            m.path.length >= 2
-          ) {
-            learnedPathByCell.set(keyOf(m.row, m.col, m.letter), m.path);
-          }
-        }
-      } catch (_) {}
-    }
+        normalizeDazi(data);
+        return new Response(JSON.stringify(data), {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        });
+      }
+    } catch (_) {}
 
     return response;
   };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", installKanaPicker, { once: true });
+  } else {
+    installKanaPicker();
+  }
+
+  window.setTimeout(installKanaPicker, 500);
+  window.setTimeout(installKanaPicker, 1500);
 })();
-// WT_JA_ALLOW_2LETTER_PAYLOAD_NORMALIZER_V2_END
+// WT_JA_FREE_KANA_AND_DAZI_SYNC_V1_END
