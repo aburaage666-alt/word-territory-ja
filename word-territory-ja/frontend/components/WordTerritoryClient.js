@@ -4651,3 +4651,119 @@ async function submitScore() {
   }
 })();
 // WT_JA_SUPPRESS_STALE_INTERNAL_ERROR_V1_END
+
+// WT_JA_NORMALIZE_MOVE_PAYLOAD_V1_BEGIN
+// Public emergency patch:
+// The UI can preview a valid candidate path but later send a shortened or nested
+// payload to /preview-move or /move. This client-side fetch guard normalizes the
+// request body before it reaches the backend.
+// It does not change game rules, scoring, bot logic, or backend state.
+
+(() => {
+  if (typeof window === "undefined") return;
+  if (window.__WT_JA_NORMALIZE_MOVE_PAYLOAD_V1__) return;
+  window.__WT_JA_NORMALIZE_MOVE_PAYLOAD_V1__ = true;
+
+  const originalFetch = window.fetch.bind(window);
+  const previewPathByCell = new Map();
+
+  const safeJsonParse = (text) => {
+    try {
+      return JSON.parse(text);
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const cellKey = (row, col, letter) => `${row}:${col}:${letter || ""}`;
+
+  const isMoveUrl = (url) =>
+    typeof url === "string" &&
+    (url.includes("/preview-move") || url.includes("/move"));
+
+  const isLetterPreviewUrl = (url) =>
+    typeof url === "string" && url.includes("/letter-preview/");
+
+  const normalizeMoveBody = (body) => {
+    if (!body || typeof body !== "object") return body;
+
+    let row = body.row;
+    let col = body.col;
+    let letter = body.letter;
+    let path = Array.isArray(body.path) ? body.path : [];
+
+    // Some preview calls accidentally pass the whole candidate as row.
+    if (row && typeof row === "object") {
+      const candidate = row;
+      row = candidate.row;
+      col = candidate.col;
+      letter = candidate.letter || letter;
+      if ((!path || path.length === 0) && Array.isArray(candidate.path)) {
+        path = candidate.path;
+      }
+    }
+
+    const key = cellKey(row, col, letter);
+    const cached = previewPathByCell.get(key);
+
+    // If the path is too short for a legal Japanese word, prefer the full
+    // candidate path learned from /letter-preview.
+    if (cached && Array.isArray(cached) && cached.length >= 3) {
+      if (!Array.isArray(path) || path.length < 3) {
+        path = cached;
+      }
+    }
+
+    return {
+      ...body,
+      row,
+      col,
+      letter,
+      path: Array.isArray(path) ? path : [],
+    };
+  };
+
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === "string" ? input : input && input.url;
+
+    if (isMoveUrl(url) && init && typeof init.body === "string") {
+      const parsed = safeJsonParse(init.body);
+      const normalized = normalizeMoveBody(parsed);
+
+      if (normalized && normalized !== parsed || normalized) {
+        init = {
+          ...init,
+          body: JSON.stringify(normalized),
+        };
+      }
+    }
+
+    const response = await originalFetch(input, init);
+
+    if (isLetterPreviewUrl(url)) {
+      try {
+        const clone = response.clone();
+        clone.json().then((data) => {
+          const moves = Array.isArray(data && data.moves) ? data.moves : [];
+          for (const move of moves) {
+            if (
+              move &&
+              Number.isInteger(move.row) &&
+              Number.isInteger(move.col) &&
+              move.letter &&
+              Array.isArray(move.path) &&
+              move.path.length >= 3
+            ) {
+              previewPathByCell.set(cellKey(move.row, move.col, move.letter), move.path);
+            }
+          }
+        }).catch(() => {});
+      } catch (_) {
+        // Never break normal fetch handling.
+      }
+    }
+
+    return response;
+  };
+})();
+// WT_JA_NORMALIZE_MOVE_PAYLOAD_V1_END
