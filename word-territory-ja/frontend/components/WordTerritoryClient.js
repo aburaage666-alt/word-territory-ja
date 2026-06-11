@@ -4767,3 +4767,148 @@ async function submitScore() {
   };
 })();
 // WT_JA_NORMALIZE_MOVE_PAYLOAD_V1_END
+
+// WT_JA_BLOCK_SHORT_MOVE_FETCH_V2_BEGIN
+// Public beta emergency fix:
+// 1) Filter 2-letter letter-preview candidates from the frontend.
+// 2) Never send /preview-move or /move with a path shorter than 3 cells.
+// 3) If a full 3+ candidate path was learned from /letter-preview, repair the payload.
+// This does not change backend rules, scoring, bot logic, or BLUE +4.0 komi.
+
+(() => {
+  if (typeof window === "undefined") return;
+  if (window.__WT_JA_BLOCK_SHORT_MOVE_FETCH_V2__) return;
+  window.__WT_JA_BLOCK_SHORT_MOVE_FETCH_V2__ = true;
+
+  const originalFetch = window.fetch.bind(window);
+  const learnedPathByCell = new Map();
+
+  const safeParse = (text) => {
+    try { return JSON.parse(text); } catch (_) { return null; }
+  };
+
+  const keyOf = (row, col, letter) => `${row}:${col}:${letter || ""}`;
+
+  const normalizeBody = (body) => {
+    if (!body || typeof body !== "object") return body;
+
+    let row = body.row;
+    let col = body.col;
+    let letter = body.letter;
+    let path = Array.isArray(body.path) ? body.path : [];
+
+    if (row && typeof row === "object") {
+      const candidate = row;
+      row = candidate.row;
+      col = candidate.col;
+      letter = candidate.letter || letter;
+      if ((!path || path.length === 0) && Array.isArray(candidate.path)) {
+        path = candidate.path;
+      }
+    }
+
+    const learned = learnedPathByCell.get(keyOf(row, col, letter));
+    if (learned && learned.length >= 3 && (!Array.isArray(path) || path.length < 3)) {
+      path = learned;
+    }
+
+    return {
+      ...body,
+      row,
+      col,
+      letter,
+      path: Array.isArray(path) ? path : [],
+    };
+  };
+
+  const isPlayableMove = (m) => {
+    const word = String((m && m.word) || "");
+    const path = Array.isArray(m && m.path) ? m.path : [];
+    return word.length >= 3 && path.length >= 3;
+  };
+
+  const makeJsonResponse = (data, status = 200) => {
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  const isLetterPreviewUrl = (url) =>
+    typeof url === "string" && url.includes("/letter-preview/");
+
+  const isMoveUrl = (url) =>
+    typeof url === "string" && (url.includes("/move") || url.includes("/preview-move"));
+
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === "string" ? input : input && input.url;
+
+    if (isMoveUrl(url) && init && typeof init.body === "string") {
+      const parsed = safeParse(init.body);
+      const normalized = normalizeBody(parsed);
+
+      if (normalized && normalized.letter) {
+        const p = Array.isArray(normalized.path) ? normalized.path : [];
+
+        if (p.length < 3) {
+          if (String(url).includes("/preview-move")) {
+            return makeJsonResponse({
+              word: "",
+              isInDictionary: false,
+              includesPlacedCell: false,
+              territoryGain: 0,
+              gain: 0,
+              wordScore: 0,
+              lockGain: 0,
+              captureCount: 0,
+              comboLabels: [],
+              roles: [],
+              message: "3文字以上の単語を作ってください。",
+            }, 200);
+          }
+
+          return makeJsonResponse({
+            detail: "3文字以上の単語を作ってください。",
+          }, 400);
+        }
+
+        init = {
+          ...init,
+          body: JSON.stringify(normalized),
+        };
+      }
+    }
+
+    const response = await originalFetch(input, init);
+
+    if (isLetterPreviewUrl(url)) {
+      try {
+        const data = await response.clone().json();
+        const moves = Array.isArray(data && data.moves) ? data.moves : [];
+
+        for (const m of moves) {
+          if (
+            m &&
+            Number.isInteger(m.row) &&
+            Number.isInteger(m.col) &&
+            m.letter &&
+            Array.isArray(m.path) &&
+            m.path.length >= 3
+          ) {
+            learnedPathByCell.set(keyOf(m.row, m.col, m.letter), m.path);
+          }
+        }
+
+        const filtered = moves.filter(isPlayableMove);
+        if (filtered.length !== moves.length) {
+          return makeJsonResponse({ ...data, moves: filtered }, response.status || 200);
+        }
+      } catch (_) {
+        // Return the original response if parsing fails.
+      }
+    }
+
+    return response;
+  };
+})();
+// WT_JA_BLOCK_SHORT_MOVE_FETCH_V2_END
