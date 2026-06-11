@@ -4597,48 +4597,9 @@ async function submitScore() {
 }
 
 
-// WT_JA_KOMI_BADGE_V1
-// Public beta rule notice: BLUE receives +4.0 second-player komi.
-// DOM badge is intentionally isolated from React state and game logic.
-(() => {
-  if (typeof window === "undefined") return;
 
-  const installKomiBadge = () => {
-    try {
-      const id = "wt-ja-komi-badge-v1";
-      if (document.getElementById(id)) return;
 
-      const el = document.createElement("div");
-      el.id = id;
-      el.textContent = "BLUE +4.0 後手補正";
 
-      Object.assign(el.style, {
-        position: "fixed",
-        right: "10px",
-        bottom: "10px",
-        zIndex: "9999",
-        padding: "6px 10px",
-        borderRadius: "999px",
-        background: "rgba(15, 23, 42, 0.88)",
-        color: "#ffffff",
-        fontSize: "12px",
-        fontWeight: "700",
-        letterSpacing: "0.02em",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-        pointerEvents: "none",
-        userSelect: "none"
-      });
 
-      document.body.appendChild(el);
-    } catch (_) {
-      // Never break the game UI because of a rule-label badge.
-    }
-  };
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", installKomiBadge, { once: true });
-  } else {
-    installKomiBadge();
-  }
-})();
 
