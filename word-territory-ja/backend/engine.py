@@ -5379,31 +5379,52 @@ def decide_winner(state):
     return "DRAW"
 # WT_JA_SECOND_PLAYER_KOMI4_V1_END
 
-# WT_JA_SAFE_MOVE_REPAIR_AND_BOT_FALLBACK_V1_BEGIN
-# Public beta backend safety patch:
-# 1) If a human /move payload contains a shortened or mismatched path, repair it
-#    using the same candidate generator that powers letter-preview.
-# 2) If the Bot reply crashes after a valid human move, do not turn the whole
-#    /move request into HTTP 500. Skip the bot turn as an emergency fallback.
-# This does not change dictionary rules, scoring rules, captures, locks, or BLUE +4.0 komi.
+# WT_JA_SAFE_MOVE_REPAIR_AND_BOT_FALLBACK_V2_BEGIN
+# Hotfix:
+# Previous V1 passed dazi= to validate_and_apply_move even when the base function
+# did not accept that keyword. V2 calls the base function only with supported
+# keyword arguments.
 
 try:
-    _wt_ja_orig_validate_and_apply_move_v1 = validate_and_apply_move
+    import inspect as _wt_ja_inspect_v2
+
+    _wt_ja_orig_validate_and_apply_move_v2 = validate_and_apply_move
+    _wt_ja_validate_params_v2 = set(
+        _wt_ja_inspect_v2.signature(_wt_ja_orig_validate_and_apply_move_v2).parameters.keys()
+    )
+
+    def _wt_ja_call_validate_v2(state, row, col, letter, path, advance_market_flag=False, dazi=False):
+        kwargs = {}
+        if "advance_market_flag" in _wt_ja_validate_params_v2:
+            kwargs["advance_market_flag"] = advance_market_flag
+        if "dazi" in _wt_ja_validate_params_v2:
+            kwargs["dazi"] = dazi
+
+        return _wt_ja_orig_validate_and_apply_move_v2(
+            state,
+            row,
+            col,
+            letter,
+            path,
+            **kwargs,
+        )
 
     def validate_and_apply_move(state, row, col, letter, path, advance_market_flag=False, dazi=False):
         try:
-            return _wt_ja_orig_validate_and_apply_move_v1(
-                state, row, col, letter, path,
+            return _wt_ja_call_validate_v2(
+                state,
+                row,
+                col,
+                letter,
+                path,
                 advance_market_flag=advance_market_flag,
                 dazi=dazi,
             )
         except Exception as first_exc:
-            # Japanese frontend sometimes sends a displayed preview word with a
-            # shortened/misaligned path. Repair only when the same row/col/letter
-            # exists in backend-generated 3+ candidate paths.
             if globals().get("_LANG") == "ja":
                 try:
                     letter_n = _norm_letter(letter)
+
                     raw_moves = _fast_bot_moves_for_letter(
                         state,
                         letter_n,
@@ -5426,7 +5447,7 @@ try:
                             if len(fixed_word) < 3 or len(fixed_path) < 3:
                                 continue
 
-                            return _wt_ja_orig_validate_and_apply_move_v1(
+                            return _wt_ja_call_validate_v2(
                                 state,
                                 int(row),
                                 int(col),
@@ -5442,38 +5463,30 @@ try:
 
             raise first_exc
 
-    _wt_ja_orig_apply_bot_move_v1 = apply_bot_move
+    if "apply_bot_move" in globals():
+        _wt_ja_orig_apply_bot_move_v2 = apply_bot_move
 
-    def apply_bot_move(state):
-        try:
-            return _wt_ja_orig_apply_bot_move_v1(state)
-        except Exception as exc:
-            # Emergency fallback: the human move has already succeeded, but the
-            # bot reply crashed. Do not make the user lose the turn to HTTP 500.
+        def apply_bot_move(state):
             try:
-                temp = clone_state(state)
-                player = getattr(temp, "currentPlayer", "BLUE")
-
-                temp.recentMoves = [
-                    f"{player}: PASS（bot fallback）"
-                ] + list(getattr(temp, "recentMoves", []) or [])[:4]
-
-                temp.currentPlayer = other_player(player)
-                temp.turn = int(getattr(temp, "turn", 0) or 0) + 1
-                temp.consecutivePasses = int(getattr(temp, "consecutivePasses", 0) or 0) + 1
-                temp.lastChangedCells = []
-                temp.lastCapturedCells = []
-                temp.lastFortifiedCells = []
-                temp.lastComboLabels = ["BOT FALLBACK"]
-
-                if is_game_over(temp):
-                    temp.winner = decide_winner(temp)
-
-                return temp
+                return _wt_ja_orig_apply_bot_move_v2(state)
             except Exception:
-                # Last resort: return the incoming state rather than crashing.
-                return state
+                try:
+                    temp = clone_state(state)
+                    player = getattr(temp, "currentPlayer", "BLUE")
+                    temp.recentMoves = [f"{player}: PASS（bot fallback）"] + list(getattr(temp, "recentMoves", []) or [])[:4]
+                    temp.currentPlayer = other_player(player)
+                    temp.turn = int(getattr(temp, "turn", 0) or 0) + 1
+                    temp.consecutivePasses = int(getattr(temp, "consecutivePasses", 0) or 0) + 1
+                    temp.lastChangedCells = []
+                    temp.lastCapturedCells = []
+                    temp.lastFortifiedCells = []
+                    temp.lastComboLabels = ["BOT FALLBACK"]
+                    if is_game_over(temp):
+                        temp.winner = decide_winner(temp)
+                    return temp
+                except Exception:
+                    return state
 
 except Exception:
     pass
-# WT_JA_SAFE_MOVE_REPAIR_AND_BOT_FALLBACK_V1_END
+# WT_JA_SAFE_MOVE_REPAIR_AND_BOT_FALLBACK_V2_END
