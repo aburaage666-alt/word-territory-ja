@@ -1,3 +1,4 @@
+import dynamic from "next/dynamic";
 import Head from "next/head";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -714,7 +715,7 @@ function wtDaziTargetKeys(state) {
   return keys;
 }
 
-export default function Home() {
+function HomeInner() {
 
   // WT_JA_FINAL_UI_POLISH_V1
   // 公開前UI整理: 今日の盤面の単独表示を収納、2x2回転表記、上部余白、短い遊び方、紫ハイライト抑制。
@@ -4596,10 +4597,9 @@ async function submitScore() {
   </>;
 }
 
-
-
-
-
-
-
+// WT_JA_CLIENT_ONLY_PAGE_V1
+// Emergency public fix:
+// The game page is intentionally rendered on the client only to avoid
+// Next.js SSR / hydration mismatch errors in the single-file prototype.
+export default dynamic(() => Promise.resolve(HomeInner), { ssr: false });
 
