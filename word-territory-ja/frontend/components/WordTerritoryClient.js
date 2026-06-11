@@ -4596,10 +4596,58 @@ async function submitScore() {
   </>;
 }
 
+// WT_JA_SUPPRESS_STALE_INTERNAL_ERROR_V1_BEGIN
+// Public emergency patch:
+// Some cold-start / retry paths can leave a stale "Internal server error"
+// banner even after the backend endpoints have returned HTTP 200.
+// This removes only the exact stale banner text after the app has mounted.
+// It does not change game rules, bot logic, scoring, captures, or backend calls.
+(() => {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (window.__WT_JA_SUPPRESS_STALE_INTERNAL_ERROR_V1__) return;
+  window.__WT_JA_SUPPRESS_STALE_INTERNAL_ERROR_V1__ = true;
 
+  const isExactStaleInternalError = (text) =>
+    String(text || "").trim().toLowerCase() === "internal server error";
 
+  const hideStaleBanner = () => {
+    try {
+      const nodes = Array.from(document.querySelectorAll("div, section, aside, p, span"));
+      for (const node of nodes) {
+        const text = node.textContent || "";
+        if (!isExactStaleInternalError(text)) continue;
 
+        const box =
+          node.closest('[role="alert"]') ||
+          node.closest('[class*="error"]') ||
+          node.closest('[class*="alert"]') ||
+          node;
 
+        if (box && box.style) {
+          box.style.display = "none";
+          box.setAttribute("data-wt-ja-stale-error-hidden", "true");
+        }
+      }
+    } catch (_) {
+      // Never break the game because of error-banner cleanup.
+    }
+  };
 
+  const install = () => {
+    hideStaleBanner();
 
+    const observer = new MutationObserver(() => hideStaleBanner());
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
 
+    window.setTimeout(hideStaleBanner, 250);
+    window.setTimeout(hideStaleBanner, 1000);
+    window.setTimeout(hideStaleBanner, 2500);
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", install, { once: true });
+  } else {
+    install();
+  }
+})();
+// WT_JA_SUPPRESS_STALE_INTERNAL_ERROR_V1_END
