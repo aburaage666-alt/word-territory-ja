@@ -5379,114 +5379,76 @@ def decide_winner(state):
     return "DRAW"
 # WT_JA_SECOND_PLAYER_KOMI4_V1_END
 
-# WT_JA_SAFE_MOVE_REPAIR_AND_BOT_FALLBACK_V2_BEGIN
-# Hotfix:
-# Previous V1 passed dazi= to validate_and_apply_move even when the base function
-# did not accept that keyword. V2 calls the base function only with supported
-# keyword arguments.
+# WT_JA_ALLOW_2LETTER_DAZI_PREVIEW_COMPAT_V1_BEGIN
+# Japanese public-beta rule:
+# - 2-letter words are legal.
+# - 2-letter words are weak: existing engine caps their territory and prevents short-word LOCKs.
+# - preview_move must use _WORD_MIN/_WORD_MAX, not hard-coded 3..6.
+# - validate_and_apply_move accepts dazi safely even if an intermediate wrapper does not.
 
 try:
-    import inspect as _wt_ja_inspect_v2
+    import inspect as _wt_ja_inspect_2letter_v1
 
-    _wt_ja_orig_validate_and_apply_move_v2 = validate_and_apply_move
-    _wt_ja_validate_params_v2 = set(
-        _wt_ja_inspect_v2.signature(_wt_ja_orig_validate_and_apply_move_v2).parameters.keys()
+    if globals().get("_LANG") == "ja":
+        try:
+            _WORD_MIN = min(int(_WORD_MIN), 2)
+        except Exception:
+            _WORD_MIN = 2
+
+    _wt_ja_base_validate_2letter_v1 = validate_and_apply_move
+    _wt_ja_base_validate_params_2letter_v1 = set(
+        _wt_ja_inspect_2letter_v1.signature(_wt_ja_base_validate_2letter_v1).parameters.keys()
     )
 
-    def _wt_ja_call_validate_v2(state, row, col, letter, path, advance_market_flag=False, dazi=False):
+    def _wt_ja_call_validate_2letter_v1(state, row, col, letter, path, advance_market_flag=False, dazi=False):
         kwargs = {}
-        if "advance_market_flag" in _wt_ja_validate_params_v2:
+        if "advance_market_flag" in _wt_ja_base_validate_params_2letter_v1:
             kwargs["advance_market_flag"] = advance_market_flag
-        if "dazi" in _wt_ja_validate_params_v2:
+        if "dazi" in _wt_ja_base_validate_params_2letter_v1:
             kwargs["dazi"] = dazi
+        return _wt_ja_base_validate_2letter_v1(state, row, col, letter, path, **kwargs)
 
-        return _wt_ja_orig_validate_and_apply_move_v2(
+    def validate_and_apply_move(state, row, col, letter, path, advance_market_flag=False, dazi=False):
+        return _wt_ja_call_validate_2letter_v1(
             state,
             row,
             col,
             letter,
             path,
-            **kwargs,
+            advance_market_flag=advance_market_flag,
+            dazi=dazi,
         )
 
-    def validate_and_apply_move(state, row, col, letter, path, advance_market_flag=False, dazi=False):
+    _wt_ja_base_preview_move_2letter_v1 = preview_move
+
+    def preview_move(state, row: int, col: int, letter: str, path):
         try:
-            return _wt_ja_call_validate_v2(
-                state,
-                row,
-                col,
-                letter,
-                path,
-                advance_market_flag=advance_market_flag,
-                dazi=dazi,
+            word = validate_path_and_word(state, row, col, letter, path) if path else ""
+            includes = path_contains(path, row, col) if path else False
+            valid_len = _WORD_MIN <= len(word) <= _WORD_MAX
+            in_dict = is_valid_word(word) if valid_len else False
+
+            response = PreviewMoveResponse(
+                word=word,
+                isValidLength=valid_len,
+                includesPlacedCell=includes,
+                isInDictionary=in_dict,
+                wordScore=word_score(word) if in_dict else 0,
             )
-        except Exception as first_exc:
-            if globals().get("_LANG") == "ja":
-                try:
-                    letter_n = _norm_letter(letter)
 
-                    raw_moves = _fast_bot_moves_for_letter(
-                        state,
-                        letter_n,
-                        max_results=80,
-                        excluded=set(getattr(state, "usedWords", []) or []),
-                    )
+            if in_dict and not recent_duplicate_blocked(state, word):
+                after = validate_and_apply_move(clone_state(state), row, col, letter, path)
+                last = after.moveHistory[-1]
+                response.territoryGain = last.territoryGained
+                response.lockGain = last.fortifiedCellsGained
+                response.captureHappened = last.captureCount > 0
+                response.captureCount = last.captureCount
+                response.comboLabels = last.comboLabels
 
-                    for m in raw_moves:
-                        try:
-                            if int(m.get("row")) != int(row):
-                                continue
-                            if int(m.get("col")) != int(col):
-                                continue
-                            if _norm_letter(m.get("letter", "")) != letter_n:
-                                continue
-
-                            fixed_path = m.get("path") or []
-                            fixed_word = _norm_word(m.get("word", ""))
-
-                            if len(fixed_word) < 3 or len(fixed_path) < 3:
-                                continue
-
-                            return _wt_ja_call_validate_v2(
-                                state,
-                                int(row),
-                                int(col),
-                                letter_n,
-                                fixed_path,
-                                advance_market_flag=advance_market_flag,
-                                dazi=dazi,
-                            )
-                        except Exception:
-                            continue
-                except Exception:
-                    pass
-
-            raise first_exc
-
-    if "apply_bot_move" in globals():
-        _wt_ja_orig_apply_bot_move_v2 = apply_bot_move
-
-        def apply_bot_move(state):
-            try:
-                return _wt_ja_orig_apply_bot_move_v2(state)
-            except Exception:
-                try:
-                    temp = clone_state(state)
-                    player = getattr(temp, "currentPlayer", "BLUE")
-                    temp.recentMoves = [f"{player}: PASS（bot fallback）"] + list(getattr(temp, "recentMoves", []) or [])[:4]
-                    temp.currentPlayer = other_player(player)
-                    temp.turn = int(getattr(temp, "turn", 0) or 0) + 1
-                    temp.consecutivePasses = int(getattr(temp, "consecutivePasses", 0) or 0) + 1
-                    temp.lastChangedCells = []
-                    temp.lastCapturedCells = []
-                    temp.lastFortifiedCells = []
-                    temp.lastComboLabels = ["BOT FALLBACK"]
-                    if is_game_over(temp):
-                        temp.winner = decide_winner(temp)
-                    return temp
-                except Exception:
-                    return state
+            return response
+        except Exception as exc:
+            return PreviewMoveResponse(errorMessage=str(exc))
 
 except Exception:
     pass
-# WT_JA_SAFE_MOVE_REPAIR_AND_BOT_FALLBACK_V2_END
+# WT_JA_ALLOW_2LETTER_DAZI_PREVIEW_COMPAT_V1_END

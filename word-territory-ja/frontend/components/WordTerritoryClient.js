@@ -826,7 +826,7 @@ export default function Home() {
       const guide = document.createElement("div");
       guide.id = GUIDE_ID;
       guide.className = "wt-ja-quick-guide";
-      guide.textContent = "緑のマスに1文字を置き、隣り合う文字をつないで3文字以上の単語を作ります。敵文字を含む単語で奪字、2x2回転は1試合1回です。";
+      guide.textContent = "緑のマスに1文字を置き、隣り合う文字をつないで2文字以上の単語を作ります。敵文字を含む単語で奪字、2x2回転は1試合1回です。";
 
       if (board && board.parentElement) {
         board.parentElement.insertBefore(guide, board);
@@ -4652,144 +4652,32 @@ async function submitScore() {
 })();
 // WT_JA_SUPPRESS_STALE_INTERNAL_ERROR_V1_END
 
-// WT_JA_NORMALIZE_MOVE_PAYLOAD_V1_BEGIN
-// Public emergency patch:
-// The UI can preview a valid candidate path but later send a shortened or nested
-// payload to /preview-move or /move. This client-side fetch guard normalizes the
-// request body before it reaches the backend.
-// It does not change game rules, scoring, bot logic, or backend state.
+// WT_JA_ALLOW_2LETTER_PAYLOAD_NORMALIZER_V2_BEGIN
+// Japanese rule correction:
+// 2-letter words are legal. This only fixes malformed/nested payloads and
+// learned candidate paths. It never blocks 2-letter moves.
 
 (() => {
   if (typeof window === "undefined") return;
-  if (window.__WT_JA_NORMALIZE_MOVE_PAYLOAD_V1__) return;
-  window.__WT_JA_NORMALIZE_MOVE_PAYLOAD_V1__ = true;
-
-  const originalFetch = window.fetch.bind(window);
-  const previewPathByCell = new Map();
-
-  const safeJsonParse = (text) => {
-    try {
-      return JSON.parse(text);
-    } catch (_) {
-      return null;
-    }
-  };
-
-  const cellKey = (row, col, letter) => `${row}:${col}:${letter || ""}`;
-
-  const isMoveUrl = (url) =>
-    typeof url === "string" &&
-    (url.includes("/preview-move") || url.includes("/move"));
-
-  const isLetterPreviewUrl = (url) =>
-    typeof url === "string" && url.includes("/letter-preview/");
-
-  const normalizeMoveBody = (body) => {
-    if (!body || typeof body !== "object") return body;
-
-    let row = body.row;
-    let col = body.col;
-    let letter = body.letter;
-    let path = Array.isArray(body.path) ? body.path : [];
-
-    // Some preview calls accidentally pass the whole candidate as row.
-    if (row && typeof row === "object") {
-      const candidate = row;
-      row = candidate.row;
-      col = candidate.col;
-      letter = candidate.letter || letter;
-      if ((!path || path.length === 0) && Array.isArray(candidate.path)) {
-        path = candidate.path;
-      }
-    }
-
-    const key = cellKey(row, col, letter);
-    const cached = previewPathByCell.get(key);
-
-    // If the path is too short for a legal Japanese word, prefer the full
-    // candidate path learned from /letter-preview.
-    if (cached && Array.isArray(cached) && cached.length >= 3) {
-      if (!Array.isArray(path) || path.length < 3) {
-        path = cached;
-      }
-    }
-
-    return {
-      ...body,
-      row,
-      col,
-      letter,
-      path: Array.isArray(path) ? path : [],
-    };
-  };
-
-  window.fetch = async (input, init = {}) => {
-    const url = typeof input === "string" ? input : input && input.url;
-
-    if (isMoveUrl(url) && init && typeof init.body === "string") {
-      const parsed = safeJsonParse(init.body);
-      const normalized = normalizeMoveBody(parsed);
-
-      if (normalized && normalized !== parsed || normalized) {
-        init = {
-          ...init,
-          body: JSON.stringify(normalized),
-        };
-      }
-    }
-
-    const response = await originalFetch(input, init);
-
-    if (isLetterPreviewUrl(url)) {
-      try {
-        const clone = response.clone();
-        clone.json().then((data) => {
-          const moves = Array.isArray(data && data.moves) ? data.moves : [];
-          for (const move of moves) {
-            if (
-              move &&
-              Number.isInteger(move.row) &&
-              Number.isInteger(move.col) &&
-              move.letter &&
-              Array.isArray(move.path) &&
-              move.path.length >= 3
-            ) {
-              previewPathByCell.set(cellKey(move.row, move.col, move.letter), move.path);
-            }
-          }
-        }).catch(() => {});
-      } catch (_) {
-        // Never break normal fetch handling.
-      }
-    }
-
-    return response;
-  };
-})();
-// WT_JA_NORMALIZE_MOVE_PAYLOAD_V1_END
-
-// WT_JA_BLOCK_SHORT_MOVE_FETCH_V2_BEGIN
-// Public beta emergency fix:
-// 1) Filter 2-letter letter-preview candidates from the frontend.
-// 2) Never send /preview-move or /move with a path shorter than 3 cells.
-// 3) If a full 3+ candidate path was learned from /letter-preview, repair the payload.
-// This does not change backend rules, scoring, bot logic, or BLUE +4.0 komi.
-
-(() => {
-  if (typeof window === "undefined") return;
-  if (window.__WT_JA_BLOCK_SHORT_MOVE_FETCH_V2__) return;
-  window.__WT_JA_BLOCK_SHORT_MOVE_FETCH_V2__ = true;
+  if (window.__WT_JA_ALLOW_2LETTER_PAYLOAD_NORMALIZER_V2__) return;
+  window.__WT_JA_ALLOW_2LETTER_PAYLOAD_NORMALIZER_V2__ = true;
 
   const originalFetch = window.fetch.bind(window);
   const learnedPathByCell = new Map();
 
-  const safeParse = (text) => {
-    try { return JSON.parse(text); } catch (_) { return null; }
+  const parseJson = (s) => {
+    try { return JSON.parse(s); } catch (_) { return null; }
   };
 
   const keyOf = (row, col, letter) => `${row}:${col}:${letter || ""}`;
 
-  const normalizeBody = (body) => {
+  const isLetterPreviewUrl = (url) =>
+    typeof url === "string" && url.includes("/letter-preview/");
+
+  const isMoveUrl = (url) =>
+    typeof url === "string" && (url.includes("/move") || url.includes("/preview-move"));
+
+  const normalizePayload = (body) => {
     if (!body || typeof body !== "object") return body;
 
     let row = body.row;
@@ -4808,74 +4696,21 @@ async function submitScore() {
     }
 
     const learned = learnedPathByCell.get(keyOf(row, col, letter));
-    if (learned && learned.length >= 3 && (!Array.isArray(path) || path.length < 3)) {
+    if (learned && learned.length >= 2 && (!Array.isArray(path) || path.length < learned.length)) {
       path = learned;
     }
 
-    return {
-      ...body,
-      row,
-      col,
-      letter,
-      path: Array.isArray(path) ? path : [],
-    };
+    return { ...body, row, col, letter, path: Array.isArray(path) ? path : [] };
   };
-
-  const isPlayableMove = (m) => {
-    const word = String((m && m.word) || "");
-    const path = Array.isArray(m && m.path) ? m.path : [];
-    return word.length >= 3 && path.length >= 3;
-  };
-
-  const makeJsonResponse = (data, status = 200) => {
-    return new Response(JSON.stringify(data), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    });
-  };
-
-  const isLetterPreviewUrl = (url) =>
-    typeof url === "string" && url.includes("/letter-preview/");
-
-  const isMoveUrl = (url) =>
-    typeof url === "string" && (url.includes("/move") || url.includes("/preview-move"));
 
   window.fetch = async (input, init = {}) => {
     const url = typeof input === "string" ? input : input && input.url;
 
     if (isMoveUrl(url) && init && typeof init.body === "string") {
-      const parsed = safeParse(init.body);
-      const normalized = normalizeBody(parsed);
-
+      const parsed = parseJson(init.body);
+      const normalized = normalizePayload(parsed);
       if (normalized && normalized.letter) {
-        const p = Array.isArray(normalized.path) ? normalized.path : [];
-
-        if (p.length < 3) {
-          if (String(url).includes("/preview-move")) {
-            return makeJsonResponse({
-              word: "",
-              isInDictionary: false,
-              includesPlacedCell: false,
-              territoryGain: 0,
-              gain: 0,
-              wordScore: 0,
-              lockGain: 0,
-              captureCount: 0,
-              comboLabels: [],
-              roles: [],
-              message: "3文字以上の単語を作ってください。",
-            }, 200);
-          }
-
-          return makeJsonResponse({
-            detail: "3文字以上の単語を作ってください。",
-          }, 400);
-        }
-
-        init = {
-          ...init,
-          body: JSON.stringify(normalized),
-        };
+        init = { ...init, body: JSON.stringify(normalized) };
       }
     }
 
@@ -4885,7 +4720,6 @@ async function submitScore() {
       try {
         const data = await response.clone().json();
         const moves = Array.isArray(data && data.moves) ? data.moves : [];
-
         for (const m of moves) {
           if (
             m &&
@@ -4893,22 +4727,15 @@ async function submitScore() {
             Number.isInteger(m.col) &&
             m.letter &&
             Array.isArray(m.path) &&
-            m.path.length >= 3
+            m.path.length >= 2
           ) {
             learnedPathByCell.set(keyOf(m.row, m.col, m.letter), m.path);
           }
         }
-
-        const filtered = moves.filter(isPlayableMove);
-        if (filtered.length !== moves.length) {
-          return makeJsonResponse({ ...data, moves: filtered }, response.status || 200);
-        }
-      } catch (_) {
-        // Return the original response if parsing fails.
-      }
+      } catch (_) {}
     }
 
     return response;
   };
 })();
-// WT_JA_BLOCK_SHORT_MOVE_FETCH_V2_END
+// WT_JA_ALLOW_2LETTER_PAYLOAD_NORMALIZER_V2_END
