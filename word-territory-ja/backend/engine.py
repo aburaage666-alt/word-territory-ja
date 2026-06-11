@@ -5352,3 +5352,29 @@ try:
 except Exception:
     pass
 # WT_JA_BOT_BALANCED_4KANA_CAP_V4D_END
+
+# WT_JA_SECOND_PLAYER_KOMI4_V1_BEGIN
+# Japanese public beta komi:
+# Current verified public-beta balance uses BLUE +4.0.
+# This affects final winner determination only. It does not change legal moves,
+# word validation, captures, locks, or Bot move selection.
+
+_SECOND_PLAYER_KOMI = 4.0
+
+def decide_winner(state):
+    red_t = count_territory(state, "RED")
+    blue_t = count_territory(state, "BLUE")
+
+    if globals().get("_LANG") == "ja":
+        blue_adj = blue_t + _SECOND_PLAYER_KOMI
+    else:
+        blue_adj = blue_t
+
+    if red_t != blue_adj:
+        return "RED" if red_t > blue_adj else "BLUE"
+
+    if state.scores.redWord != state.scores.blueWord:
+        return "RED" if state.scores.redWord > state.scores.blueWord else "BLUE"
+
+    return "DRAW"
+# WT_JA_SECOND_PLAYER_KOMI4_V1_END
