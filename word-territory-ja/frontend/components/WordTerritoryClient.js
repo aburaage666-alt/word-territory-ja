@@ -4799,3 +4799,748 @@ async function submitScore() {
   window.setTimeout(installKanaPicker, 1500);
 })();
 // WT_JA_FREE_KANA_AND_DAZI_SYNC_V1_END
+
+// WT_JA_VISUAL_DEMO_CENTER_V1_BEGIN
+// Visual Demo Center:
+// - How to Play: explains each role/effect.
+// - Super Play: flashy showcase.
+// - Sample Match: short real-play style demo.
+// This is presentation-only. It does not change backend, bot, scoring, or rules.
+
+(() => {
+  if (typeof window === "undefined") return;
+  if (window.__WT_JA_VISUAL_DEMO_CENTER_V1__) return;
+  window.__WT_JA_VISUAL_DEMO_CENTER_V1__ = true;
+
+  const DEMO_COLORS = {
+    RED: "#ef4444",
+    BLUE: "#3b82f6",
+    neutral: "#f8fafc",
+    place: "#22c55e",
+    lock: "#facc15",
+    dazi: "#a855f7",
+    rotate: "#fb923c",
+    cut: "#ef4444",
+    bridge: "#38bdf8",
+    encircle: "#22c55e",
+    swing: "#ec4899",
+  };
+
+  const KANA = [
+    ["", "", "か", "", ""],
+    ["", "み", "い", "ず", ""],
+    ["そ", "ら", "", "ほ", "し"],
+    ["", "は", "な", "し", ""],
+    ["", "", "く", "", ""],
+  ];
+
+  const baseOwners = [
+    ["", "", "BLUE", "", ""],
+    ["", "RED", "RED", "BLUE", ""],
+    ["RED", "RED", "", "BLUE", "BLUE"],
+    ["", "RED", "BLUE", "BLUE", ""],
+    ["", "", "BLUE", "", ""],
+  ];
+
+  const HOWTO_STEPS = [
+    {
+      title: "PLACE",
+      badge: "1文字を置く",
+      color: DEMO_COLORS.place,
+      text: "緑のマスに1文字を置き、隣り合う文字をつないで単語を作ります。",
+      path: [[2,2],[1,2],[1,3]],
+      place: [2,2,"み"],
+      caption: "例：み → い → ず",
+      redDelta: "+1T",
+      blueDelta: "",
+    },
+    {
+      title: "TERRITORY",
+      badge: "領地化",
+      color: DEMO_COLORS.place,
+      text: "単語を作ると、通ったマスが自分の領地になります。短い語は安全、長い語は強力です。",
+      path: [[3,1],[3,2],[3,3]],
+      claim: [[3,1],[3,2],[3,3]],
+      caption: "単語の経路が赤く染まる",
+      redDelta: "+3T",
+      blueDelta: "",
+    },
+    {
+      title: "LOCK!",
+      badge: "守る",
+      color: DEMO_COLORS.lock,
+      text: "LOCKは重要な領地を守ります。相手に奪われにくい拠点になります。",
+      path: [[1,1],[1,2],[2,1]],
+      claim: [[1,1],[1,2],[2,1]],
+      lock: [[1,1],[1,2]],
+      caption: "守りたい地点を固定",
+      redDelta: "+LOCK",
+      blueDelta: "",
+    },
+    {
+      title: "奪字!",
+      badge: "敵文字を崩す",
+      color: DEMO_COLORS.dazi,
+      text: "敵文字を含む単語で奪字。対象の敵マスを中立化し、突破口を作ります。",
+      path: [[1,3],[2,3],[3,3]],
+      dazi: [[2,3]],
+      caption: "紫の敵文字を中立化",
+      redDelta: "敵地 -1",
+      blueDelta: "-1T",
+    },
+    {
+      title: "2x2回転!",
+      badge: "盤面を変える",
+      color: DEMO_COLORS.rotate,
+      text: "2x2回転は1試合1回の切り札。文字の配置を変え、眠っていた単語ルートを開きます。",
+      rotateBox: [[1,2],[1,3],[2,2],[2,3]],
+      path: [[1,2],[1,3],[2,3]],
+      caption: "2x2を回して新しい語を作る",
+      redDelta: "CHANCE",
+      blueDelta: "",
+    },
+    {
+      title: "CUT!",
+      badge: "分断",
+      color: DEMO_COLORS.cut,
+      text: "CUTは相手の領地のつながりを断ち切る役。守りを崩し、次の奪取につなげます。",
+      path: [[2,2],[2,3],[2,4]],
+      cutLine: [[2,3]],
+      caption: "敵の連結を断つ",
+      redDelta: "+CUT",
+      blueDelta: "分断",
+    },
+    {
+      title: "BRIDGE!",
+      badge: "橋渡し",
+      color: DEMO_COLORS.bridge,
+      text: "BRIDGEは離れた自陣をつなげる役。小さな領地を大きな勢力に変えます。",
+      path: [[1,1],[2,1],[3,1]],
+      bridge: [[1,1],[2,1],[3,1]],
+      caption: "離れた赤領地をつなぐ",
+      redDelta: "+BRIDGE",
+      blueDelta: "",
+    },
+    {
+      title: "ENCIRCLE!",
+      badge: "包囲",
+      color: DEMO_COLORS.encircle,
+      text: "ENCIRCLEは囲みによる支配。相手の逃げ道を塞ぐと一気に盤面が動きます。",
+      path: [[1,1],[1,2],[2,2],[3,2],[3,1]],
+      encircle: [[2,1]],
+      caption: "囲んだ内側を奪う",
+      redDelta: "+ENCIRCLE",
+      blueDelta: "-2T",
+    },
+    {
+      title: "SWING!",
+      badge: "大逆転",
+      color: DEMO_COLORS.swing,
+      text: "SWINGは一手で流れが変わる瞬間。領地差・スコア差が大きく動く見せ場です。",
+      path: [[3,1],[3,2],[3,3],[2,3],[1,3]],
+      claim: [[3,1],[3,2],[3,3],[2,3],[1,3]],
+      caption: "一手で戦況が反転",
+      redDelta: "+7",
+      blueDelta: "-4",
+    },
+  ];
+
+  const SUPER_STEPS = [
+    {
+      title: "LOCK CHAIN!",
+      badge: "守りから攻めへ",
+      color: DEMO_COLORS.lock,
+      text: "まずはLOCKで拠点を作る。",
+      path: [[1,1],[1,2],[2,1]],
+      lock: [[1,1],[1,2]],
+      redDelta: "+2T",
+    },
+    {
+      title: "CUT!",
+      badge: "敵陣を分断",
+      color: DEMO_COLORS.cut,
+      text: "次にCUTで青の連結を切る。",
+      path: [[2,2],[2,3],[2,4]],
+      cutLine: [[2,3]],
+      redDelta: "+CUT",
+      blueDelta: "BROKEN",
+    },
+    {
+      title: "奪字!",
+      badge: "突破",
+      color: DEMO_COLORS.dazi,
+      text: "紫枠の敵文字を含む語で突破口を作る。",
+      path: [[1,3],[2,3],[3,3]],
+      dazi: [[2,3]],
+      redDelta: "OPEN",
+      blueDelta: "-1T",
+    },
+    {
+      title: "2x2 ROTATION!",
+      badge: "盤面激変",
+      color: DEMO_COLORS.rotate,
+      text: "1試合1回の回転で新しいルートを開く。",
+      rotateBox: [[1,2],[1,3],[2,2],[2,3]],
+      redDelta: "SETUP",
+    },
+    {
+      title: "ENCIRCLE!",
+      badge: "一気に支配",
+      color: DEMO_COLORS.encircle,
+      text: "囲い込みで青領地を飲み込む。",
+      path: [[1,1],[1,2],[2,2],[3,2],[3,1]],
+      encircle: [[2,1],[2,2]],
+      redDelta: "+5T",
+      blueDelta: "-3T",
+    },
+    {
+      title: "MAX SWING!",
+      badge: "逆転勝利",
+      color: DEMO_COLORS.swing,
+      text: "最後に大きなSWING。これがワードテリトリーの見せ場です。",
+      path: [[3,1],[3,2],[3,3],[2,3],[1,3]],
+      claim: [[3,1],[3,2],[3,3],[2,3],[1,3]],
+      redDelta: "+9",
+      blueDelta: "-4",
+    },
+  ];
+
+  const MATCH_STEPS = [
+    {
+      title: "Turn 1",
+      badge: "安全手",
+      color: DEMO_COLORS.place,
+      text: "最初は短い単語で足場を作る。",
+      path: [[1,1],[1,2]],
+      claim: [[1,1]],
+      caption: "短い語は弱いが、詰まりを防ぐ",
+      redDelta: "+1T",
+    },
+    {
+      title: "Turn 4",
+      badge: "前線",
+      color: DEMO_COLORS.bridge,
+      text: "3文字以上で領地を伸ばし、前線を作る。",
+      path: [[1,1],[2,1],[3,1]],
+      bridge: [[1,1],[2,1],[3,1]],
+      redDelta: "+3T",
+    },
+    {
+      title: "Turn 8",
+      badge: "Botの反撃",
+      color: DEMO_COLORS.cut,
+      text: "BotもCUTで反撃。盤面が一気に危なくなる。",
+      path: [[2,2],[2,3],[2,4]],
+      cutLine: [[2,3]],
+      redDelta: "",
+      blueDelta: "+CUT",
+    },
+    {
+      title: "Turn 12",
+      badge: "奪字で崩す",
+      color: DEMO_COLORS.dazi,
+      text: "敵文字を含む語で青の守りを崩す。",
+      path: [[1,3],[2,3],[3,3]],
+      dazi: [[2,3]],
+      redDelta: "BREAK",
+      blueDelta: "-1T",
+    },
+    {
+      title: "Final",
+      badge: "接戦",
+      color: DEMO_COLORS.swing,
+      text: "最後は長い経路で逆転。短手・守り・大技が全部意味を持つ。",
+      path: [[3,1],[3,2],[3,3],[2,3],[1,3]],
+      claim: [[3,1],[3,2],[3,3],[2,3],[1,3]],
+      redDelta: "+6",
+      blueDelta: "",
+    },
+  ];
+
+  let currentMode = "howto";
+  let steps = HOWTO_STEPS;
+  let stepIndex = 0;
+  let autoplay = false;
+  let timer = null;
+
+  const $ = (id) => document.getElementById(id);
+
+  const injectStyle = () => {
+    if ($("wt-demo-style-v1")) return;
+    const style = document.createElement("style");
+    style.id = "wt-demo-style-v1";
+    style.textContent = `
+      #wt-demo-launcher-v1 {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 99998;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 16px;
+        font-weight: 900;
+        font-size: 14px;
+        color: white;
+        background: linear-gradient(135deg,#111827,#7c3aed,#ef4444);
+        box-shadow: 0 12px 32px rgba(0,0,0,.28);
+        cursor: pointer;
+      }
+      #wt-demo-launcher-v1:hover { transform: translateY(-1px); }
+      #wt-demo-modal-v1 {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(15,23,42,.72);
+        backdrop-filter: blur(6px);
+      }
+      #wt-demo-card-v1 {
+        width: min(960px, calc(100vw - 24px));
+        max-height: min(760px, calc(100vh - 24px));
+        overflow: auto;
+        border-radius: 24px;
+        background: #f8fafc;
+        color: #0f172a;
+        box-shadow: 0 30px 80px rgba(0,0,0,.38);
+        border: 1px solid rgba(255,255,255,.55);
+      }
+      .wt-demo-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px;
+        background: linear-gradient(135deg,#0f172a,#1e293b);
+        color: white;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+      .wt-demo-title { font-size: 20px; font-weight: 1000; letter-spacing: .02em; }
+      .wt-demo-close {
+        border: 0;
+        border-radius: 999px;
+        padding: 8px 12px;
+        background: rgba(255,255,255,.12);
+        color: white;
+        font-weight: 900;
+        cursor: pointer;
+      }
+      .wt-demo-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 14px 18px 0;
+      }
+      .wt-demo-tab {
+        border: 1px solid #cbd5e1;
+        background: white;
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-weight: 900;
+        cursor: pointer;
+      }
+      .wt-demo-tab.active {
+        color: white;
+        background: #111827;
+        border-color: #111827;
+      }
+      .wt-demo-body {
+        display: grid;
+        grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+        gap: 18px;
+        padding: 18px;
+      }
+      @media (max-width: 760px) {
+        .wt-demo-body { grid-template-columns: 1fr; }
+      }
+      .wt-demo-stage {
+        border-radius: 22px;
+        background: radial-gradient(circle at top left,#ffffff,#e2e8f0);
+        padding: 16px;
+        border: 1px solid #cbd5e1;
+      }
+      .wt-demo-board {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(42px, 1fr));
+        gap: 7px;
+        max-width: 360px;
+        margin: 0 auto;
+      }
+      .wt-demo-cell {
+        aspect-ratio: 1;
+        border-radius: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(18px, 4vw, 30px);
+        font-weight: 1000;
+        background: white;
+        border: 2px solid #e5e7eb;
+        box-shadow: inset 0 -2px 0 rgba(0,0,0,.08);
+        position: relative;
+        transition: transform .25s ease, background .25s ease, border-color .25s ease, box-shadow .25s ease;
+      }
+      .wt-demo-cell.red {
+        background: #fee2e2;
+        border-color: #ef4444;
+        color: #7f1d1d;
+      }
+      .wt-demo-cell.blue {
+        background: #dbeafe;
+        border-color: #3b82f6;
+        color: #1e3a8a;
+      }
+      .wt-demo-cell.path {
+        transform: scale(1.08);
+        box-shadow: 0 0 0 4px var(--wt-effect-color), 0 0 22px var(--wt-effect-color);
+        z-index: 1;
+      }
+      .wt-demo-cell.claim {
+        background: #fecaca;
+        border-color: #dc2626;
+        color: #7f1d1d;
+      }
+      .wt-demo-cell.lock::after {
+        content: "🔒";
+        position: absolute;
+        right: -6px;
+        top: -8px;
+        font-size: 18px;
+        filter: drop-shadow(0 2px 2px rgba(0,0,0,.3));
+      }
+      .wt-demo-cell.dazi {
+        animation: wtDaziPulse 1.1s infinite;
+        border-color: #a855f7;
+        box-shadow: 0 0 0 4px rgba(168,85,247,.35), 0 0 24px rgba(168,85,247,.65);
+      }
+      .wt-demo-cell.rotate {
+        animation: wtRotatePulse 1.2s infinite;
+        border-color: #fb923c;
+        box-shadow: 0 0 0 4px rgba(251,146,60,.35);
+      }
+      .wt-demo-cell.encircle {
+        background: #dcfce7;
+        border-color: #22c55e;
+        color: #14532d;
+      }
+      .wt-demo-effect-title {
+        text-align: center;
+        margin-top: 16px;
+        font-size: clamp(30px, 6vw, 56px);
+        font-weight: 1000;
+        letter-spacing: .04em;
+        line-height: 1;
+        color: var(--wt-effect-color);
+        text-shadow: 0 4px 0 rgba(15,23,42,.12);
+        animation: wtPop .7s ease;
+      }
+      .wt-demo-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        color: white;
+        font-weight: 1000;
+        background: var(--wt-effect-color);
+        box-shadow: 0 8px 18px rgba(0,0,0,.16);
+      }
+      .wt-demo-info {
+        border-radius: 22px;
+        background: white;
+        border: 1px solid #cbd5e1;
+        padding: 18px;
+      }
+      .wt-demo-info h3 {
+        margin: 10px 0 8px;
+        font-size: 24px;
+        font-weight: 1000;
+      }
+      .wt-demo-info p {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.65;
+        color: #334155;
+        font-weight: 650;
+      }
+      .wt-demo-caption {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: #f1f5f9;
+        font-weight: 900;
+        color: #0f172a;
+      }
+      .wt-demo-score-row {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .wt-demo-score {
+        flex: 1;
+        border-radius: 16px;
+        padding: 12px;
+        color: white;
+        font-weight: 1000;
+        text-align: center;
+      }
+      .wt-demo-score.red { background: #ef4444; }
+      .wt-demo-score.blue { background: #3b82f6; }
+      .wt-demo-score span {
+        display: block;
+        font-size: 24px;
+        margin-top: 3px;
+      }
+      .wt-demo-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 0 18px 18px;
+      }
+      .wt-demo-btn {
+        border: 0;
+        border-radius: 12px;
+        padding: 10px 13px;
+        background: #111827;
+        color: white;
+        font-weight: 1000;
+        cursor: pointer;
+      }
+      .wt-demo-btn.secondary {
+        background: white;
+        color: #111827;
+        border: 1px solid #cbd5e1;
+      }
+      .wt-demo-progress {
+        flex: 1;
+        min-width: 140px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .wt-demo-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #cbd5e1;
+      }
+      .wt-demo-dot.active { background: var(--wt-effect-color); transform: scale(1.25); }
+      @keyframes wtPop {
+        0% { transform: scale(.72); opacity: 0; }
+        60% { transform: scale(1.08); opacity: 1; }
+        100% { transform: scale(1); }
+      }
+      @keyframes wtDaziPulse {
+        0%,100% { transform: scale(1); }
+        50% { transform: scale(1.12); }
+      }
+      @keyframes wtRotatePulse {
+        0% { transform: rotate(0deg) scale(1); }
+        50% { transform: rotate(8deg) scale(1.08); }
+        100% { transform: rotate(0deg) scale(1); }
+      }
+    `;
+    document.head.appendChild(style);
+  };
+
+  const cellKey = (r, c) => `${r},${c}`;
+
+  const stepSet = (step, key) => new Set((step[key] || []).map(([r,c]) => cellKey(r,c)));
+
+  const renderBoard = (step) => {
+    const path = stepSet(step, "path");
+    const claim = stepSet(step, "claim");
+    const lock = stepSet(step, "lock");
+    const dazi = stepSet(step, "dazi");
+    const rotate = stepSet(step, "rotateBox");
+    const encircle = stepSet(step, "encircle");
+    const cutLine = stepSet(step, "cutLine");
+    const bridge = stepSet(step, "bridge");
+
+    let html = "";
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        const key = cellKey(r,c);
+        const owner = baseOwners[r][c];
+        let cls = "wt-demo-cell";
+        if (owner === "RED") cls += " red";
+        if (owner === "BLUE") cls += " blue";
+        if (claim.has(key)) cls += " claim";
+        if (path.has(key) || cutLine.has(key) || bridge.has(key)) cls += " path";
+        if (lock.has(key)) cls += " lock";
+        if (dazi.has(key)) cls += " dazi";
+        if (rotate.has(key)) cls += " rotate";
+        if (encircle.has(key)) cls += " encircle";
+
+        let ch = KANA[r][c] || "";
+        if (step.place && step.place[0] === r && step.place[1] === c) ch = step.place[2];
+
+        html += `<div class="${cls}" style="--wt-effect-color:${step.color}">${ch}</div>`;
+      }
+    }
+    return html;
+  };
+
+  const render = () => {
+    const step = steps[stepIndex] || steps[0];
+    const root = $("wt-demo-modal-v1");
+    if (!root) return;
+
+    root.style.setProperty("--wt-effect-color", step.color);
+
+    $("wt-demo-board-v1").innerHTML = renderBoard(step);
+    $("wt-demo-effect-title-v1").textContent = step.title;
+    $("wt-demo-badge-v1").textContent = step.badge;
+    $("wt-demo-step-title-v1").textContent = step.title;
+    $("wt-demo-step-text-v1").textContent = step.text;
+    $("wt-demo-caption-v1").textContent = step.caption || "役や効果が起きる場所を光らせています。";
+    $("wt-demo-red-delta-v1").textContent = step.redDelta || "—";
+    $("wt-demo-blue-delta-v1").textContent = step.blueDelta || "—";
+
+    const dots = $("wt-demo-progress-v1");
+    dots.innerHTML = steps.map((_, i) =>
+      `<span class="wt-demo-dot ${i === stepIndex ? "active" : ""}"></span>`
+    ).join("");
+
+    for (const btn of document.querySelectorAll(".wt-demo-tab")) {
+      btn.classList.toggle("active", btn.dataset.mode === currentMode);
+    }
+  };
+
+  const setMode = (mode) => {
+    currentMode = mode;
+    if (mode === "super") steps = SUPER_STEPS;
+    else if (mode === "match") steps = MATCH_STEPS;
+    else steps = HOWTO_STEPS;
+    stepIndex = 0;
+    render();
+  };
+
+  const next = () => {
+    stepIndex = (stepIndex + 1) % steps.length;
+    render();
+  };
+
+  const prev = () => {
+    stepIndex = (stepIndex - 1 + steps.length) % steps.length;
+    render();
+  };
+
+  const stopAuto = () => {
+    autoplay = false;
+    if (timer) window.clearInterval(timer);
+    timer = null;
+    const b = $("wt-demo-auto-v1");
+    if (b) b.textContent = "自動再生";
+  };
+
+  const toggleAuto = () => {
+    autoplay = !autoplay;
+    const b = $("wt-demo-auto-v1");
+    if (autoplay) {
+      if (b) b.textContent = "停止";
+      timer = window.setInterval(next, 1900);
+    } else {
+      stopAuto();
+    }
+  };
+
+  const open = () => {
+    const modal = $("wt-demo-modal-v1");
+    if (modal) {
+      modal.style.display = "flex";
+      render();
+    }
+  };
+
+  const close = () => {
+    stopAuto();
+    const modal = $("wt-demo-modal-v1");
+    if (modal) modal.style.display = "none";
+  };
+
+  const install = () => {
+    injectStyle();
+    if ($("wt-demo-launcher-v1")) return;
+
+    const launcher = document.createElement("button");
+    launcher.id = "wt-demo-launcher-v1";
+    launcher.type = "button";
+    launcher.textContent = "🎬 Demo";
+    launcher.addEventListener("click", open);
+    document.body.appendChild(launcher);
+
+    const modal = document.createElement("div");
+    modal.id = "wt-demo-modal-v1";
+    modal.innerHTML = `
+      <div id="wt-demo-card-v1">
+        <div class="wt-demo-header">
+          <div>
+            <div class="wt-demo-title">🎬 ワードテリトリー Demo Center</div>
+            <div style="font-size:12px;opacity:.78;font-weight:800;margin-top:3px;">役・効果・楽しさを見せるデモ</div>
+          </div>
+          <button class="wt-demo-close" id="wt-demo-close-v1" type="button">閉じる</button>
+        </div>
+
+        <div class="wt-demo-tabs">
+          <button class="wt-demo-tab active" data-mode="howto" type="button">How to Play</button>
+          <button class="wt-demo-tab" data-mode="super" type="button">Super Play</button>
+          <button class="wt-demo-tab" data-mode="match" type="button">Sample Match</button>
+        </div>
+
+        <div class="wt-demo-body">
+          <div class="wt-demo-stage">
+            <div id="wt-demo-board-v1" class="wt-demo-board"></div>
+            <div id="wt-demo-effect-title-v1" class="wt-demo-effect-title"></div>
+          </div>
+
+          <div class="wt-demo-info">
+            <span id="wt-demo-badge-v1" class="wt-demo-badge"></span>
+            <h3 id="wt-demo-step-title-v1"></h3>
+            <p id="wt-demo-step-text-v1"></p>
+            <div id="wt-demo-caption-v1" class="wt-demo-caption"></div>
+
+            <div class="wt-demo-score-row">
+              <div class="wt-demo-score red">RED<span id="wt-demo-red-delta-v1">—</span></div>
+              <div class="wt-demo-score blue">BLUE<span id="wt-demo-blue-delta-v1">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="wt-demo-controls">
+          <button id="wt-demo-prev-v1" class="wt-demo-btn secondary" type="button">← 戻る</button>
+          <button id="wt-demo-next-v1" class="wt-demo-btn" type="button">次へ →</button>
+          <button id="wt-demo-auto-v1" class="wt-demo-btn secondary" type="button">自動再生</button>
+          <div id="wt-demo-progress-v1" class="wt-demo-progress"></div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    $("wt-demo-close-v1").addEventListener("click", close);
+    $("wt-demo-prev-v1").addEventListener("click", prev);
+    $("wt-demo-next-v1").addEventListener("click", next);
+    $("wt-demo-auto-v1").addEventListener("click", toggleAuto);
+
+    modal.addEventListener("click", (ev) => {
+      if (ev.target === modal) close();
+    });
+
+    for (const btn of document.querySelectorAll(".wt-demo-tab")) {
+      btn.addEventListener("click", () => setMode(btn.dataset.mode || "howto"));
+    }
+
+    render();
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", install, { once: true });
+  } else {
+    install();
+  }
+})();
+// WT_JA_VISUAL_DEMO_CENTER_V1_END
