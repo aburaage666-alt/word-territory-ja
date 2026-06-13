@@ -178,6 +178,42 @@ const tScoreWord = (st, p) => {
 };
 const wScore = w => ({ 3:1,4:2,5:3,6:5 }[w?.length] || 0);
 
+// WT_JA_ROMAJI_FREE_INPUT_V1_BEGIN
+const WT_JA_ROMAJI_FREE_INPUT_V1 = Object.freeze({
+  a:"あ", i:"い", u:"う", e:"え", o:"お",
+  ka:"か", ki:"き", ku:"く", ke:"け", ko:"こ",
+  ga:"が", gi:"ぎ", gu:"ぐ", ge:"げ", go:"ご",
+  sa:"さ", si:"し", shi:"し", su:"す", se:"せ", so:"そ",
+  za:"ざ", zi:"じ", ji:"じ", zu:"ず", ze:"ぜ", zo:"ぞ",
+  ta:"た", ti:"ち", chi:"ち", tu:"つ", tsu:"つ", te:"て", to:"と",
+  da:"だ", di:"ぢ", du:"づ", de:"で", do:"ど",
+  na:"な", ni:"に", nu:"ぬ", ne:"ね", no:"の",
+  ha:"は", hi:"ひ", hu:"ふ", fu:"ふ", he:"へ", ho:"ほ",
+  ba:"ば", bi:"び", bu:"ぶ", be:"べ", bo:"ぼ",
+  pa:"ぱ", pi:"ぴ", pu:"ぷ", pe:"ぺ", po:"ぽ",
+  ma:"ま", mi:"み", mu:"む", me:"め", mo:"も",
+  ya:"や", yu:"ゆ", yo:"よ",
+  ra:"ら", ri:"り", ru:"る", re:"れ", ro:"ろ",
+  wa:"わ", wo:"を", n:"ん", nn:"ん"
+});
+
+function wtJaNormalizeFreeLetterInputV1(raw) {
+  let s = String(raw || "").trim();
+  if (!s) return "";
+
+  s = s.replace(/[Ａ-Ｚａ-ｚ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+
+  const first = s[0];
+
+  if (first === "ー") return "ー";
+  if (/[ぁ-ゖ]/.test(first)) return first;
+  if (/[ァ-ヶ]/.test(first)) return String.fromCharCode(first.charCodeAt(0) - 0x60);
+
+  const key = s.toLowerCase().replace(/[^a-z]/g, "");
+  return WT_JA_ROMAJI_FREE_INPUT_V1[key] || "";
+}
+// WT_JA_ROMAJI_FREE_INPUT_V1_END
+
 const OPENING_NOTES = {
   "CIRCLE OPENING": "Encircle and Capture — surround to win.",
   "橋渡し OPENING": "Connect and Divide — control the center bridge.",
@@ -3656,13 +3692,15 @@ async function submitScore() {
               </div>
               {showFreeInput && (
                 <div className="lm-free-row">
-                  <input className="lm-free-input" maxLength={1}
+                  <input className="lm-free-input" maxLength={10}
                     placeholder={wildMode ? "ワイルド: type any letter" : "Type any letter"}
                     value={freeLetter}
                     onChange={e => setFreeLetter(wtJaNormalizeKanaInput(e.target.value))}
                     onKeyDown={e => {
                       if(e.key==='Enter' && freeLetter) {
-                        useFreeLetter(gameId, freeLetter, wildMode ? "wild" : "free").then(r => {
+                        const chosenLetter = wtJaNormalizeFreeLetterInputV1(freeLetter);
+                        if (!chosenLetter) { setError("ひらがな1文字、カタカナ1文字、ー、または HA/SHI などのローマ字で入力してください。"); return; }
+                        useFreeLetter(gameId, chosenLetter, wildMode ? "wild" : "free").then(r => {
                           setMarket(m => ({...m, ...r}));
                           setLetter(chosenFreeLetter);
                           setShowFreeInput(false);
@@ -3675,7 +3713,9 @@ async function submitScore() {
                   <button className="lm-free-confirm"
                     onClick={() => {
                       if(!freeLetter) return;
-                      useFreeLetter(gameId, freeLetter, wildMode ? "wild" : "free").then(r => {
+                      const chosenLetter = wtJaNormalizeFreeLetterInputV1(freeLetter);
+                        if (!chosenLetter) { setError("ひらがな1文字、カタカナ1文字、ー、または HA/SHI などのローマ字で入力してください。"); return; }
+                        useFreeLetter(gameId, chosenLetter, wildMode ? "wild" : "free").then(r => {
                         setMarket(m => ({...m, ...r}));
                         setLetter(chosenFreeLetter);
                         setShowFreeInput(false);

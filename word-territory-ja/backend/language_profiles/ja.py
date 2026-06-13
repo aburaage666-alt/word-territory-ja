@@ -307,3 +307,76 @@ KANA_WEIGHTS = dict(_ABF_KANA_WEIGHTS)
 for _ch in ALL_KANA:
     KANA_WEIGHTS.setdefault(_ch, 1)
 # WT_JA_ABF_KANA_WEIGHTS_V3_END
+
+# WT_JA_CHOONPU_PROFILE_GUARD_V1_BEGIN
+# Long vowel mark / choonpu:
+# - valid inside normalized kana loanwords
+# - invalid at word start/end
+# - never appears in random market pools
+try:
+    LOAN_CHARS = set(globals().get("LOAN_CHARS", set())) | {"ー"}
+except Exception:
+    LOAN_CHARS = {"ー"}
+
+try:
+    ALL_KANA = [ch for ch in ALL_KANA if ch != "ー"]
+except Exception:
+    pass
+
+try:
+    KANA_WEIGHTS.pop("ー", None)
+except Exception:
+    pass
+
+def _wt_ja_choon_katakana_to_hiragana_v1(text):
+    import unicodedata
+    s = unicodedata.normalize("NFKC", str(text or "")).strip()
+    out = []
+    for ch in s:
+        code = ord(ch)
+        if 0x30A1 <= code <= 0x30F6:
+            ch = chr(code - 0x60)
+        out.append(ch)
+    return "".join(out)
+
+try:
+    _wt_ja_choon_orig_normalize_v1 = normalize
+except Exception:
+    _wt_ja_choon_orig_normalize_v1 = None
+
+def normalize(value):
+    s = _wt_ja_choon_katakana_to_hiragana_v1(value)
+    out = []
+    for ch in s:
+        if ch == "ー":
+            out.append(ch)
+        elif "ぁ" <= ch <= "ゖ":
+            out.append(ch)
+    return "".join(out)
+
+try:
+    _wt_ja_choon_orig_is_valid_kana_word_v1 = is_valid_kana_word
+except Exception:
+    _wt_ja_choon_orig_is_valid_kana_word_v1 = None
+
+def is_valid_kana_word(word):
+    w = normalize(word)
+    if not w:
+        return False
+    try:
+        if not (MIN_WORD_LEN <= len(w) <= 12):
+            return False
+    except Exception:
+        if len(w) < 2:
+            return False
+
+    if "ー" in w:
+        if w.startswith("ー") or w.endswith("ー"):
+            return False
+        return all((("ぁ" <= ch <= "ゖ") or ch == "ー") for ch in w)
+
+    if _wt_ja_choon_orig_is_valid_kana_word_v1:
+        return _wt_ja_choon_orig_is_valid_kana_word_v1(w)
+
+    return all("ぁ" <= ch <= "ゖ" for ch in w)
+# WT_JA_CHOONPU_PROFILE_GUARD_V1_END
