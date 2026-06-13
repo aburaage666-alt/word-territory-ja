@@ -1,92 +1,143 @@
 #!/usr/bin/env python3
-"""Word Territory balance scorecard (SC=x/8).
-Usage: python3 scorecard.py results_v18.csv results_v23.csv ...
-Reads bot_match_results_*.csv and applies 8 fixed acceptance gates.
-Edit GATES below to match your own rubric.
+"""Word Territory balance scorecard: Intelligibility Core v1.
+
+Reads bot_match_results_*.csv and applies 6 fixed acceptance gates.
+Synergy/card activation gates are intentionally removed because hidden scoring
+is no longer part of the core evaluation.
+
+Usage:
+  py -3 scorecard.py bot_match_results_*.csv
 """
-import csv, sys, statistics
+import csv
+import sys
+import statistics
 from collections import defaultdict
 
-# --- PROPOSED GATES (edit thresholds to your rubric) ---
 GATES = {
-    "RED% in 40-60":        ("RED win share balanced (first/second fair)",),
-    "style 30-70 all":      ("every style's first-player win in [30%,70%]",),
-    "word% >= 90":          ("at least 90% of moves are word moves",),
-    "3-letter <= 70 (JP)":  ("JP-calibrated: <=70% 3-kana (EN-style <=60 is placeability-bound)",),
-    "synergy >0 in >=50%":  ("synergy fires in at least half the games",),
-    "no dead card":         ("each selected_synergy has avg fires > 0",),
-    "close >= 55":          ("at least 55% of games gap<=6",),
-    "gap <= 6.0":           ("average score gap <= 6",),
+    "RED% in 40-60":       "First/second player fairness",
+    "style 30-70 all":     "Every bot style stays in a playable band",
+    "word% >= 90":         "Most moves are real word moves, not seed/pass",
+    "3-letter <= 70 (JP)": "JP depth: avoid shallow 3-kana dominance",
+    "close >= 55":         "At least 55% of games are gap<=6",
+    "gap <= 6.0":          "Average score gap is not a blowout",
 }
 
-def load(p):
-    with open(p, encoding='utf-8-sig') as f:
+def load(path):
+    with open(path, encoding="utf-8-sig", newline="") as f:
         return list(csv.DictReader(f))
 
+def _num(row, key, default=0):
+    try:
+        return float(row.get(key, default) or default)
+    except Exception:
+        return float(default)
+
+def _int(row, key, default=0):
+    return int(_num(row, key, default))
+
 def score(rows):
-    n=len(rows)
-    red=sum(r['winner']=='RED' for r in rows)
-    redpct=red/n*100
-    # per-style first-player(=RED) win share
-    st=defaultdict(lambda:[0,0])
-    card=defaultdict(list)
+    n = len(rows)
+    if n <= 0:
+        raise ValueError("empty csv")
+
+    red_wins = sum(1 for r in rows if r.get("winner") == "RED")
+    redpct = red_wins / n * 100.0
+
+    style = defaultdict(lambda: [0, 0])
     for r in rows:
-        st[r['bot_style']][0]+=1
-        if r['winner']=='RED': st[r['bot_style']][1]+=1
-        card[r['selected_synergy']].append(int(r['synergies']))
-    style_ok=all(30<=(w/g*100)<=70 for g,w in st.values() if g)
-    style_detail={k:round(w/g*100) for k,(g,w) in st.items()}
-    wm=sum(int(r['word_moves']) for r in rows); mv=sum(int(r['moves']) for r in rows)
-    wordpct=wm/mv*100
-    tlr=statistics.mean(float(r['three_letter_ratio']) for r in rows)*100
-    synpos=sum(int(r['synergies'])>0 for r in rows)/n*100
-    deadcard=any(statistics.mean(v)<=0 for v in card.values())
-    close=sum(int(r['close_le_6']) for r in rows)/n*100
-    gap=statistics.mean(int(r['score_gap']) for r in rows)
-    results={
-        "RED% in 40-60":       (40<=redpct<=60,            f"{redpct:.0f}%"),
-        "style 30-70 all":     (style_ok,                  str(style_detail)),
-        "word% >= 90":         (wordpct>=90,               f"{wordpct:.0f}%"),
-        "3-letter <= 70 (JP)":  (tlr<=70,                   f"{tlr:.0f}%"),
-        "synergy >0 in >=50%": (synpos>=50,                f"{synpos:.0f}%"),
-        "no dead card":        (not deadcard,              "dead" if deadcard else "ok"),
-        "close >= 55":         (close>=55,                 f"{close:.0f}%"),
-        "gap <= 6.0":          (gap<=6.0,                   f"{gap:.2f}"),
+        s = r.get("bot_style") or r.get("botStyle") or "UNKNOWN"
+        style[s][0] += 1
+        if r.get("winner") == "RED":
+            style[s][1] += 1
+
+    style_detail = {}
+    style_ok = True
+    for s, (games, redwins) in style.items():
+        pct = redwins / games * 100.0 if games else 0.0
+        style_detail[s] = round(pct)
+        if not (30 <= pct <= 70):
+            style_ok = False
+
+    word_moves = sum(_int(r, "word_moves") for r in rows)
+    moves = sum(_int(r, "moves") for r in rows)
+    wordpct = word_moves / moves * 100.0 if moves else 0.0
+
+    three_ratio = statistics.mean(_num(r, "three_letter_ratio") for r in rows) * 100.0
+
+    close = sum(_int(r, "close_le_6") for r in rows) / n * 100.0
+
+    gaps = []
+    for r in rows:
+        if "score_gap" in r:
+            gaps.append(abs(_num(r, "score_gap")))
+        elif "gap" in r:
+            gaps.append(abs(_num(r, "gap")))
+    avg_gap = statistics.mean(gaps) if gaps else 999.0
+
+    results = {
+        "RED% in 40-60":       (40 <= redpct <= 60, f"{redpct:.1f}%"),
+        "style 30-70 all":     (style_ok, str(style_detail)),
+        "word% >= 90":         (wordpct >= 90, f"{wordpct:.1f}%"),
+        "3-letter <= 70 (JP)": (three_ratio <= 70, f"{three_ratio:.1f}%"),
+        "close >= 55":         (close >= 55, f"{close:.1f}%"),
+        "gap <= 6.0":          (avg_gap <= 6.0, f"{avg_gap:.2f}"),
     }
-    sc=sum(1 for ok,_ in results.values() if ok)
+
+    sc = sum(1 for ok, _ in results.values() if ok)
     return sc, results
 
 def label(path):
-    import os, re
-    b=os.path.basename(path)
-    b=re.sub(r'^bot_match_(results|summary)_(ja_)?','',b)
-    b=re.sub(r'\.csv$','',b)
+    import os
+    import re
+    b = os.path.basename(path)
+    b = re.sub(r"^bot_match_(results|summary)_(ja_)?", "", b)
+    b = re.sub(r"\.csv$", "", b)
     return b or path
 
-if __name__=="__main__":
-    files=sys.argv[1:]
+def four_plus_share(rows):
+    vals = []
+    for r in rows:
+        w = r.get("best_word") or r.get("bestWord") or ""
+        vals.append(1 if len(str(w)) >= 4 else 0)
+    return sum(vals) / len(vals) * 100.0 if vals else 0.0
+
+def main(argv):
+    files = argv[1:]
     if not files:
-        print("usage: scorecard.py results_*.csv"); sys.exit(1)
-    allres={}
+        print("usage: scorecard.py results_*.csv")
+        return 1
+
+    all_results = {}
+    all_depth = {}
+
     for p in files:
-        sc,res=score(load(p)); allres[label(p)]=(sc,res)
-    gates=list(GATES.keys())
-    w=max(len(g) for g in gates)
-    cols=list(allres.keys())
-    print(f"{'GATE':<{w}} | "+" | ".join(f"{c:^14}" for c in cols))
-    print("-"*(w+3+len(cols)*17))
-    for g in gates:
-        cells=[]
+        rows = load(p)
+        sc, res = score(rows)
+        name = label(p)
+        all_results[name] = (sc, res)
+        all_depth[name] = four_plus_share(rows)
+
+    gates = list(GATES.keys())
+    width = max(len(g) for g in gates)
+    cols = list(all_results.keys())
+
+    print(f"{'GATE':<{width}} | " + " | ".join(f"{c:^16}" for c in cols))
+    print("-" * (width + 3 + len(cols) * 19))
+
+    for gate in gates:
+        cells = []
         for c in cols:
-            ok,val=allres[c][1][g]
-            cells.append(f"{'PASS' if ok else 'FAIL'} {val:>8}")
-        print(f"{g:<{w}} | "+" | ".join(f"{x:^14}" for x in cells))
-    print("-"*(w+3+len(cols)*17))
-    print(f"{'SC = x/8':<{w}} | "+" | ".join(f"{allres[c][0]}/8".center(14) for c in cols))
-    # informational depth stat: share of games whose best_word is 4+ kana
-    print("-"*(w+3+len(cols)*17))
-    depth={}
-    for p in files:
-        rs=load(p); g4=sum(1 for r in rs if r.get('best_word') and len(r['best_word'])>=4)
-        depth[label(p)]=f"{g4/len(rs)*100:.0f}%"
-    print(f"{'(info) 4+ best-word share':<{w}} | "+" | ".join(depth[c].center(14) for c in cols))
+            ok, val = all_results[c][1][gate]
+            cells.append(f"{'PASS' if ok else 'FAIL'} {val:>9}")
+        print(f"{gate:<{width}} | " + " | ".join(f"{x:^16}" for x in cells))
+
+    print("-" * (width + 3 + len(cols) * 19))
+    print(f"{'SC = x/6':<{width}} | " + " | ".join(f"{all_results[c][0]}/6".center(16) for c in cols))
+
+    print("-" * (width + 3 + len(cols) * 19))
+    print(f"{'(info) 4+ best-word share':<{width}} | " + " | ".join(f"{all_depth[c]:.1f}%".center(16) for c in cols))
+
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

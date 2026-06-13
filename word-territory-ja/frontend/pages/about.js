@@ -123,6 +123,23 @@ export default function About() {
 
       <DemoBoard />
 
+      <section style={{
+        marginTop: 14,
+        padding: 16,
+        borderRadius: 20,
+        background: "#ecfeff",
+        border: "1px solid #06b6d4",
+      }}>
+        <div style={{ fontWeight: 1000, fontSize: 16, color: "#164e63" }}>
+          コアルール
+        </div>
+        <div style={{ fontSize: 14.5, color: "#155e75", lineHeight: 1.75, marginTop: 4 }}>
+          領地 ＝ 単語の経路 ＋ 囲んだ敵マス。強い手は、長い経路を作るか、敵を囲んで反転させる手です。
+          役名は追加得点のためではなく、盤面で起きたことを理解しやすくするための名前です。
+        </div>
+      </section>
+
+
       <section>
         {steps.map(([n, title, body]) => (
           <div key={n} style={card}>

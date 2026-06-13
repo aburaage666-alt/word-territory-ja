@@ -5856,3 +5856,96 @@ try:
 except Exception:
     pass
 # WT_JA_ABF_MARKET_QUALITY_V3_END
+
+# WT_JA_INTELLIGIBILITY_CORE_V1_BEGIN
+# Intelligibility Core v1
+# Goal:
+# - Make the game readable from the board, not from hidden bonuses.
+# - Territory value should be understood as:
+#     word path length + visible enclosure / capture
+# - Synergy cards may exist historically, but they no longer add hidden territory.
+# - New games should not ask beginners to choose hidden scoring cards.
+
+_SYNERGY_BONUS_ENABLED = False
+
+try:
+    _wt_intel_orig_pick_synergy_options_v1 = pick_synergy_options
+
+    def pick_synergy_options():
+        # Hide synergy selection for new games.
+        # Strategic labels such as 橋渡し / 分断 / 捕獲 remain as readable event labels,
+        # but not as separate hidden scoring engines.
+        return []
+except Exception:
+    pass
+
+
+try:
+    _wt_intel_orig_apply_synergy_bonus_v1 = apply_synergy_bonus
+
+    def apply_synergy_bonus(state, combos, player, word, letter, path=None,
+                            row=None, col=None, territory_gain=0, lock_gain=0):
+        # Hard stop: no invisible +territory from card systems.
+        return 0
+except Exception:
+    pass
+
+
+try:
+    _wt_intel_orig_synergy_preview_text_v1 = _synergy_preview_text
+
+    def _synergy_preview_text(state, combos, player, word, letter, path=None,
+                              row=None, col=None):
+        # Do not display "ready" messages for hidden scoring systems.
+        return ""
+except Exception:
+    pass
+
+
+try:
+    _wt_intel_orig_synergy_activation_text_v1 = synergy_activation_text
+
+    def synergy_activation_text(state, combos, player, word, letter, bonus):
+        return ""
+except Exception:
+    pass
+
+
+try:
+    _wt_intel_orig_update_synergy_state_v1 = update_synergy_state
+
+    def update_synergy_state(state, combos, is_seed=False):
+        # Preserve operational state unrelated to scoring.
+        # Do not increment hidden synergy counters.
+        ss = dict(getattr(state, "synergyState", {}) or {})
+        return ss
+except Exception:
+    pass
+
+
+try:
+    _wt_intel_orig_build_initial_state_v1 = build_initial_state
+
+    def build_initial_state(*args, **kwargs):
+        st = _wt_intel_orig_build_initial_state_v1(*args, **kwargs)
+        try:
+            st.synergyOptions = []
+            st.selectedSynergy = ""
+            st.synergyState = dict(getattr(st, "synergyState", {}) or {})
+            st.synergyState["_intelligibilityCore"] = True
+            st.synergyState["_hiddenSynergyScoring"] = False
+        except Exception:
+            pass
+        return st
+except Exception:
+    pass
+
+
+def wt_intelligibility_core_summary():
+    return {
+        "core": "word path territory + visible enclosure/capture",
+        "hiddenSynergyScoring": False,
+        "newGameSynergyOptions": False,
+        "labelsAreExplanatory": True,
+    }
+# WT_JA_INTELLIGIBILITY_CORE_V1_END
