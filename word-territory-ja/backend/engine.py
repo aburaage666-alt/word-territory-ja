@@ -2536,7 +2536,7 @@ def preview_move(state: GameState, row: int, col: int, letter: str, path) -> Pre
     try:
         word = validate_path_and_word(state, row, col, letter, path) if path else ""
         includes = path_contains(path, row, col) if path else False
-        valid_len = 3 <= len(word) <= 6
+        valid_len = _WORD_MIN <= len(word) <= _WORD_MAX
         in_dict = is_valid_word(word) if valid_len else False
         response = PreviewMoveResponse(
             word=word,
@@ -5519,3 +5519,340 @@ try:
 except Exception:
     pass
 # WT_JA_DAZI_COUNTER_AND_2LETTER_COMPAT_V1_END
+
+
+# WT_JA_ABF_MARKET_QUALITY_V3_BEGIN
+def _wt_abf_is_ja_v3():
+    return globals().get("_LANG") == "ja"
+
+def _wt_abf_is_kana_v3(x):
+    if x == "*":
+        return True
+    return isinstance(x, str) and len(x) == 1 and ((0x3041 <= ord(x) <= 0x3096) or x == "\u30fc")
+
+def _wt_abf_pool_v3():
+    try:
+        from language_profiles import ja as _ja
+        pool = [x for x in getattr(_ja, "ALL_KANA", []) if _wt_abf_is_kana_v3(x) and x != "*"]
+        if pool:
+            return pool
+    except Exception:
+        pass
+    return list("あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ")
+
+_WT_ABF_ROWS_V3 = {
+    "あ": "あいうえお",
+    "か": "かきくけこがぎぐげご",
+    "さ": "さしすせそざじずぜぞ",
+    "た": "たちつてとだぢづでど",
+    "な": "なにぬねの",
+    "は": "はひふへほばびぶべぼぱぴぷぺぽ",
+    "ま": "まみむめも",
+    "や": "やゆよ",
+    "ら": "らりるれろ",
+    "わ": "わをん",
+}
+
+def _wt_abf_row_v3(ch):
+    for row, chars in _WT_ABF_ROWS_V3.items():
+        if ch in chars:
+            return row
+    return str(ch or "")
+
+def _wt_abf_stat_v3(state, letter):
+    if letter == "*":
+        return {"wordCount": 99, "bestGain": 0, "bestWord": "*", "bestRole": "ワイルド", "roleIcon": "★", "roleLabel": "Wild", "isWild": True}
+
+    try:
+        f = globals().get("_letter_best_stats")
+        if callable(f):
+            s = f(state, letter) or {}
+            return {
+                "wordCount": int(s.get("wordCount", s.get("words", 0)) or 0),
+                "bestGain": int(s.get("bestGain", s.get("gain", 0)) or 0),
+                "bestWord": str(s.get("bestWord", s.get("best_word", "")) or ""),
+                "bestRole": str(s.get("bestRole", "") or ""),
+                "roleIcon": str(s.get("roleIcon", "") or ""),
+                "roleLabel": str(s.get("roleLabel", "") or ""),
+                "isWild": bool(s.get("isWild", False)),
+            }
+    except Exception:
+        pass
+
+    try:
+        moves = _fast_bot_moves_for_letter(state, letter, max_results=4, excluded=set(getattr(state, "usedWords", []) or []))
+        best_word = ""
+        best_gain = 0
+        for m in moves or []:
+            w = str(m.get("word", "") or "")
+            g = int(m.get("territory_gain", 0) or 0)
+            if len(w) > len(best_word) or g > best_gain:
+                best_word = w
+                best_gain = g
+        return {
+            "wordCount": len(moves or []),
+            "bestGain": best_gain,
+            "bestWord": best_word,
+            "bestRole": "安全" if moves else "布石",
+            "roleIcon": "🛡" if moves else "✨",
+            "roleLabel": "Safe" if moves else "Setup",
+            "isWild": False,
+        }
+    except Exception:
+        return {"wordCount": 0, "bestGain": 0, "bestWord": "", "bestRole": "布石", "roleIcon": "✨", "roleLabel": "Setup", "isWild": False}
+
+def _wt_abf_quality_v3(state, letter, existing=None):
+    existing = list(existing or [])
+    s = _wt_abf_stat_v3(state, letter)
+    w = s.get("bestWord", "") or ""
+    n = len(w)
+    role = s.get("bestRole", "") or ""
+    row = _wt_abf_row_v3(letter)
+
+    q = 0.0
+    q += int(s.get("wordCount", 0) or 0) * 5.0
+    q += int(s.get("bestGain", 0) or 0) * 2.5
+
+    if n >= 3:
+        q += 18.0
+    if n >= 4:
+        q += 12.0
+    if n >= 5:
+        q += 8.0
+
+    if "捕獲" in role:
+        q += 16.0
+    if "橋渡し" in role:
+        q += 13.0
+    if "ロック" in role:
+        q += 10.0
+    if "攻め" in role:
+        q += 9.0
+    if "ワイルド" in role:
+        q += 20.0
+    if "布石" in role and int(s.get("wordCount", 0) or 0) == 0:
+        q -= 7.0
+
+    try:
+        weights = dict(globals().get("_LETTER_WEIGHTS", {}) or {})
+        q += min(8.0, float(weights.get(letter, 1) or 1) / 12.0)
+    except Exception:
+        pass
+
+    if letter in set("ぬねへをづぢ"):
+        q -= 8.0 if int(s.get("wordCount", 0) or 0) == 0 else 3.0
+
+    rows = [_wt_abf_row_v3(x) for x in existing]
+    q -= rows.count(row) * 14.0
+
+    return q
+
+def _wt_abf_candidates_v3(state, existing=None):
+    existing = set(existing or [])
+    cands = [x for x in _wt_abf_pool_v3() if x not in existing]
+
+    try:
+        scored = _score_all_letters(state) or {}
+        for x in scored.keys():
+            if x not in existing and _wt_abf_is_kana_v3(x) and x != "*":
+                cands.append(x)
+    except Exception:
+        pass
+
+    for ch in "あいうえおかきくしすたちつとなのはまみむめもやゆよらりるれろ":
+        if ch not in existing:
+            cands.append(ch)
+
+    dedup = []
+    for x in cands:
+        if x not in dedup and _wt_abf_is_kana_v3(x) and x != "*":
+            dedup.append(x)
+
+    dedup.sort(key=lambda x: _wt_abf_quality_v3(state, x, existing), reverse=True)
+    return dedup
+
+def _wt_abf_pick_v3(state, existing=None, require_playable=False, require_long=False):
+    existing = list(existing or [])
+    rows = [_wt_abf_row_v3(x) for x in existing]
+
+    for ch in _wt_abf_candidates_v3(state, existing):
+        s = _wt_abf_stat_v3(state, ch)
+
+        if require_playable and int(s.get("wordCount", 0) or 0) <= 0:
+            continue
+        if require_long and len(str(s.get("bestWord", "") or "")) < 3:
+            continue
+
+        row = _wt_abf_row_v3(ch)
+        if rows.count(row) >= 2:
+            continue
+        if row == "な" and rows.count("な") >= 1 and int(s.get("wordCount", 0) or 0) <= 1:
+            continue
+
+        return ch
+
+    for ch in _wt_abf_candidates_v3(state, existing):
+        return ch
+
+    pool = [x for x in _wt_abf_pool_v3() if x not in set(existing)]
+    return pool[0] if pool else "あ"
+
+def _wt_abf_playable_count_v3(state, letters):
+    n = 0
+    for l in letters or []:
+        if l == "*":
+            n += 1
+            continue
+        try:
+            if int(_wt_abf_stat_v3(state, l).get("wordCount", 0) or 0) > 0:
+                n += 1
+        except Exception:
+            pass
+    return n
+
+def _wt_abf_has_long_v3(state, letters):
+    for l in letters or []:
+        try:
+            if len(str(_wt_abf_stat_v3(state, l).get("bestWord", "") or "")) >= 3:
+                return True
+        except Exception:
+            pass
+    return False
+
+def _wt_abf_weakest_index_v3(state, letters):
+    if not letters:
+        return 0
+    scores = [_wt_abf_quality_v3(state, l, [x for x in letters if x != l]) for l in letters]
+    return min(range(len(letters)), key=lambda i: scores[i])
+
+def _wt_abf_repair_market_v3(state, active, preview):
+    if not _wt_abf_is_ja_v3():
+        return active, preview
+
+    active = [x for x in (active or []) if _wt_abf_is_kana_v3(x) or x == "*"][:3]
+    preview = [x for x in (preview or []) if _wt_abf_is_kana_v3(x) and x not in active and x != "*"][:3]
+
+    while len(active) < 3:
+        active.append(_wt_abf_pick_v3(state, active))
+
+    if not _wt_abf_has_long_v3(state, active):
+        repl = _wt_abf_pick_v3(state, active, require_playable=True, require_long=True)
+        if repl and repl not in active:
+            active[_wt_abf_weakest_index_v3(state, active)] = repl
+
+    guard = 0
+    while _wt_abf_playable_count_v3(state, active) < 2 and guard < 4:
+        guard += 1
+        repl = _wt_abf_pick_v3(state, active, require_playable=True)
+        if not repl or repl in active:
+            break
+        active[_wt_abf_weakest_index_v3(state, active)] = repl
+
+    rows = [_wt_abf_row_v3(x) for x in active]
+    if len(active) == 3 and len(set(rows)) == 1:
+        repl = _wt_abf_pick_v3(state, active)
+        if repl and repl not in active:
+            active[2] = repl
+
+    rows = [_wt_abf_row_v3(x) for x in active]
+    if rows.count("な") >= 2:
+        na_indexes = [i for i, x in enumerate(active) if _wt_abf_row_v3(x) == "な"]
+        weak = min(na_indexes, key=lambda i: _wt_abf_quality_v3(state, active[i], active[:i] + active[i+1:]))
+        repl = _wt_abf_pick_v3(state, active)
+        if repl and repl not in active and _wt_abf_row_v3(repl) != "な":
+            active[weak] = repl
+
+    vowels = set("あいうえお")
+    if not any(x in vowels for x in active):
+        repl = next((v for v in sorted(vowels, key=lambda x: _wt_abf_quality_v3(state, x, active), reverse=True) if v not in active), None)
+        if repl:
+            active[_wt_abf_weakest_index_v3(state, active)] = repl
+
+    dedup = []
+    for x in active:
+        if x not in dedup and (_wt_abf_is_kana_v3(x) or x == "*"):
+            dedup.append(x)
+    active = dedup[:3]
+
+    while len(active) < 3:
+        active.append(_wt_abf_pick_v3(state, active))
+
+    existing = set(active)
+    preview2 = []
+    for x in preview:
+        if x not in existing and x not in preview2 and _wt_abf_is_kana_v3(x) and x != "*":
+            preview2.append(x)
+
+    while len(preview2) < 3:
+        pick = _wt_abf_pick_v3(state, list(existing) + preview2)
+        if pick and pick not in existing and pick not in preview2 and pick != "*":
+            preview2.append(pick)
+        else:
+            break
+
+    while len(preview2) < 3:
+        for ch in _wt_abf_pool_v3():
+            if ch not in existing and ch not in preview2:
+                preview2.append(ch)
+                break
+
+    return active[:3], preview2[:3]
+
+try:
+    _wt_abf_orig_generate_letter_market_v3 = generate_letter_market
+
+    def generate_letter_market(state):
+        pair = _wt_abf_orig_generate_letter_market_v3(state)
+        try:
+            active, preview = pair
+        except Exception:
+            active, preview = [], []
+        return _wt_abf_repair_market_v3(state, active, preview)
+except Exception:
+    pass
+
+try:
+    _wt_abf_orig_advance_market_v3 = advance_market
+
+    def advance_market(state, used_letter):
+        if not _wt_abf_is_ja_v3():
+            return _wt_abf_orig_advance_market_v3(state, used_letter)
+
+        active = [x for x in (getattr(state, "marketLetters", []) or []) if _wt_abf_is_kana_v3(x) or x == "*"][:3]
+        preview = [x for x in (getattr(state, "previewLetters", []) or []) if _wt_abf_is_kana_v3(x) and x not in active and x != "*"][:3]
+
+        while len(active) < 3:
+            active.append(_wt_abf_pick_v3(state, active))
+        while len(preview) < 3:
+            preview.append(_wt_abf_pick_v3(state, active + preview))
+
+        new_active = list(active[:3])
+
+        try:
+            idx = new_active.index(used_letter)
+        except Exception:
+            idx = _wt_abf_weakest_index_v3(state, new_active)
+
+        replacement = preview[0] if preview else _wt_abf_pick_v3(state, new_active, require_playable=True)
+        new_active[idx] = replacement
+
+        new_preview = [x for x in preview[1:] if x not in new_active]
+        return _wt_abf_repair_market_v3(state, new_active, new_preview)
+except Exception:
+    pass
+
+try:
+    _wt_abf_orig_get_market_stats_v3 = get_market_stats
+
+    def get_market_stats(state):
+        if not _wt_abf_is_ja_v3():
+            return _wt_abf_orig_get_market_stats_v3(state)
+        out = []
+        for letter in list(getattr(state, "marketLetters", []) or []):
+            s = _wt_abf_stat_v3(state, letter)
+            s["letter"] = letter
+            out.append(s)
+        return out
+except Exception:
+    pass
+# WT_JA_ABF_MARKET_QUALITY_V3_END

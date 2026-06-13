@@ -5544,3 +5544,35 @@ async function submitScore() {
   }
 })();
 // WT_JA_VISUAL_DEMO_CENTER_V1_END
+
+
+// WT_JA_ABOUT_CLICK_GUARD_V3_BEGIN
+(() => {
+  if (typeof window === "undefined") return;
+  if (window.__WT_JA_ABOUT_CLICK_GUARD_V3__) return;
+  window.__WT_JA_ABOUT_CLICK_GUARD_V3__ = true;
+
+  document.addEventListener("click", (ev) => {
+    const t = ev.target;
+    const el = t && t.closest ? t.closest("a,button,[role='button']") : null;
+    if (!el) return;
+
+    const text = (el.textContent || "").trim();
+    const href = el.getAttribute && (el.getAttribute("href") || "");
+    const aria = el.getAttribute && (el.getAttribute("aria-label") || "");
+
+    const isAbout =
+      href === "/about" ||
+      href.endsWith("/about") ||
+      /説明|遊び方|How\s*to\s*Play/i.test(text) ||
+      /説明|遊び方|How\s*to\s*Play/i.test(aria);
+
+    if (!isAbout) return;
+
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    window.location.href = "/about";
+  }, true);
+})();
+// WT_JA_ABOUT_CLICK_GUARD_V3_END
