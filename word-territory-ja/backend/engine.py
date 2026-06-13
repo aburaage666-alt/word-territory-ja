@@ -24,6 +24,50 @@ else:
     _LANG_PROFILE = None
 from models import Cell, Coord, GameState, MoveHistoryItem, PreviewMoveResponse, Scores
 
+# WT_JA_ROMAJI_CHOON_CORE_NORMALIZE_V4_BEGIN
+import unicodedata as _wt_ja_unicodedata_v4
+
+_WT_JA_CHOONPU_V4 = "ー"
+
+_WT_JA_ROMAJI_MAP_V4 = {
+    "a":"あ", "i":"い", "u":"う", "e":"え", "o":"お",
+    "ka":"か", "ki":"き", "ku":"く", "ke":"け", "ko":"こ",
+    "ga":"が", "gi":"ぎ", "gu":"ぐ", "ge":"げ", "go":"ご",
+    "sa":"さ", "si":"し", "shi":"し", "su":"す", "se":"せ", "so":"そ",
+    "za":"ざ", "zi":"じ", "ji":"じ", "zu":"ず", "ze":"ぜ", "zo":"ぞ",
+    "ta":"た", "ti":"ち", "chi":"ち", "tu":"つ", "tsu":"つ", "te":"て", "to":"と",
+    "da":"だ", "di":"ぢ", "du":"づ", "de":"で", "do":"ど",
+    "na":"な", "ni":"に", "nu":"ぬ", "ne":"ね", "no":"の",
+    "ha":"は", "hi":"ひ", "hu":"ふ", "fu":"ふ", "he":"へ", "ho":"ほ",
+    "ba":"ば", "bi":"び", "bu":"ぶ", "be":"べ", "bo":"ぼ",
+    "pa":"ぱ", "pi":"ぴ", "pu":"ぷ", "pe":"ぺ", "po":"ぽ",
+    "ma":"ま", "mi":"み", "mu":"む", "me":"め", "mo":"も",
+    "ya":"や", "yu":"ゆ", "yo":"よ",
+    "ra":"ら", "ri":"り", "ru":"る", "re":"れ", "ro":"ろ",
+    "wa":"わ", "wo":"を", "n":"ん", "nn":"ん",
+}
+
+def _wt_ja_text_to_hira_v4(value):
+    txt = _wt_ja_unicodedata_v4.normalize("NFKC", str(value or "")).strip()
+    if not txt:
+        return ""
+
+    key = "".join(ch for ch in txt.lower() if "a" <= ch <= "z")
+    if key in _WT_JA_ROMAJI_MAP_V4:
+        return _WT_JA_ROMAJI_MAP_V4[key]
+
+    out = []
+    for ch in txt:
+        code = ord(ch)
+        if 0x30A1 <= code <= 0x30F6:
+            ch = chr(code - 0x60)
+        if ch == _WT_JA_CHOONPU_V4:
+            out.append(ch)
+        elif "ぁ" <= ch <= "ゖ":
+            out.append(ch)
+    return "".join(out)
+# WT_JA_ROMAJI_CHOON_CORE_NORMALIZE_V4_END
+
 BOARD_SIZE = getattr(_LANG_PROFILE, 'BOARD_SIZE', 7) if _LANG == 'ja' else 7
 MAX_TURNS = 35
 _WORD_MIN = getattr(_LANG_PROFILE, 'MIN_WORD_LEN', 3) if _LANG == 'ja' else 3
@@ -73,9 +117,14 @@ def are_adjacent(a, b) -> bool:
 
 
 def _norm_word(w: str) -> str:
+    if _LANG == "ja":
+        return _wt_ja_text_to_hira_v4(w)
     return normalize_word(w)
 
 def _norm_letter(ch: str) -> str:
+    if _LANG == "ja":
+        w = _wt_ja_text_to_hira_v4(ch)
+        return w[:1] if w else ""
     w = _norm_word(str(ch or "")[:1])
     return w[:1] if w else ""
 
@@ -6243,3 +6292,118 @@ def wt_ja_choonpu_final_summary_v2():
         "choonpuSeedAllowed": False,
     }
 # WT_JA_CHOONPU_FINAL_NORMALIZER_V2_END
+
+# WT_JA_CHOONPU_BACKEND_DIRECT_FIX_V4_BEGIN
+# Direct final layer:
+# - ー is valid as a placed free letter for normal word moves.
+# - ー is never emitted by market.
+# - ー is forbidden for seed.
+# - HA/SHI/etc are normalized at backend too.
+
+try:
+    if _LANG == "ja" and "ー" not in _ALL_LETTERS:
+        _ALL_LETTERS.append("ー")
+except Exception:
+    pass
+
+try:
+    if _LANG == "ja":
+        _LETTER_WEIGHTS["ー"] = 0
+except Exception:
+    pass
+
+def _wt_ja_v4_is_market_tile(x):
+    if x == "*":
+        return True
+    if not isinstance(x, str) or len(x) != 1:
+        return False
+    if x == "ー":
+        return False
+    o = ord(x)
+    return 0x3041 <= o <= 0x3096
+
+def _wt_ja_v4_pool():
+    try:
+        pool = [x for x in _ALL_LETTERS if _wt_ja_v4_is_market_tile(x) and x != "*"]
+        if pool:
+            return pool
+    except Exception:
+        pass
+    return list("あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ")
+
+def _wt_ja_v4_clean_seq(seq, existing=None, allow_wild=True, offset=0):
+    if _LANG != "ja":
+        return seq
+    existing = set(existing or [])
+    out = []
+    for x in seq or []:
+        if x == "*" and allow_wild and "*" not in out:
+            out.append(x)
+        elif _wt_ja_v4_is_market_tile(x) and x not in out:
+            out.append(x)
+    pool = _wt_ja_v4_pool()
+    i = offset
+    while len(out) < 3:
+        c = pool[i % len(pool)]
+        i += 1
+        if c not in out and c not in existing:
+            out.append(c)
+    return out[:3]
+
+def _wt_ja_v4_clean_pair(pair):
+    if _LANG != "ja":
+        return pair
+    try:
+        active, preview = pair
+    except Exception:
+        return pair
+    a = _wt_ja_v4_clean_seq(active, allow_wild=True, offset=0)
+    b = _wt_ja_v4_clean_seq(preview, existing=set(a), allow_wild=False, offset=7)
+    return a, b
+
+try:
+    _wt_ja_v4_orig_generate_letter_market = generate_letter_market
+    def generate_letter_market(state):
+        return _wt_ja_v4_clean_pair(_wt_ja_v4_orig_generate_letter_market(state))
+except Exception:
+    pass
+
+try:
+    _wt_ja_v4_orig_advance_market = advance_market
+    def advance_market(state, used_letter):
+        return _wt_ja_v4_clean_pair(_wt_ja_v4_orig_advance_market(state, used_letter))
+except Exception:
+    pass
+
+try:
+    _wt_ja_v4_orig_apply_seed_move = apply_seed_move
+    def apply_seed_move(state, row: int, col: int, letter: str, advance_market_flag: bool = False):
+        if _LANG == "ja" and _norm_letter(letter) == "ー":
+            raise ValueError("のばし棒「ー」は種まきでは使えません。単語が成立する通常手でのみ使えます。")
+        return _wt_ja_v4_orig_apply_seed_move(state, row, col, letter, advance_market_flag=advance_market_flag)
+except Exception:
+    pass
+
+try:
+    _wt_ja_v4_orig_validate_path_and_word = validate_path_and_word
+    def validate_path_and_word(state, row: int, col: int, letter: str, path):
+        word = _wt_ja_v4_orig_validate_path_and_word(state, row, col, letter, path)
+        if _LANG == "ja" and "ー" in str(word or ""):
+            if str(word).startswith("ー") or str(word).endswith("ー"):
+                raise ValueError("のばし棒「ー」は語頭・語尾では使えません。")
+        return word
+except Exception:
+    pass
+
+def wt_ja_choonpu_v4_summary():
+    return {
+        "lang": _LANG,
+        "norm_choon": _norm_letter("ー"),
+        "norm_HA": _norm_letter("HA"),
+        "norm_SHI": _norm_letter("SHI"),
+        "norm_katakana": _norm_letter("カ"),
+        "choon_in_all_letters": "ー" in _ALL_LETTERS,
+        "market_allows_choon": False,
+        "seed_allows_choon": False,
+    }
+# WT_JA_CHOONPU_BACKEND_DIRECT_FIX_V4_END
