@@ -77,6 +77,7 @@ export async function getMarket(gameId){return request(`/games/${gameId}/market`
 export async function getLetterPreview(gameId,letter){return request(`/games/${gameId}/letter-preview/${encodeURIComponent(letter)}`);}
 export async function useFreeLetter(gameId,payload,source="free"){let body={}; if(typeof payload==="string")body={letter:payload,source}; else if(payload&&typeof payload==="object")body={...payload}; if(body.mode&&!body.source)body.source=body.mode; body.letter=normalizeKanaInput(body.letter); if(!body.letter)throw new Error("ひらがな1文字を入力してください。"); return request(`/games/${gameId}/free-letter`,{method:"POST",body:JSON.stringify(body)});}
 export async function swapLetter(gameId, letter=""){return request(`/games/${gameId}/swap-letter`,{method:"POST",body:JSON.stringify({letter})});} export async function getThreat(gameId){return listFrom(await request(`/games/${gameId}/threat`),"threats");}
+export async function getIntents(gameId){return listFrom(await request(`/games/${gameId}/intents`),"intents");}
 export async function createAsyncMatch(payload={}){return request("/async/games",{method:"POST",body:JSON.stringify(payload)});}
 export async function getAsyncMatch(gameId,token){return request(`/async/games/${gameId}?token=${encodeURIComponent(token)}`);}
 export async function submitAsyncMove(gameId,token,...args){const {body}=payloadArgs(args); return request(`/async/games/${gameId}/move?token=${encodeURIComponent(token)}`,{method:"POST",body:JSON.stringify(body)});}

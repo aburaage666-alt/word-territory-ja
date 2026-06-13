@@ -82,6 +82,7 @@ from engine import (
     get_market_stats,
     get_letter_preview_moves,
     get_threat_preview,
+    get_intent_suggestions,
     pass_turn,
     rotate_block_state,
     preview_move,
@@ -871,3 +872,12 @@ def get_threat(game_id: str):
     except Exception:
         return {"threats": []}
 
+@app.get("/games/{game_id}/intents")
+def get_intents(game_id: str):
+    state = GAMES.get(game_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="ゲームが見つかりません")
+    try:
+        return {"intents": get_intent_suggestions(state)}
+    except Exception:
+        return {"intents": []}

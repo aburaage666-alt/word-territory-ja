@@ -6994,3 +6994,251 @@ def wt_intelligibility_core_v3_summary():
     except Exception as exc:
         return {"error": str(exc)}
 # WT_INTELLIGIBILITY_CORE_V3_VERIFIED_END
+
+# WT_INTELLIGIBILITY_ATTACHMENT_PHASE3_V4_BEGIN
+# Safe layer distilled from the attached files.
+_INTENT_JA = {"expand": "広げる", "connect": "つなぐ", "break": "崩す"}
+_INTENT_HINT = {
+    "expand": "確実に領地を増やす",
+    "connect": "離れた自陣をつなぐ",
+    "break": "敵の形を切る・敵マスを奪う",
+}
+
+def _wt_intel_v4_mode_token(value=""):
+    return str(value or "").lower().replace("-", "").replace("_", "").replace("×", "x").strip()
+
+def _wt_intel_v4_quick_requested(args=(), kwargs=None, state=None):
+    kwargs = kwargs or {}
+    try:
+        mode = _wt_intel_v4_mode_token(kwargs.get("board_mode", kwargs.get("boardMode", "")))
+        if mode in ("quick", "quick5", "quick5x5", "5", "5x5", "core", "beginner"):
+            return True
+    except Exception:
+        pass
+    try:
+        if int(kwargs.get("board_size", kwargs.get("boardSize", 0)) or 0) == 5:
+            return True
+    except Exception:
+        pass
+    try:
+        if state is not None:
+            if bool(getattr(state, "coreMode", False)):
+                return True
+            if int(getattr(state, "boardSize", 0) or 0) == 5:
+                return True
+            ss = dict(getattr(state, "synergyState", {}) or {})
+            if _wt_intel_v4_mode_token(ss.get("_boardMode", "")) in ("quick", "quick5", "quick5x5", "5x5", "core"):
+                return True
+    except Exception:
+        pass
+    return False
+
+try:
+    _wt_intel_v4_previous_core_folds = _core_folds
+except Exception:
+    _wt_intel_v4_previous_core_folds = None
+
+def _core_folds(state) -> bool:
+    if _wt_intel_v4_quick_requested(state=state):
+        return True
+    try:
+        if callable(_wt_intel_v4_previous_core_folds):
+            return bool(_wt_intel_v4_previous_core_folds(state))
+    except Exception:
+        pass
+    return False
+
+try:
+    _wt_intel_v4_orig_build_initial_state = build_initial_state
+    def build_initial_state(*args, **kwargs):
+        quick = _wt_intel_v4_quick_requested(args=args, kwargs=kwargs)
+        try:
+            state = _wt_intel_v4_orig_build_initial_state(*args, **kwargs)
+        except TypeError:
+            clean = dict(kwargs)
+            clean.pop("board_mode", None); clean.pop("boardMode", None)
+            clean.pop("board_size", None); clean.pop("boardSize", None)
+            state = _wt_intel_v4_orig_build_initial_state(*args, **clean)
+        quick = quick or _wt_intel_v4_quick_requested(state=state)
+        try:
+            state.coreMode = bool(quick)
+            state.synergyState = dict(getattr(state, "synergyState", {}) or {})
+            state.synergyState["_coreMode"] = bool(quick)
+            state.synergyState["_boardMode"] = "quick" if quick else "standard"
+            if quick:
+                state.synergyOptions = []
+                state.selectedSynergy = ""
+                for row in getattr(state, "board", []) or []:
+                    for cell in row:
+                        cell.fortified = False
+                state.lastFortifiedCells = []
+        except Exception:
+            pass
+        return state
+except Exception:
+    pass
+
+def _wt_intel_v4_move_capture_parts(move) -> tuple[int, int, int]:
+    total = int(move.get("territoryGain", move.get("gain", 0)) or 0)
+    cap_count = int(move.get("captureCount", 0) or 0)
+    capture_gain = max(0, min(cap_count, total))
+    path_gain = max(0, total - capture_gain)
+    return path_gain, capture_gain, total
+
+def _classify_move_intent(move) -> str:
+    combos = move.get("comboLabels", []) or []
+    path_gain, capture_gain, total = _wt_intel_v4_move_capture_parts(move)
+    if ("分断" in combos) or ("包囲" in combos) or ("打ち込み" in combos):
+        return "break"
+    if "橋渡し" in combos:
+        return "connect"
+    if capture_gain > path_gain and capture_gain > 0:
+        return "break"
+    return "expand"
+
+def get_intent_suggestions(state: GameState, player: str | None = None, per_letter_limit: int = 8) -> list[dict]:
+    player = player or getattr(state, "currentPlayer", "RED")
+    letters = list(dict.fromkeys(getattr(state, "marketLetters", []) or []))
+    best: dict[str, dict] = {}
+    for letter in letters:
+        try:
+            if letter == "*":
+                continue
+            moves = get_letter_preview_moves(state, letter, limit=per_letter_limit)
+        except Exception:
+            continue
+        for mv in moves or []:
+            intent = _classify_move_intent(mv)
+            path_gain, capture_gain, total = _wt_intel_v4_move_capture_parts(mv)
+            score = total + capture_gain * 0.5 + (0.75 if intent == "connect" else 0) + (0.5 if intent == "break" else 0)
+            rec = {
+                "intent": intent,
+                "label": _INTENT_JA[intent],
+                "hint": _INTENT_HINT[intent],
+                "word": mv.get("word", ""),
+                "row": mv.get("row"),
+                "col": mv.get("col"),
+                "letter": mv.get("letter", letter),
+                "pathGain": path_gain,
+                "captureGain": capture_gain,
+                "total": total,
+                "_score": score,
+            }
+            if intent not in best or score > best[intent]["_score"]:
+                best[intent] = rec
+    try:
+        behind = get_score_gap(state, player) >= 3
+    except Exception:
+        behind = False
+    order = ["break", "connect", "expand"] if behind else ["expand", "connect", "break"]
+    out = []
+    for it in order:
+        if it in best:
+            rec = dict(best[it])
+            rec["emphasized"] = bool(behind and it == "break")
+            rec.pop("_score", None)
+            out.append(rec)
+    return out[:3]
+
+try:
+    _wt_intel_v4_orig_preview_move = preview_move
+    def preview_move(state: GameState, row: int, col: int, letter: str, path):
+        response = _wt_intel_v4_orig_preview_move(state, row, col, letter, path)
+        try:
+            if getattr(response, "isInDictionary", False):
+                total = max(0, int(getattr(response, "territoryGain", 0) or 0))
+                cap = max(0, min(int(getattr(response, "captureCount", 0) or 0), total))
+                response.captureGain = cap
+                response.pathGain = max(0, total - cap)
+        except Exception:
+            pass
+        return response
+except Exception:
+    pass
+
+try:
+    _wt_intel_v4_orig_apply_locks = apply_locks
+    def apply_locks(state: GameState):
+        if _core_folds(state):
+            try:
+                for row in getattr(state, "board", []) or []:
+                    for cell in row:
+                        cell.fortified = False
+                state.lastFortifiedCells = []
+            except Exception:
+                pass
+            return
+        return _wt_intel_v4_orig_apply_locks(state)
+except Exception:
+    pass
+
+def _wt_intel_v4_has_word_move(state) -> bool:
+    if not _core_folds(state):
+        return False
+    try:
+        active = list(getattr(state, "marketLetters", []) or [])
+    except Exception:
+        active = []
+    for letter in active:
+        try:
+            if letter == "*":
+                continue
+            if get_letter_preview_moves(state, letter, limit=1):
+                return True
+        except Exception:
+            continue
+    return False
+
+try:
+    _wt_intel_v4_orig_apply_seed_move = apply_seed_move
+    def apply_seed_move(state: GameState, row: int, col: int, letter: str, advance_market_flag: bool = False):
+        if _core_folds(state) and _wt_intel_v4_has_word_move(state):
+            raise ValueError("Core 5x5: Seed is rescue-only. Use it only when no active letter can make a word.")
+        return _wt_intel_v4_orig_apply_seed_move(state, row, col, letter, advance_market_flag=advance_market_flag)
+except Exception:
+    pass
+
+try:
+    _wt_intel_v4_orig_apply_dazi_move = apply_dazi_move
+    def apply_dazi_move(state: GameState, path):
+        if _core_folds(state):
+            raise ValueError("Core 5x5 folds Disarm/Dazi. Use an ordinary word path.")
+        return _wt_intel_v4_orig_apply_dazi_move(state, path)
+except Exception:
+    pass
+
+try:
+    _wt_intel_v4_orig_rotate_block_state = rotate_block_state
+    def rotate_block_state(state: GameState, row: int, col: int, player=None):
+        if _core_folds(state):
+            raise ValueError("Core 5x5 folds 2x2 rotation.")
+        return _wt_intel_v4_orig_rotate_block_state(state, row, col, player)
+except Exception:
+    pass
+
+try:
+    _wt_intel_v4_orig_swap_market_tile = swap_market_tile
+    def swap_market_tile(state: GameState, letter: str = ""):
+        if _core_folds(state):
+            raise ValueError("Core 5x5 folds Relief Swap / reading exchange.")
+        return _wt_intel_v4_orig_swap_market_tile(state, letter)
+except Exception:
+    pass
+
+def wt_intelligibility_attachment_phase3_v4_summary():
+    try:
+        q = build_initial_state(bot_level="easy", board_mode="quick")
+        st = build_initial_state(bot_level="easy", board_mode="standard")
+        return {
+            "quickBoardSize": int(getattr(q, "boardSize", 0) or 0),
+            "quickCoreMode": bool(getattr(q, "coreMode", False)),
+            "quickSynergyOptions": list(getattr(q, "synergyOptions", []) or []),
+            "standardBoardSize": int(getattr(st, "boardSize", 0) or 0),
+            "standardCoreMode": bool(getattr(st, "coreMode", False)),
+            "hasIntentSuggestions": callable(globals().get("get_intent_suggestions")),
+            "previewBreakdown": True,
+            "coreFoldsAdvanced": True,
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+# WT_INTELLIGIBILITY_ATTACHMENT_PHASE3_V4_END
