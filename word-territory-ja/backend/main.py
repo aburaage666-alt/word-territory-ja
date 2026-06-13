@@ -1,4 +1,4 @@
-﻿import json
+import json
 import random
 import sqlite3
 import uuid
@@ -247,6 +247,7 @@ def create_game(payload: CreateGameRequest = CreateGameRequest()):
             state = build_initial_state(
                 bot_level=payload.botLevel,
                 opening_idx=SHOWCASE_OPENING_IDX if payload.showcase else None,
+                board_mode=payload.boardMode,
             )
             if payload.showcase:
                 state.synergyOptions = [SHOWCASE_SYNERGY, "FRONTLINE_TACTICIAN", "TRAP_SETTER"]
@@ -271,8 +272,8 @@ def make_move(game_id: str, payload: MoveRequest):
         next_state = validate_and_apply_move(state, payload.row, payload.col, payload.letter, payload.path, advance_market_flag=True, dazi=getattr(payload, "dazi", False))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    next_state = _wt_apply_board_mode(next_state, "quick" if getattr(next_state, "coreMode", False) else "standard")
     GAMES[game_id] = next_state
-    next_state = _wt_apply_board_mode(next_state, getattr(game_id, "boardMode", "standard"))
     return next_state
 
 
@@ -608,7 +609,12 @@ def use_free_letter(game_id: str, req: dict):
     if source != "wild" and state.freeLetterUsed:
         raise HTTPException(status_code=400, detail="自由札はすでに使用済みです")
     letter = str(req.get("letter", "")).strip() # WT_JA_FREE_LETTER_KANA_FIX_20260606
-    if not letter or len(letter) != 1 or not (("\u3041" <= letter <= "\u3096") or letter == "\u30fc"): raise HTTPException(status_code=400, detail="ひらがな1文字を入力してください")
+    try:
+        from engine import _norm_letter as _wt_norm_free_letter
+        letter = _wt_norm_free_letter(letter)
+    except Exception:
+        pass
+    if not letter or len(letter) != 1 or not (("\u3041" <= letter <= "\u3096") or letter == "\u30fc"): raise HTTPException(status_code=400, detail="ひらがな1文字、カタカナ1文字、ー、または HA/SHI などのローマ字で入力してください")
     # Add letter to active market temporarily. WILD replaces the * slot and marks a pending cost.
     if source == "wild":
         state.synergyState = dict(state.synergyState or {})
@@ -634,6 +640,8 @@ def swap_letter(game_id: str, req: dict = {}):
     state = GAMES.get(game_id)
     if not state:
         raise HTTPException(status_code=404, detail="ゲームが見つかりません")
+    if getattr(state, "coreMode", False):
+        raise HTTPException(status_code=400, detail="Core mode folds Relief Swap / reading exchange.")
     try:
         next_state = swap_market_tile(state, req.get("letter", ""))
     except ValueError as exc:

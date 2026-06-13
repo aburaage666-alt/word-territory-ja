@@ -6597,3 +6597,198 @@ def wt_ja_final_kana_normalizer_v5_summary():
         "seed_allows_choon": False,
     }
 # WT_JA_FINAL_KANA_NORMALIZER_V5_END
+
+# WT_INTELLIGIBILITY_CORE_MODE_V2_SAFE_BEGIN
+# Intelligibility Core v2:
+# Quick 5x5 is treated as beginner/demo core mode.
+# Core mode folds advanced mechanics: LOCK, Disarm/Dazi, 2x2 Rotation, Relief Swap.
+# Seed is rescue-only: usable only when no active market letter has a word move.
+
+def _wt_core_mode_v2_is_quick_request(args, kwargs, state=None):
+    try:
+        mode = str(kwargs.get("board_mode", kwargs.get("boardMode", "")) or "").lower().replace("-", "").replace("_", "")
+        if mode in ("quick", "quick5", "quick5x5", "5", "5x5", "core", "beginner"):
+            return True
+    except Exception:
+        pass
+    try:
+        size = kwargs.get("board_size", kwargs.get("boardSize", None))
+        if int(size) == 5:
+            return True
+    except Exception:
+        pass
+    try:
+        if state is not None:
+            if int(getattr(state, "boardSize", 0) or 0) == 5:
+                return True
+            ss = dict(getattr(state, "synergyState", {}) or {})
+            if str(ss.get("_boardMode", "")).lower() in ("quick", "quick5", "quick5x5", "5x5", "core"):
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _core_folds(state) -> bool:
+    try:
+        return bool(getattr(state, "coreMode", False)) or _wt_core_mode_v2_is_quick_request((), {}, state)
+    except Exception:
+        return False
+
+
+try:
+    _wt_core_v2_orig_build_initial_state = build_initial_state
+
+    def build_initial_state(*args, **kwargs):
+        state = _wt_core_v2_orig_build_initial_state(*args, **kwargs)
+        core = _wt_core_mode_v2_is_quick_request(args, kwargs, state)
+        try:
+            state.coreMode = bool(core)
+        except Exception:
+            pass
+        try:
+            state.synergyState = dict(getattr(state, "synergyState", {}) or {})
+            state.synergyState["_coreMode"] = bool(core)
+            if core:
+                state.synergyState["_boardMode"] = "quick"
+        except Exception:
+            pass
+        if core:
+            try:
+                state.synergyOptions = []
+                state.selectedSynergy = ""
+            except Exception:
+                pass
+            try:
+                for row in state.board:
+                    for cell in row:
+                        cell.fortified = False
+            except Exception:
+                pass
+            try:
+                state.lastFortifiedCells = []
+            except Exception:
+                pass
+        return state
+except Exception:
+    pass
+
+
+try:
+    _wt_core_v2_orig_apply_locks = apply_locks
+
+    def apply_locks(state):
+        if _core_folds(state):
+            try:
+                for row in state.board:
+                    for cell in row:
+                        cell.fortified = False
+            except Exception:
+                pass
+            return
+        return _wt_core_v2_orig_apply_locks(state)
+except Exception:
+    pass
+
+
+def _wt_core_v2_market_has_word_move(state) -> bool:
+    if not _core_folds(state):
+        return False
+    try:
+        active = list(getattr(state, "marketLetters", []) or [])
+    except Exception:
+        active = []
+    if any(x == "*" for x in active):
+        return True
+    for letter in active:
+        try:
+            l = _norm_letter(letter)
+            if not l:
+                continue
+            try:
+                moves = get_letter_preview_moves(state, l, limit=1)
+                if moves:
+                    return True
+            except Exception:
+                pass
+            try:
+                moves = _fast_bot_moves_for_letter(
+                    state,
+                    l,
+                    max_results=1,
+                    excluded=set(getattr(state, "usedWords", []) or [])
+                )
+                if moves:
+                    return True
+            except Exception:
+                pass
+        except Exception:
+            continue
+    return False
+
+
+try:
+    _wt_core_v2_orig_apply_seed_move = apply_seed_move
+
+    def apply_seed_move(state, row: int, col: int, letter: str, advance_market_flag: bool = False):
+        if _core_folds(state) and _wt_core_v2_market_has_word_move(state):
+            raise ValueError("Core mode: Seed is rescue-only. Use it only when no active letter can make a word.")
+        return _wt_core_v2_orig_apply_seed_move(state, row, col, letter, advance_market_flag=advance_market_flag)
+except Exception:
+    pass
+
+
+try:
+    _wt_core_v2_orig_apply_dazi_move = apply_dazi_move
+
+    def apply_dazi_move(state, path):
+        if _core_folds(state):
+            raise ValueError("Core mode folds Disarm/Dazi. Play the word path instead.")
+        return _wt_core_v2_orig_apply_dazi_move(state, path)
+except Exception:
+    pass
+
+
+try:
+    _wt_core_v2_orig_rotate_block_state = rotate_block_state
+
+    def rotate_block_state(state, row: int, col: int, player=None):
+        if _core_folds(state):
+            raise ValueError("Core mode folds 2x2 rotation.")
+        return _wt_core_v2_orig_rotate_block_state(state, row, col, player)
+except Exception:
+    pass
+
+
+try:
+    _wt_core_v2_orig_swap_market_tile = swap_market_tile
+
+    def swap_market_tile(state, letter: str = ""):
+        if _core_folds(state):
+            raise ValueError("Core mode folds Relief Swap / reading exchange.")
+        return _wt_core_v2_orig_swap_market_tile(state, letter)
+except Exception:
+    pass
+
+
+def wt_core_mode_v2_summary():
+    try:
+        quick = build_initial_state(bot_level="easy", board_mode="quick")
+    except TypeError:
+        quick = build_initial_state(bot_level="easy", board_size=5)
+    try:
+        standard = build_initial_state(bot_level="easy", board_mode="standard")
+    except TypeError:
+        standard = build_initial_state(bot_level="easy")
+    return {
+        "quickBoardSize": int(getattr(quick, "boardSize", 0) or 0),
+        "quickCoreMode": bool(getattr(quick, "coreMode", False)),
+        "quickSynergyOptions": list(getattr(quick, "synergyOptions", []) or []),
+        "standardBoardSize": int(getattr(standard, "boardSize", 0) or 0),
+        "standardCoreMode": bool(getattr(standard, "coreMode", False)),
+        "foldsLock": True,
+        "foldsDazi": True,
+        "foldsRotation": True,
+        "foldsSwap": True,
+    }
+# WT_INTELLIGIBILITY_CORE_MODE_V2_SAFE_END
