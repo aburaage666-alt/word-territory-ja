@@ -1,12 +1,11 @@
 import Head from "next/head";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {useEffect, useMemo, useRef, useState } from "react";
 import {
   botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyLeaderboard,
   getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, getThreat, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, rotateAsyncBlock, passAsyncTurn,
   joinWaitlist, passTurn, previewMove, rotateBlock, seedMove, submitDailyScore, submitMove, daziMove, daziAsyncMove,
-  useFreeLetter, swapLetter,
-} from "../lib/api";
+  useFreeLetter, swapLetter, getIntents} from "../lib/api";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const asKey = (r, c) => `${r}-${c}`;
@@ -2258,6 +2257,37 @@ export default function Home() {
 
   const [gameId, setGameId]     = useState("");
   const [state,  setState]      = useState(null);
+
+  const [intents, setIntents] = useState([]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const sid = "wt-intents-style-v9";
+    if (document.getElementById(sid)) return;
+    const el = document.createElement("style");
+    el.id = sid;
+    el.textContent =
+      ".panel-intents .intent-list{display:flex;flex-direction:column;gap:6px;padding:6px 4px 2px}" +
+      ".intent-row{display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 8px;border-radius:10px;background:#f8fafc;border:1px solid #eef2f7}" +
+      ".intent-tag{font-weight:900;min-width:42px;text-align:center;padding:2px 6px;border-radius:999px;color:#fff;font-size:12px}" +
+      ".intent-expand .intent-tag{background:#2563eb}.intent-connect .intent-tag{background:#16a34a}.intent-break .intent-tag{background:#dc2626}" +
+      ".intent-word{font-weight:800;color:#0f172a}.intent-val{margin-left:auto;color:#64748b;font-size:12px}" +
+      ".intent-emph{background:#fef2f2;border-color:#fecaca;box-shadow:0 0 0 1px #fecaca inset}";
+    document.head.appendChild(el);
+  }, []);
+
+  useEffect(() => {
+    if (!gameId || !state || state.winner || state.currentPlayer === state.botPlayer) {
+      setIntents([]);
+      return;
+    }
+    let alive = true;
+    getIntents(gameId)
+      .then(x => { if (alive) setIntents(Array.isArray(x) ? x : []); })
+      .catch(() => { if (alive) setIntents([]); });
+    return () => { alive = false; };
+  }, [gameId, state?.turn, state?.currentPlayer, state?.winner, Array.isArray(state?.marketLetters) ? state.marketLetters.join("|") : ""]);
+
   const [path,   setPath]       = useState([]);
   const [placed, setPlaced]     = useState(null);
   const [letter, setLetter]     = useState("");
@@ -3750,6 +3780,7 @@ async function submitScore() {
                     :<>
                       <div className="pvstats">
                         {preview.isInDictionary?"✓ 有効":"辞書にありません"}
+                        {preview.isInDictionary&&<> · <span className="pvbreak">経路 {preview.pathGain || Math.max(0,(preview.territoryGain||0)-(preview.captureGain||0))} ＋ 囲み {preview.captureGain || 0} ＝ <strong>合計 {preview.territoryGain} マス</strong></span></>}
                         {" · "}+{preview.wordScore}pts · 領地変動 +{preview.territoryGain}
                         {preview.lockGain>0&&` · 固定 ${preview.lockGain}`}
                         {preview.captureHappened&&<span className="pvcap"> ⚔ 奪取 {preview.captureCount||1}</span>}
