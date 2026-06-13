@@ -6792,3 +6792,205 @@ def wt_core_mode_v2_summary():
         "foldsSwap": True,
     }
 # WT_INTELLIGIBILITY_CORE_MODE_V2_SAFE_END
+
+# WT_INTELLIGIBILITY_CORE_V3_VERIFIED_BEGIN
+# Core 5x5 makes the decision grammar visible:
+#   WORD path -> territory; ENCLOSURE -> capture.
+# Advanced actions are folded: LOCK / Dazi / 2x2 rotation / Relief swap.
+# Standard 7x7 remains competitive mode.
+
+def _wt_core_v3_mode_token(value=""):
+    return str(value or "").lower().replace("-", "").replace("_", "").replace("×", "x").strip()
+
+def _wt_core_v3_quick_requested(args=(), kwargs=None, state=None):
+    kwargs = kwargs or {}
+    try:
+        mode = _wt_core_v3_mode_token(kwargs.get("board_mode", kwargs.get("boardMode", "")))
+        if mode in ("quick", "quick5", "quick5x5", "5", "5x5", "core", "beginner"):
+            return True
+    except Exception:
+        pass
+    try:
+        if int(kwargs.get("board_size", kwargs.get("boardSize", 0)) or 0) == 5:
+            return True
+    except Exception:
+        pass
+    try:
+        if state is not None:
+            if bool(getattr(state, "coreMode", False)):
+                return True
+            if int(getattr(state, "boardSize", 0) or 0) == 5:
+                return True
+            ss = dict(getattr(state, "synergyState", {}) or {})
+            if _wt_core_v3_mode_token(ss.get("_boardMode", "")) in ("quick", "quick5", "quick5x5", "5x5", "core"):
+                return True
+    except Exception:
+        pass
+    return False
+
+def _core_folds(state) -> bool:
+    return _wt_core_v3_quick_requested(state=state)
+
+try:
+    _wt_core_v3_orig_build_initial_state = build_initial_state
+
+    def build_initial_state(*args, **kwargs):
+        quick = _wt_core_v3_quick_requested(args, kwargs)
+
+        try:
+            state = _wt_core_v3_orig_build_initial_state(*args, **kwargs)
+        except TypeError:
+            clean = dict(kwargs)
+            clean.pop("board_mode", None)
+            clean.pop("boardMode", None)
+            clean.pop("board_size", None)
+            clean.pop("boardSize", None)
+            state = _wt_core_v3_orig_build_initial_state(*args, **clean)
+
+        quick = quick or _wt_core_v3_quick_requested(state=state)
+
+        try:
+            state.coreMode = bool(quick)
+            state.synergyState = dict(getattr(state, "synergyState", {}) or {})
+            state.synergyState["_coreMode"] = bool(quick)
+            if quick:
+                state.synergyState["_boardMode"] = "quick"
+                state.synergyOptions = []
+                state.selectedSynergy = ""
+                for row in state.board:
+                    for cell in row:
+                        cell.fortified = False
+                state.lastFortifiedCells = []
+        except Exception:
+            pass
+
+        return state
+except Exception:
+    pass
+
+try:
+    _wt_core_v3_orig_apply_locks = apply_locks
+
+    def apply_locks(state):
+        if _core_folds(state):
+            try:
+                for row in state.board:
+                    for cell in row:
+                        cell.fortified = False
+                state.lastFortifiedCells = []
+            except Exception:
+                pass
+            return
+        return _wt_core_v3_orig_apply_locks(state)
+except Exception:
+    pass
+
+def _wt_core_v3_market_has_word_move(state) -> bool:
+    if not _core_folds(state):
+        return False
+    try:
+        active = list(getattr(state, "marketLetters", []) or [])
+    except Exception:
+        active = []
+    if "*" in active:
+        return True
+    for letter in active:
+        try:
+            l = _norm_letter(letter)
+            if not l:
+                continue
+            try:
+                if get_letter_preview_moves(state, l, limit=1):
+                    return True
+            except Exception:
+                pass
+            try:
+                if _fast_bot_moves_for_letter(
+                    state,
+                    l,
+                    max_results=1,
+                    excluded=set(getattr(state, "usedWords", []) or [])
+                ):
+                    return True
+            except Exception:
+                pass
+        except Exception:
+            continue
+    return False
+
+try:
+    _wt_core_v3_orig_apply_seed_move = apply_seed_move
+
+    def apply_seed_move(state, row: int, col: int, letter: str, advance_market_flag: bool = False):
+        if _core_folds(state) and _wt_core_v3_market_has_word_move(state):
+            raise ValueError("Core 5x5: Seed is rescue-only. Use it only when no active letter can make a word.")
+        return _wt_core_v3_orig_apply_seed_move(state, row, col, letter, advance_market_flag=advance_market_flag)
+except Exception:
+    pass
+
+try:
+    _wt_core_v3_orig_apply_dazi_move = apply_dazi_move
+
+    def apply_dazi_move(state, path):
+        if _core_folds(state):
+            raise ValueError("Core 5x5 folds Disarm/Dazi. Use an ordinary word path.")
+        return _wt_core_v3_orig_apply_dazi_move(state, path)
+except Exception:
+    pass
+
+try:
+    _wt_core_v3_orig_rotate_block_state = rotate_block_state
+
+    def rotate_block_state(state, row: int, col: int, player=None):
+        if _core_folds(state):
+            raise ValueError("Core 5x5 folds 2x2 rotation.")
+        return _wt_core_v3_orig_rotate_block_state(state, row, col, player)
+except Exception:
+    pass
+
+try:
+    _wt_core_v3_orig_swap_market_tile = swap_market_tile
+
+    def swap_market_tile(state, letter: str = ""):
+        if _core_folds(state):
+            raise ValueError("Core 5x5 folds Relief Swap / reading exchange.")
+        return _wt_core_v3_orig_swap_market_tile(state, letter)
+except Exception:
+    pass
+
+try:
+    _wt_core_v3_orig_preview_move = preview_move
+
+    def preview_move(state, row: int, col: int, letter: str, path):
+        response = _wt_core_v3_orig_preview_move(state, row, col, letter, path)
+        try:
+            if getattr(response, "isInDictionary", False):
+                total = max(0, int(getattr(response, "territoryGain", 0) or 0))
+                cap = max(0, min(int(getattr(response, "captureCount", 0) or 0), total))
+                response.captureGain = cap
+                response.pathGain = max(0, total - cap)
+        except Exception:
+            pass
+        return response
+except Exception:
+    pass
+
+def wt_intelligibility_core_v3_summary():
+    try:
+        q = build_initial_state(bot_level="easy", board_mode="quick")
+        st = build_initial_state(bot_level="easy", board_mode="standard")
+        return {
+            "quickBoardSize": int(getattr(q, "boardSize", 0) or 0),
+            "quickCoreMode": bool(getattr(q, "coreMode", False)),
+            "quickSynergyOptions": list(getattr(q, "synergyOptions", []) or []),
+            "standardBoardSize": int(getattr(st, "boardSize", 0) or 0),
+            "standardCoreMode": bool(getattr(st, "coreMode", False)),
+            "foldsLock": True,
+            "foldsDazi": True,
+            "foldsRotation": True,
+            "foldsSwap": True,
+            "previewBreakdown": True,
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+# WT_INTELLIGIBILITY_CORE_V3_VERIFIED_END

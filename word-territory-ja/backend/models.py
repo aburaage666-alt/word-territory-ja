@@ -124,6 +124,8 @@ class PreviewMoveResponse(BaseModel):
     isInDictionary: bool = False
     wordScore: int = 0
     territoryGain: int = 0
+    pathGain: int = 0       # cells claimed by the word path itself (経路)
+    captureGain: int = 0    # enemy cells flipped by enclosure (囲み)
     lockGain: int = 0
     captureHappened: bool = False
     captureCount: int = 0

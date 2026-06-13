@@ -715,7 +715,7 @@ def create_async_game(payload: CreateGameRequest = CreateGameRequest()):
     game_id = str(uuid.uuid4())
     red_token = str(uuid.uuid4())[:12]
     blue_token = str(uuid.uuid4())[:12]
-    state = build_initial_state(bot_level=payload.botLevel)
+    state = build_initial_state(bot_level=payload.botLevel, board_mode=payload.boardMode)
     state.vsBot = False
     state.botPlayer = "BLUE"
     state.botStyle = "Human Challenger"
