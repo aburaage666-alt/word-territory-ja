@@ -6407,3 +6407,193 @@ def wt_ja_choonpu_v4_summary():
         "seed_allows_choon": False,
     }
 # WT_JA_CHOONPU_BACKEND_DIRECT_FIX_V4_END
+
+# WT_JA_FINAL_KANA_NORMALIZER_V5_BEGIN
+# Final ordering fix.
+# This block must stay at the very end of engine.py because older safety
+# wrappers may redefine _norm_word / _norm_letter earlier in the file.
+#
+# Rules:
+# - HA / SHI / TSU etc. normalize to kana.
+# - Katakana normalizes to hiragana.
+# - ー is preserved.
+# - ー is allowed for normal valid word moves.
+# - ー is forbidden in market and seed.
+# - ー is forbidden at word start/end.
+
+import unicodedata as _wt_ja_v5_unicodedata
+
+_WT_JA_CHOONPU_V5 = "ー"
+
+_WT_JA_ROMAJI_MAP_V5 = {
+    "a":"あ", "i":"い", "u":"う", "e":"え", "o":"お",
+    "ka":"か", "ki":"き", "ku":"く", "ke":"け", "ko":"こ",
+    "ga":"が", "gi":"ぎ", "gu":"ぐ", "ge":"げ", "go":"ご",
+    "sa":"さ", "si":"し", "shi":"し", "su":"す", "se":"せ", "so":"そ",
+    "za":"ざ", "zi":"じ", "ji":"じ", "zu":"ず", "ze":"ぜ", "zo":"ぞ",
+    "ta":"た", "ti":"ち", "chi":"ち", "tu":"つ", "tsu":"つ", "te":"て", "to":"と",
+    "da":"だ", "di":"ぢ", "du":"づ", "de":"で", "do":"ど",
+    "na":"な", "ni":"に", "nu":"ぬ", "ne":"ね", "no":"の",
+    "ha":"は", "hi":"ひ", "hu":"ふ", "fu":"ふ", "he":"へ", "ho":"ほ",
+    "ba":"ば", "bi":"び", "bu":"ぶ", "be":"べ", "bo":"ぼ",
+    "pa":"ぱ", "pi":"ぴ", "pu":"ぷ", "pe":"ぺ", "po":"ぽ",
+    "ma":"ま", "mi":"み", "mu":"む", "me":"め", "mo":"も",
+    "ya":"や", "yu":"ゆ", "yo":"よ",
+    "ra":"ら", "ri":"り", "ru":"る", "re":"れ", "ro":"ろ",
+    "wa":"わ", "wo":"を", "n":"ん", "nn":"ん",
+}
+
+def _wt_ja_v5_normalize_text(value):
+    txt = _wt_ja_v5_unicodedata.normalize("NFKC", str(value or "")).strip()
+    if not txt:
+        return ""
+
+    key = "".join(ch for ch in txt.lower() if "a" <= ch <= "z")
+    if key in _WT_JA_ROMAJI_MAP_V5:
+        return _WT_JA_ROMAJI_MAP_V5[key]
+
+    out = []
+    for ch in txt:
+        code = ord(ch)
+
+        # Katakana -> Hiragana
+        if 0x30A1 <= code <= 0x30F6:
+            ch = chr(code - 0x60)
+
+        if ch == _WT_JA_CHOONPU_V5:
+            out.append(ch)
+        elif "ぁ" <= ch <= "ゖ":
+            out.append(ch)
+
+    return "".join(out)
+
+def _norm_word(w: str) -> str:
+    if globals().get("_LANG") == "ja":
+        return _wt_ja_v5_normalize_text(w)
+    return normalize_word(w)
+
+def _norm_letter(ch: str) -> str:
+    if globals().get("_LANG") == "ja":
+        w = _wt_ja_v5_normalize_text(ch)
+        return w[:1] if w else ""
+    w = normalize_word(str(ch or "")[:1])
+    return w[:1] if w else ""
+
+try:
+    if globals().get("_LANG") == "ja":
+        try:
+            _ALL_LETTERS = list(_ALL_LETTERS)
+        except Exception:
+            _ALL_LETTERS = []
+        if _WT_JA_CHOONPU_V5 not in _ALL_LETTERS:
+            _ALL_LETTERS.append(_WT_JA_CHOONPU_V5)
+        try:
+            _LETTER_WEIGHTS[_WT_JA_CHOONPU_V5] = 0
+        except Exception:
+            pass
+except Exception:
+    pass
+
+def _wt_ja_v5_is_market_tile(x):
+    if x == "*":
+        return True
+    if not isinstance(x, str) or len(x) != 1:
+        return False
+    if x == _WT_JA_CHOONPU_V5:
+        return False
+    o = ord(x)
+    return 0x3041 <= o <= 0x3096
+
+def _wt_ja_v5_market_pool():
+    try:
+        pool = [x for x in _ALL_LETTERS if _wt_ja_v5_is_market_tile(x) and x != "*"]
+        if pool:
+            return pool
+    except Exception:
+        pass
+    return list("あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ")
+
+def _wt_ja_v5_clean_seq(seq, existing=None, allow_wild=True, offset=0):
+    if globals().get("_LANG") != "ja":
+        return seq
+
+    existing = set(existing or [])
+    out = []
+
+    for x in seq or []:
+        if x == "*" and allow_wild and "*" not in out:
+            out.append(x)
+        elif _wt_ja_v5_is_market_tile(x) and x not in out:
+            out.append(x)
+
+    pool = _wt_ja_v5_market_pool()
+    i = offset
+    while len(out) < 3:
+        c = pool[i % len(pool)]
+        i += 1
+        if c not in out and c not in existing:
+            out.append(c)
+
+    return out[:3]
+
+def _wt_ja_v5_clean_pair(pair):
+    if globals().get("_LANG") != "ja":
+        return pair
+    try:
+        active, preview = pair
+    except Exception:
+        return pair
+
+    active2 = _wt_ja_v5_clean_seq(active, allow_wild=True, offset=0)
+    preview2 = _wt_ja_v5_clean_seq(preview, existing=set(active2), allow_wild=False, offset=7)
+    return active2, preview2
+
+try:
+    _wt_ja_v5_orig_generate_letter_market = generate_letter_market
+    def generate_letter_market(state):
+        return _wt_ja_v5_clean_pair(_wt_ja_v5_orig_generate_letter_market(state))
+except Exception:
+    pass
+
+try:
+    _wt_ja_v5_orig_advance_market = advance_market
+    def advance_market(state, used_letter):
+        return _wt_ja_v5_clean_pair(_wt_ja_v5_orig_advance_market(state, used_letter))
+except Exception:
+    pass
+
+try:
+    _wt_ja_v5_orig_apply_seed_move = apply_seed_move
+    def apply_seed_move(state, row: int, col: int, letter: str, advance_market_flag: bool = False):
+        if globals().get("_LANG") == "ja" and _norm_letter(letter) == _WT_JA_CHOONPU_V5:
+            raise ValueError("のばし棒「ー」は種まきでは使えません。単語が成立する通常手でのみ使えます。")
+        return _wt_ja_v5_orig_apply_seed_move(state, row, col, letter, advance_market_flag=advance_market_flag)
+except Exception:
+    pass
+
+try:
+    _wt_ja_v5_orig_validate_path_and_word = validate_path_and_word
+    def validate_path_and_word(state, row: int, col: int, letter: str, path):
+        word = _wt_ja_v5_orig_validate_path_and_word(state, row, col, letter, path)
+        if globals().get("_LANG") == "ja" and _WT_JA_CHOONPU_V5 in str(word or ""):
+            if str(word).startswith(_WT_JA_CHOONPU_V5) or str(word).endswith(_WT_JA_CHOONPU_V5):
+                raise ValueError("のばし棒「ー」は語頭・語尾では使えません。")
+        return word
+except Exception:
+    pass
+
+def wt_ja_final_kana_normalizer_v5_summary():
+    return {
+        "lang": globals().get("_LANG"),
+        "norm_choon": _norm_letter("ー"),
+        "norm_HA": _norm_letter("HA"),
+        "norm_SHI": _norm_letter("SHI"),
+        "norm_TSU": _norm_letter("TSU"),
+        "norm_katakana": _norm_letter("カ"),
+        "norm_game": _norm_word("ゲーム"),
+        "norm_coffee": _norm_word("コーヒー"),
+        "choon_in_all_letters": _WT_JA_CHOONPU_V5 in globals().get("_ALL_LETTERS", []),
+        "market_allows_choon": False,
+        "seed_allows_choon": False,
+    }
+# WT_JA_FINAL_KANA_NORMALIZER_V5_END
