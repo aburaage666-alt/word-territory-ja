@@ -26,7 +26,33 @@ function cleanMarketSeq(seq, existing=new Set(), offset=0){const pool=kanaChars(
 function sanitizeMarketData(v){if(Array.isArray(v))return v.map(sanitizeMarketData); if(v&&typeof v==="object"){const out={}; Object.entries(v).forEach(([k,x])=>{out[k]=sanitizeMarketData(x);}); if(Array.isArray(out.marketLetters))out.marketLetters=cleanMarketSeq(out.marketLetters,new Set(),0); if(Array.isArray(out.previewLetters))out.previewLetters=cleanMarketSeq(out.previewLetters,new Set(out.marketLetters||[]),7); if(Array.isArray(out.active))out.active=cleanMarketSeq(out.active,new Set(),0); if(Array.isArray(out.preview))out.preview=cleanMarketSeq(out.preview,new Set(out.active||[]),7); return out;} return v;}
 function normalizeKanaInput(value){const raw=String(value||"").normalize("NFKC"); const hira=raw.replace(/[\u30a1-\u30f6]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0x60)); const chars=Array.from(hira).filter(ch=>/^[\u3041-\u3096\u30fc]$/.test(ch)); return chars.length?chars[chars.length-1]:"";}
 function errorMessage(data,fallback){if(!data)return fallback||"通信エラーが発生しました。"; if(typeof data==="string")return data; if(typeof data.detail==="string")return data.detail; if(Array.isArray(data.detail))return data.detail.map(x=>typeof x==="string"?x:(x?.msg||JSON.stringify(x))).join(" / "); if(data.error)return String(data.error); try{return JSON.stringify(data);}catch{return fallback||"エラーが発生しました。";}}
-async function request(path,options={}){const res=await fetch(`${API_BASE}${path}`,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}}); let data=null; try{data=await res.json();}catch{} if(!res.ok)throw new Error(errorMessage(data,`HTTP ${res.status}`)); return sanitizeMarketData(data);}
+async function request(path,options={}){
+  // WT_API_BOARDMODE_INJECT_HARD_V1_BEGIN
+  // Final safety net: every POST /games request gets the selected boardMode.
+  // This catches requests from createGame(), button handlers, and stale React state.
+  try {
+    const __method = String((options && options.method) || "GET").toUpperCase();
+    const __path = String(path || "");
+    if (__method === "POST" && (__path === "/games" || __path.endsWith("/games"))) {
+      const __bodyText = (typeof document !== "undefined" && document.body && document.body.innerText) ? document.body.innerText : "";
+      const __fromDom =
+        /盤面\s*Quick\s*5[×x]5/.test(__bodyText) || /Board\s*Quick\s*5[×x]5/i.test(__bodyText)
+          ? "quick"
+          : (/盤面\s*標準\s*7[×x]7/.test(__bodyText) || /Board\s*Standard\s*7[×x]7/i.test(__bodyText) ? "standard" : "");
+      const __mode =
+        ((typeof window !== "undefined") && (window.__wtSelectedBoardMode || window.__wtPendingBoardMode || (window.localStorage && window.localStorage.getItem("wtBoardMode")))) ||
+        __fromDom ||
+        "standard";
+
+      let __payload = {};
+      try { __payload = options.body ? JSON.parse(options.body) : {}; } catch (_e) { __payload = {}; }
+      __payload.boardMode = __mode;
+      __payload.board_mode = __mode;
+      options = { ...options, body: JSON.stringify(__payload) };
+    }
+  } catch (_e) {}
+  // WT_API_BOARDMODE_INJECT_HARD_V1_END
+const res=await fetch(`${API_BASE}${path}`,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}}); let data=null; try{data=await res.json();}catch{} if(!res.ok)throw new Error(errorMessage(data,`HTTP ${res.status}`)); return sanitizeMarketData(data);}
 function payloadArgs(args){if(args.length===1&&args[0]&&typeof args[0]==="object"){const p=args[0]; return {gameId:p.gameId||p.game_id||p.id,body:{row:p.row,col:p.col,letter:p.letter,path:p.path||[]}};} const [gameId,row,col,letter,path]=args; return {gameId,body:{row,col,letter,path:path||[]}};}
 function listFrom(value,key){if(Array.isArray(value))return value; if(!value||typeof value!=="object")return []; if(key&&Array.isArray(value[key]))return value[key]; for(const k of ["suggestions","threats","almost","moves","items","results","data"]){if(Array.isArray(value[k]))return value[k];} return [];}
 export async function createGame(payload={}, boardMode = "standard"){

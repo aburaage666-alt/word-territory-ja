@@ -2378,56 +2378,55 @@ export default function Home() {
   const [mode,   setMode]       = useState("easy");
   const [boardMode, setBoardMode] = useState("standard");
 
-  // WT_BOARDMODE_DOM_SYNC_FINAL_V1_BEGIN
-  // Store selected board mode outside React too, so createGame() can use it
-  // even when a New Game click happens before React state has fully settled.
+  // WT_QUICK5_OPEN_HARD_FIX_V1_BEGIN
   useEffect(() => {
-    if (typeof document === "undefined" || typeof window === "undefined") return;
+    if (typeof window === "undefined" || typeof document === "undefined") return;
 
-    const readSelectMode = (sel) => {
-      const value = String(sel?.value || "").toLowerCase();
-      const text = String(sel?.selectedOptions?.[0]?.textContent || sel?.textContent || "").toLowerCase();
-      if (value.includes("quick") || value.includes("5") || text.includes("quick") || text.includes("5×5") || text.includes("5x5")) return "quick";
-      if (value.includes("standard") || value.includes("7") || text.includes("標準") || text.includes("7×7") || text.includes("7x7")) return "standard";
+    const selectedFromBody = () => {
+      const text = (document.body?.innerText || "");
+      if (/盤面\s*Quick\s*5[×x]5/.test(text) || /Board\s*Quick\s*5[×x]5/i.test(text)) return "quick";
+      if (/盤面\s*標準\s*7[×x]7/.test(text) || /Board\s*Standard\s*7[×x]7/i.test(text)) return "standard";
       return "";
     };
 
-    const syncFromSelect = (target) => {
-      const mode = readSelectMode(target);
-      if (!mode) return;
-      window.__wtPendingBoardMode = mode;
-      try { window.localStorage.setItem("wtBoardMode", mode); } catch (_e) {}
-    };
+    const selected = boardMode || selectedFromBody() || "standard";
+    window.__wtSelectedBoardMode = selected;
+    window.__wtPendingBoardMode = selected;
+    try { window.localStorage.setItem("wtBoardMode", selected); } catch (_e) {}
 
     const onChange = (e) => {
       const target = e.target;
       if (!target || String(target.tagName || "").toLowerCase() !== "select") return;
-      syncFromSelect(target);
+
+      const value = String(target.value || "").toLowerCase();
+      const label = String(target.selectedOptions?.[0]?.textContent || target.textContent || "").toLowerCase();
+      let mode = "";
+      if (value.includes("quick") || value.includes("5") || label.includes("quick") || label.includes("5×5") || label.includes("5x5")) mode = "quick";
+      if (value.includes("standard") || value.includes("7") || label.includes("標準") || label.includes("7×7") || label.includes("7x7")) mode = "standard";
+
+      if (!mode) return;
+
+      window.__wtSelectedBoardMode = mode;
+      window.__wtPendingBoardMode = mode;
+      try { window.localStorage.setItem("wtBoardMode", mode); } catch (_e) {}
+
+      // Board mode is a game-creation setting. Start a new game immediately.
+      setTimeout(() => {
+        const btn = Array.from(document.querySelectorAll("button"))
+          .find((b) => (b.textContent || "").includes("新しいゲーム") || /New Game/i.test(b.textContent || ""));
+        if (btn) btn.click();
+      }, 80);
     };
 
     document.addEventListener("change", onChange, true);
 
-    // Initial sync from any visible board-mode selector.
-    for (const sel of Array.from(document.querySelectorAll("select"))) {
-      const mode = readSelectMode(sel);
-      if (mode) {
-        syncFromSelect(sel);
-        break;
-      }
-    }
-
     return () => document.removeEventListener("change", onChange, true);
-  }, []);
-  // WT_BOARDMODE_DOM_SYNC_FINAL_V1_END
+  }, [boardMode]);
 
-
-  // WT_OPEN_RULES_IN_PANEL_FINAL_V1_BEGIN
-  // Put OPEN explanation inside rules/help/explanation panels only.
-  // Do not append it below the main board/guide.
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    const STYLE_ID = "wt-open-rules-panel-style-final-v1";
+    const STYLE_ID = "wt-open-rules-hard-style-v1";
     if (!document.getElementById(STYLE_ID)) {
       const style = document.createElement("style");
       style.id = STYLE_ID;
@@ -2438,8 +2437,8 @@ export default function Home() {
       document.head.appendChild(style);
     }
 
-    const html =
-      '<div class="openRuleInline" data-wt-open-rule-final="1">' +
+    const openRuleHtml =
+      '<div class="openRuleInline" data-wt-open-rule-hard="1">' +
       '<strong>OPEN / Open Sides：</strong>領地グループの周囲に残る、まだ塞がれていない接点です。' +
       '<span class="mini">OP1</span>は包囲寸前、' +
       '<span class="mini">OP2</span>は圧迫、' +
@@ -2447,50 +2446,71 @@ export default function Home() {
       '単語で相手のOPENを減らすと、次の捕獲・囲みに近づきます。' +
       '</div>';
 
-    const looksLikeRulesPanel = (el) => {
+    const isPanel = (el) => {
+      if (!el) return false;
       const txt = (el.textContent || "").trim();
-      if (!txt || txt.length > 7000) return false;
+      if (!txt || txt.length > 8000) return false;
       const cls = String(el.className || "").toLowerCase();
-      const role = String(el.getAttribute?.("role") || "").toLowerCase();
       const id = String(el.id || "").toLowerCase();
+      const role = String(el.getAttribute?.("role") || "").toLowerCase();
       const aria = String(el.getAttribute?.("aria-label") || "").toLowerCase();
 
-      const nameHit =
-        cls.includes("rule") || cls.includes("rules") || cls.includes("help") || cls.includes("tutorial") ||
-        cls.includes("modal") || cls.includes("dialog") || cls.includes("explain") ||
-        id.includes("rule") || id.includes("help") || id.includes("tutorial") || id.includes("modal") || id.includes("dialog") ||
-        role === "dialog" || aria.includes("rule") || aria.includes("help");
+      const named = role === "dialog" ||
+        cls.includes("modal") || cls.includes("dialog") || cls.includes("rule") || cls.includes("help") || cls.includes("explain") || cls.includes("tutorial") ||
+        id.includes("modal") || id.includes("dialog") || id.includes("rule") || id.includes("help") || id.includes("explain") || id.includes("tutorial") ||
+        aria.includes("ルール") || aria.includes("説明") || aria.includes("help") || aria.includes("rules");
 
-      const textHit =
-        txt.includes("ルール") || txt.includes("説明") || txt.includes("遊び方") ||
-        txt.includes("Rules") || txt.includes("How to play") || txt.includes("Tutorial");
+      const textual = txt.includes("ルール") || txt.includes("説明") || txt.includes("遊び方") || txt.includes("Rules") || txt.includes("How to play") || txt.includes("Tutorial");
 
-      return nameHit && textHit;
+      return named && textual;
     };
 
-    const add = () => {
-      // Remove older duplicate blocks if any survived runtime hydration.
-      for (const old of Array.from(document.querySelectorAll('[data-wt-escape-rule="1"], [data-wt-open-rule="1"]'))) {
-        old.remove();
-      }
+    const cleanupStrays = () => {
+      const oldBlocks = Array.from(document.querySelectorAll('[data-wt-escape-rule="1"], [data-wt-open-rule="1"], [data-wt-open-rule-final="1"]'));
+      for (const old of oldBlocks) old.remove();
 
-      const panels = Array.from(document.querySelectorAll('[role="dialog"], .modal, .dialog, .rules, .rule, .help, .tutorial, .explain, .explanation, details, section, aside'))
-        .filter(looksLikeRulesPanel);
+      // Remove bottom duplicates that do not carry a data marker.
+      for (const el of Array.from(document.querySelectorAll(".escapeRuleBlock, .openRuleBlock"))) {
+        el.remove();
+      }
+    };
+
+    const addToPanels = () => {
+      cleanupStrays();
+
+      const panels = Array.from(document.querySelectorAll('[role="dialog"], .modal, .dialog, .rules, .rule, .help, .tutorial, .explain, .explanation, details, aside, section'))
+        .filter(isPanel);
 
       for (const panel of panels) {
-        if (panel.querySelector('[data-wt-open-rule-final="1"]')) continue;
+        if (panel.querySelector('[data-wt-open-rule-hard="1"]')) continue;
         const wrap = document.createElement("div");
-        wrap.innerHTML = html;
+        wrap.innerHTML = openRuleHtml;
         panel.appendChild(wrap.firstElementChild);
       }
     };
 
-    add();
-    const obs = new MutationObserver(add);
+    addToPanels();
+
+    // Also run after Rules/説明 button clicks because some panels mount after click.
+    const onClick = (e) => {
+      const t = e.target;
+      const txt = (t?.textContent || "");
+      if (txt.includes("ルール") || txt.includes("説明") || /Rules|Help|How to play/i.test(txt)) {
+        setTimeout(addToPanels, 80);
+        setTimeout(addToPanels, 250);
+      }
+    };
+
+    document.addEventListener("click", onClick, true);
+    const obs = new MutationObserver(addToPanels);
     obs.observe(document.body, { childList: true, subtree: true });
-    return () => obs.disconnect();
+
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      obs.disconnect();
+    };
   }, []);
-  // WT_OPEN_RULES_IN_PANEL_FINAL_V1_END
+  // WT_QUICK5_OPEN_HARD_FIX_V1_END
 
   // WT_AUTO_BOARDMODE_NEWGAME_V1_BEGIN
   // UX rule: changing board mode immediately starts a new game in that mode.
