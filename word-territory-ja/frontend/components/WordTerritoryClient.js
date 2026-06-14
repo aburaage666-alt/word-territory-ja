@@ -2376,209 +2376,33 @@ export default function Home() {
   const [error,  setError]      = useState("");
   const [suggestions, setSugg]  = useState([]);
   const [mode,   setMode]       = useState("easy");
-  const [boardMode, setBoardMode] = useState("standard");
+  const [boardMode, setBoardMode] = useState(() => (typeof window !== "undefined" ? (window.localStorage.getItem("wtBoardMode") || "quick") : "quick")); // WT_DIRECT_FINAL_QUICK_DEFAULT_V3
 
-  // WT_QUICK5_OPEN_RULES_FINAL2_V1_BEGIN
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof document === "undefined") return;
 
-    const detectModeFromText = () => {
-      const text = document.body?.innerText || "";
-      if (/盤面\s*Quick\s*5[×x]5/.test(text) || /Board\s*Quick\s*5[×x]5/i.test(text)) return "quick";
-      if (/盤面\s*標準\s*7[×x]7/.test(text) || /Board\s*Standard\s*7[×x]7/i.test(text)) return "standard";
-      return "";
-    };
+  // WT_DIRECT_BOARDMODE_HELPERS_V3_BEGIN
+  function wtNormalizeBoardModeValue(value) {
+    const v = String(value || "").toLowerCase();
+    if (v.includes("quick") || v.includes("5")) return "quick";
+    return "standard";
+  }
 
-    const saveMode = (mode) => {
-      if (!mode) return;
-      window.__wtSelectedBoardMode = mode;
-      window.__wtPendingBoardMode = mode;
-      try { window.localStorage.setItem("wtBoardMode", mode); } catch (_e) {}
-    };
+  function wtBoardModePayload(value = boardMode) {
+    const bm = wtNormalizeBoardModeValue(value);
+    const size = bm === "quick" ? 5 : 7;
+    return { boardMode: bm, board_mode: bm, boardSize: size, board_size: size };
+  }
 
-    const readModeFromSelect = (sel) => {
-      const value = String(sel?.value || "").toLowerCase();
-      const label = String(sel?.selectedOptions?.[0]?.textContent || sel?.textContent || "").toLowerCase();
-      if (value.includes("quick") || value.includes("5") || label.includes("quick") || label.includes("5×5") || label.includes("5x5")) return "quick";
-      if (value.includes("standard") || value.includes("7") || label.includes("標準") || label.includes("7×7") || label.includes("7x7")) return "standard";
-      return "";
-    };
-
-    const selectedMode = boardMode || detectModeFromText() || (() => {
-      try { return window.localStorage.getItem("wtBoardMode") || ""; } catch (_e) { return ""; }
-    })() || "standard";
-
-    saveMode(selectedMode);
-
-    // Intercept every game creation request. This is the lowest frontend layer and
-    // catches createGame(), direct fetch(), stale React state, and button handlers.
-    if (!window.__wtFetchBoardModePatchFinal2) {
-      window.__wtFetchBoardModePatchFinal2 = true;
-      const originalFetch = window.fetch.bind(window);
-
-      window.fetch = async (input, init = {}) => {
-        try {
-          const rawUrl = typeof input === "string" ? input : (input && input.url) ? input.url : "";
-          const method = String((init && init.method) || (input && input.method) || "GET").toUpperCase();
-
-          if (method === "POST" && /\/games(\?|$)/.test(String(rawUrl))) {
-            const mode =
-              window.__wtSelectedBoardMode ||
-              window.__wtPendingBoardMode ||
-              (() => { try { return window.localStorage.getItem("wtBoardMode") || ""; } catch (_e) { return ""; } })() ||
-              detectModeFromText() ||
-              "standard";
-
-            let payload = {};
-            try {
-              if (init && typeof init.body === "string") {
-                payload = JSON.parse(init.body || "{}");
-              } else if (input && typeof input.clone === "function") {
-                const txt = await input.clone().text();
-                payload = txt ? JSON.parse(txt) : {};
-              }
-            } catch (_e) {
-              payload = {};
-            }
-
-            payload.boardMode = mode;
-            payload.board_mode = mode;
-
-            const headers = new Headers((init && init.headers) || (input && input.headers) || {});
-            headers.set("Content-Type", "application/json");
-
-            init = {
-              ...init,
-              method: "POST",
-              headers,
-              body: JSON.stringify(payload),
-            };
-          }
-        } catch (_e) {}
-
-        return originalFetch(input, init);
-      };
+  async function changeBoardMode(nextValue) {
+    const bm = wtNormalizeBoardModeValue(nextValue);
+    setBoardMode(bm);
+    if (typeof window !== "undefined") {
+      window.__wtSelectedBoardMode = bm;
+      window.__wtPendingBoardMode = bm;
+      try { window.localStorage.setItem("wtBoardMode", bm); } catch {}
     }
-
-    const onChange = (e) => {
-      const target = e.target;
-      if (!target || String(target.tagName || "").toLowerCase() !== "select") return;
-
-      const mode = readModeFromSelect(target);
-      if (!mode) return;
-
-      saveMode(mode);
-
-      // Changing board size must create a new game immediately.
-      setTimeout(() => {
-        const btn = Array.from(document.querySelectorAll("button"))
-          .find((b) => (b.textContent || "").includes("新しいゲーム") || /New Game/i.test(b.textContent || ""));
-        if (btn) btn.click();
-      }, 120);
-    };
-
-    document.addEventListener("change", onChange, true);
-    return () => document.removeEventListener("change", onChange, true);
-  }, [boardMode]);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-
-    const STYLE_ID = "wt-open-rule-final2-style";
-    if (!document.getElementById(STYLE_ID)) {
-      const style = document.createElement("style");
-      style.id = STYLE_ID;
-      style.textContent =
-        ".openRuleFinal2{margin-top:10px;padding:10px 12px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:10px;color:#0f172a;font-size:13px;line-height:1.6}" +
-        ".openRuleFinal2 strong{color:#075985}" +
-        ".openRuleFinal2 .mini{display:inline-block;margin-right:7px;font-weight:900;color:#7c2d12}";
-      document.head.appendChild(style);
-    }
-
-    const html =
-      '<div class="openRuleFinal2" data-wt-open-rule-final2="1">' +
-      '<strong>OPEN / Open Sides：</strong>領地グループの周囲に残る、まだ塞がれていない接点です。' +
-      '<span class="mini">OP1</span>は包囲寸前、' +
-      '<span class="mini">OP2</span>は圧迫、' +
-      '<span class="mini">OP3</span>はまだ余裕。' +
-      '単語で相手のOPENを減らすと、次の捕獲・囲みに近づきます。' +
-      '</div>';
-
-    const removeOldOpenBlocks = () => {
-      for (const old of Array.from(document.querySelectorAll(
-        '[data-wt-escape-rule="1"], [data-wt-open-rule="1"], [data-wt-open-rule-final="1"], [data-wt-open-rule-hard="1"], .escapeRuleBlock, .openRuleBlock, .openRuleInline'
-      ))) {
-        // Do not remove the final2 block.
-        if (old.getAttribute && old.getAttribute("data-wt-open-rule-final2") === "1") continue;
-        old.remove();
-      }
-    };
-
-    const isRulesOrExplanationPanel = (el) => {
-      if (!el) return false;
-      const txt = (el.textContent || "").trim();
-      if (!txt || txt.length > 9000) return false;
-
-      // This catches the visible Rules panel from the screenshot.
-      if (txt.includes("共通の盤面で単語を作り") && txt.includes("奪字")) return true;
-
-      // This catches the explanation/core-rules page from the screenshot.
-      if (txt.includes("コアルール") && (txt.includes("CUT / BRIDGE") || txt.includes("ENCIRCLE") || txt.includes("LOCK"))) return true;
-
-      // This catches modal/dialog help variants.
-      const cls = String(el.className || "").toLowerCase();
-      const id = String(el.id || "").toLowerCase();
-      const role = String(el.getAttribute?.("role") || "").toLowerCase();
-      const aria = String(el.getAttribute?.("aria-label") || "").toLowerCase();
-      const named =
-        role === "dialog" ||
-        cls.includes("modal") || cls.includes("dialog") || cls.includes("rule") || cls.includes("help") || cls.includes("explain") || cls.includes("tutorial") ||
-        id.includes("modal") || id.includes("dialog") || id.includes("rule") || id.includes("help") || id.includes("explain") || id.includes("tutorial") ||
-        aria.includes("ルール") || aria.includes("説明") || aria.includes("help") || aria.includes("rules");
-      const textHit = txt.includes("ルール") || txt.includes("説明") || txt.includes("遊び方") || txt.includes("Rules") || txt.includes("How to play") || txt.includes("Tutorial");
-      return named && textHit;
-    };
-
-    const addOpenRule = () => {
-      removeOldOpenBlocks();
-
-      const candidates = Array.from(document.querySelectorAll('[role="dialog"], .modal, .dialog, .rules, .rule, .help, .tutorial, .explain, .explanation, details, aside, section, div'))
-        .filter(isRulesOrExplanationPanel);
-
-      // Prefer smaller matching containers so the block appears inside the actual
-      // rules/explanation card, not at the page bottom.
-      candidates.sort((a, b) => (a.textContent || "").length - (b.textContent || "").length);
-
-      for (const panel of candidates.slice(0, 3)) {
-        if (panel.querySelector('[data-wt-open-rule-final2="1"]')) continue;
-        const wrap = document.createElement("div");
-        wrap.innerHTML = html;
-        panel.appendChild(wrap.firstElementChild);
-      }
-    };
-
-    addOpenRule();
-
-    const onClick = (e) => {
-      const txt = e.target?.textContent || "";
-      if (txt.includes("ルール") || txt.includes("説明") || /Rules|Help|How to play/i.test(txt)) {
-        setTimeout(addOpenRule, 60);
-        setTimeout(addOpenRule, 250);
-      }
-    };
-
-    document.addEventListener("click", onClick, true);
-    const obs = new MutationObserver(addOpenRule);
-    obs.observe(document.body, { childList: true, subtree: true });
-
-    return () => {
-      document.removeEventListener("click", onClick, true);
-      obs.disconnect();
-    };
-  }, []);
-  // WT_QUICK5_OPEN_RULES_FINAL2_V1_END
-
-  // WT_AUTO_BOARDMODE_NEWGAME_V1_BEGIN
+    await boot(mode, bm);
+  }
+  // WT_DIRECT_BOARDMODE_HELPERS_V3_END
   // UX rule: changing board mode immediately starts a new game in that mode.
   // This prevents "selector says Quick but current board is still 7x7".
   useEffect(() => {
@@ -3011,11 +2835,11 @@ const [thinking, setThinking] = useState(false);
     setSum(false); setCopied(false); setShareText(""); setNickname(""); setMyRank(null);
     set決定ted(false); summaryFired.current = false;
   }
-  async function boot(m = mode) {
+  async function boot(m = mode, bm = boardMode) {
     let lastErr;
     for (let attempt = 1; attempt <= 9; attempt++) {
       try {
-        const d = await createGame({ botLevel: m, boardMode });
+        const d = await createGame({ botLevel: m, ...wtBoardModePayload(bm) }, bm);
         setGameId(d.game_id); setState(d.state); setDailyMode(false);
         setSpectatorMode(false); setSpectatorSteps(0); setSpectatorNote("");
         reset(); setAnimGen(0); setBootMsg("");
@@ -3072,7 +2896,7 @@ const [thinking, setThinking] = useState(false);
     try {
       setError("");
       setBootMsg("Preparing spectator demo…");
-      const d = await createGame({ boardMode, botLevel: "strong", showcase: true, spectatorSeed: 42 });
+      const d = await createGame({ ...wtBoardModePayload(boardMode), botLevel: "strong", showcase: true, spectatorSeed: 42 }, boardMode);
       setGameId(d.game_id);
       setState(d.state);
       setDailyMode(false);
@@ -3980,7 +3804,7 @@ async function submitScore() {
               <select value={mode} onChange={e=>setMode(e.target.value)}>
                 <option value="easy">やさしい</option><option value="normal">ふつう</option>
                 <option value="strong">強い</option>
-              </select> <label className="boardModeCtl">盤面 <select value={boardMode} onChange={e=>setBoardMode(e.target.value)}><option value="standard">標準 7×7</option><option value="quick">Quick 5×5</option></select>
+              </select> <label className="boardModeCtl">盤面 <select value={boardMode} onChange={e=>changeBoardMode(e.target.value)}><option value="standard">標準 7×7</option><option value="quick">Quick 5×5</option></select>
               {/* WT_QUICK5_MODE_SYNC_V1_DISPLAY */}
               <div className="modeActual" title="実際の盤面サイズ">
                 実盤面 {wtBoardModeLabel(wtActualBoardModeFromState(state, boardMode))}
@@ -4008,7 +3832,7 @@ async function submitScore() {
           }
           <button className="bsm demo-btn" onClick={startSpectatorDemo}>▶ デモを見る</button>
           {spectatorMode&&<button className="bsm" onClick={()=>{setSpectatorMode(false); setSpectatorNote("Demo paused. Press 新しいゲーム to play.");}}>Stop Demo</button>}
-          <button className="bsm" onClick={async()=>{try{const d=await createAsyncMatch({botLevel:mode, boardMode}); setAsyncMode(true); setSpectatorMode(false); setAsyncToken(d.redToken); setAsyncRole('RED'); setGameId(d.game_id); setState(d.state); setDailyMode(false); setInviteUrl(`${window.location.origin}${d.blueUrl}`); setMarket({active:d.state.marketLetters||[], preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed}); await refresh(d.game_id);}catch(e){setError(e.message||'Could not create async match');}}}>Async PvP</button>
+          <button className="bsm" onClick={async()=>{try{const d=await createAsyncMatch({botLevel:mode, ...wtBoardModePayload(boardMode)}); setAsyncMode(true); setSpectatorMode(false); setAsyncToken(d.redToken); setAsyncRole('RED'); setGameId(d.game_id); setState(d.state); setDailyMode(false); setInviteUrl(`${window.location.origin}${d.blueUrl}`); setMarket({active:d.state.marketLetters||[], preview:d.state.previewLetters||[], stats:[], freeLetterUsed:!!d.state.freeLetterUsed}); await refresh(d.game_id);}catch(e){setError(e.message||'Could not create async match');}}}>Async PvP</button>
           {asyncMode&&<button className="bsm" onClick={async()=>{try{const d=await getAsyncMatch(gameId, asyncToken); setState(d.state); await refresh(gameId);}catch(e){setError(e.message||'Could not refresh match');}}}>Refresh Match</button>}
         </div>
       </div>
@@ -4045,6 +3869,7 @@ async function submitScore() {
             <li><strong>Goal:</strong> More red cells than blue wins. Territory beats vocabulary.</li>
             <li><strong>デイリーチャレンジ</strong> — same board worldwide each day. One attempt. 強い bot.</li>
           <li><strong>奪字</strong> — 1試合2回まで。敵文字を単語に含めると、そのロックを中立化します。</li>
+            <li><strong>OPEN / Open Sides</strong> — 領地グループの周囲に残る、まだ塞がれていない接点です。<strong>OP1</strong>は包囲寸前、<strong>OP2</strong>は圧迫、<strong>OP3</strong>はまだ余裕。単語で相手のOPENを減らすと、次の捕獲・囲みに近づきます。</li>
           </ol>
         </div>
       )}
@@ -4319,9 +4144,9 @@ async function submitScore() {
             </div>
 
               <label className="mini-select-label">盤面：
-                <select value={boardMode} onChange={e=>setBoardMode(e.target.value)} disabled={!!state && !state.winner}>
+                <select value={boardMode} onChange={e=>changeBoardMode(e.target.value)}>
                   <option value="standard">標準 7×7</option>
-                  <option value="quick5">クイック 5×5</option>
+                  <option value="quick">Quick 5×5</option>
                 </select>
               </label>
                                     <div className="brow">

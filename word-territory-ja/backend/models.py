@@ -77,7 +77,7 @@ class GameState(BaseModel):
 
 
 class CreateGameRequest(BaseModel):
-    boardMode: str = "standard"
+    boardMode: str = "quick"
     botLevel: BotLevel = "normal"
     spectatorSeed: Optional[int] = None
     showcase: bool = False
