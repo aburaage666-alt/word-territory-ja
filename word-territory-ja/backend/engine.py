@@ -7664,3 +7664,37 @@ except Exception:
 
 # WT_LIBERTY_REFINED_PREVIEW_V3_END
 
+
+# WT_OPEN_SIDES_TERMS_V1_BEGIN
+# User-facing terminology:
+#   backend still computes the same count,
+#   but UI should call it OPEN / Open Sides, not escape route.
+# Status labels are language-aware for preview display.
+def liberty_status(n: int) -> str:
+    try:
+        n = int(n)
+    except Exception:
+        n = 0
+
+    if globals().get("_LANG") == "ja":
+        if n <= 0:
+            return "\u6355\u7372\u53ef\u80fd"  # 捕獲可能
+        if n == 1:
+            return "\u5305\u56f2\u5bf8\u524d"  # 包囲寸前
+        if n == 2:
+            return "\u5727\u8feb"              # 圧迫
+        if n == 3:
+            return "\u307e\u3060\u4f59\u88d5"  # まだ余裕
+        return "\u5b89\u5168"                  # 安全
+
+    if n <= 0:
+        return "Closed"
+    if n == 1:
+        return "Critical"
+    if n == 2:
+        return "Pressured"
+    if n == 3:
+        return "Room"
+    return "Safe"
+# WT_OPEN_SIDES_TERMS_V1_END
+

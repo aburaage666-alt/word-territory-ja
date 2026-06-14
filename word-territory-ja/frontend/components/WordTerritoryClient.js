@@ -24,7 +24,7 @@ import {
 const asKey = (r, c) => `${r}-${c}`;
 
 // WT_LIBERTY_BOARD_BADGES_V3_BEGIN
-// Client-side board 逃げ道 badges. Mirrors backend compute_group_liberties.
+// Client-side board OPEN badges. Mirrors backend compute_group_liberties.
 // Uses the same key style as asKey: "row-col".
 function wtLibertyKey(r, c) { return `${r}-${c}`; }
 function wtLibStatusKey(n) { return n <= 1 ? "near" : n === 2 ? "press" : n === 3 ? "room" : "safe"; }
@@ -72,13 +72,13 @@ function computeBoardLiberties(board) {
           }
         }
 
-        const liberty = libs.size;
-        if (liberty <= 3) {
+        const openSide = libs.size;
+        if (openSide <= 3) {
           cells.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
           out.set(wtLibertyKey(cells[0][0], cells[0][1]), {
             owner,
-            liberty,
-            status: wtLibStatusKey(liberty),
+            openSide,
+            status: wtLibStatusKey(openSide),
             size: cells.length,
           });
         }
@@ -2378,6 +2378,56 @@ export default function Home() {
   const [mode,   setMode]       = useState("easy");
   const [boardMode, setBoardMode] = useState("standard");
 
+  // WT_OPEN_SIDES_RULES_UI_V1_BEGIN
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const STYLE_ID = "wt-open-sides-rules-style-v1";
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent =
+        ".openRuleBlock{margin-top:8px;padding:8px 10px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:10px;color:#0f172a;font-size:12px;line-height:1.55}" +
+        ".openRuleBlock strong{color:#075985}" +
+        ".openRuleBlock .mini{display:inline-block;margin-right:6px;font-weight:900;color:#7c2d12}";
+      document.head.appendChild(style);
+    }
+
+    const html =
+      '<div class="openRuleBlock" data-wt-open-rule="1">' +
+      '<strong>OPEN / Open Sides：</strong>領地グループの周囲に残る、まだ塞がれていない接点です。' +
+      '<span class="mini">OP1</span>は包囲寸前、' +
+      '<span class="mini">OP2</span>は圧迫、' +
+      '<span class="mini">OP3</span>はまだ余裕。' +
+      '単語で相手のOPENを減らすと、次の捕獲・囲みに近づきます。' +
+      '</div>';
+
+    const add = () => {
+      if (document.querySelector('[data-wt-open-rule="1"]')) return;
+
+      const targets = Array.from(document.querySelectorAll("div, section, p"))
+        .filter((el) => {
+          const txt = (el.textContent || "").trim();
+          return txt.includes("遊び方:") || txt.includes("遊び方：") || txt.includes("How to play");
+        })
+        .filter((el) => (el.textContent || "").length < 900);
+
+      const target = targets[0];
+      if (!target) return;
+
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html;
+      target.insertAdjacentElement("afterend", wrap);
+    };
+
+    add();
+    const obs = new MutationObserver(add);
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, []);
+  // WT_OPEN_SIDES_RULES_UI_V1_END
+
+
   // WT_AUTO_BOARDMODE_NEWGAME_V1_BEGIN
   // UX rule: changing board mode immediately starts a new game in that mode.
   // This prevents "selector says Quick but current board is still 7x7".
@@ -2420,7 +2470,7 @@ export default function Home() {
 
 
   // WT_ESCAPE_ROUTE_RULES_UI_V1_BEGIN
-  // Adds 逃げ道 explanation to the visible guide/rules/explanation areas.
+  // Adds OPEN explanation to the visible guide/rules/explanation areas.
   useEffect(() => {
     if (typeof document === "undefined") return;
 
@@ -2437,11 +2487,11 @@ export default function Home() {
 
     const html =
       '<div class="escapeRuleBlock" data-wt-escape-rule="1">' +
-      '<strong>逃げ道：</strong>領地グループの周囲に残る空き出口です。' +
-      '<span class="mini">逃1</span>は包囲寸前、' +
-      '<span class="mini">逃2</span>は圧迫、' +
-      '<span class="mini">逃3</span>はまだ余裕。' +
-      '単語で相手の逃げ道を減らすと、次の捕獲・囲みに近づきます。' +
+      '<strong>OPEN：</strong>領地グループの周囲に残る空き出口です。' +
+      '<span class="mini">OP1</span>は包囲寸前、' +
+      '<span class="mini">OP2</span>は圧迫、' +
+      '<span class="mini">OP3</span>はまだ余裕。' +
+      '単語で相手のOPENを減らすと、次の捕獲・囲みに近づきます。' +
       '</div>';
 
     const addAfterGuide = () => {
@@ -2574,18 +2624,18 @@ const [thinking, setThinking] = useState(false);
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    let style = document.getElementById("wt-liberty-preview-style-v2");
+    let style = document.getElementById("wt-openSide-preview-style-v2");
     if (!style) {
       style = document.createElement("style");
-      style.id = "wt-liberty-preview-style-v2";
+      style.id = "wt-openSide-preview-style-v2";
       style.textContent =
-        ".pvliberty{display:inline-flex;align-items:center;gap:4px;margin-left:6px;font-weight:900;color:#7c2d12}" +
-        ".pvliberty.atari{color:#b91c1c}" +
-        ".pvliberty.double{color:#7c3aed}";
+        ".pvopenSide{display:inline-flex;align-items:center;gap:4px;margin-left:6px;font-weight:900;color:#7c2d12}" +
+        ".pvopenSide.atari{color:#b91c1c}" +
+        ".pvopenSide.double{color:#7c3aed}";
       document.head.appendChild(style);
     }
 
-    const old = document.getElementById("wt-liberty-preview-line-v2");
+    const old = document.getElementById("wt-openSide-preview-line-v2");
     if (old) old.remove();
 
     if (!preview || !preview.isInDictionary) return;
@@ -2602,7 +2652,7 @@ const [thinking, setThinking] = useState(false);
 
     if (hasDrop) {
       const tail = status ? `：${status}${preview.nearEncircle && status !== "包囲寸前" ? "！" : ""}` : (preview.nearEncircle ? "：包囲寸前！" : "");
-      parts.push(`逃げ道 ${before}→${after}${tail}`);
+      parts.push(`OPEN ${before}→${after}${tail}`);
     }
 
     if (!parts.length) return;
@@ -2611,8 +2661,8 @@ const [thinking, setThinking] = useState(false);
     if (!target) return;
 
     const span = document.createElement("span");
-    span.id = "wt-liberty-preview-line-v2";
-    span.className = "pvliberty" + (preview.nearEncircle ? " atari" : "") + (preview.doubleMove ? " double" : "");
+    span.id = "wt-openSide-preview-line-v2";
+    span.className = "pvopenSide" + (preview.nearEncircle ? " atari" : "") + (preview.doubleMove ? " double" : "");
     span.textContent = " · " + parts.join(" · ");
     target.insertAdjacentElement("afterend", span);
   }, [
@@ -2630,18 +2680,18 @@ const [thinking, setThinking] = useState(false);
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    let style = document.getElementById("wt-liberty-preview-style-v1");
+    let style = document.getElementById("wt-openSide-preview-style-v1");
     if (!style) {
       style = document.createElement("style");
-      style.id = "wt-liberty-preview-style-v1";
+      style.id = "wt-openSide-preview-style-v1";
       style.textContent =
-        ".pvliberty{display:inline-flex;align-items:center;gap:4px;margin-left:6px;font-weight:900;color:#7c2d12}" +
-        ".pvliberty.atari{color:#b91c1c}" +
-        ".pvliberty.double{color:#7c3aed}";
+        ".pvopenSide{display:inline-flex;align-items:center;gap:4px;margin-left:6px;font-weight:900;color:#7c2d12}" +
+        ".pvopenSide.atari{color:#b91c1c}" +
+        ".pvopenSide.double{color:#7c3aed}";
       document.head.appendChild(style);
     }
 
-    const old = document.getElementById("wt-liberty-preview-line-v1");
+    const old = document.getElementById("wt-openSide-preview-line-v1");
     if (old) old.remove();
 
     if (!preview || !preview.isInDictionary) return;
@@ -2655,7 +2705,7 @@ const [thinking, setThinking] = useState(false);
     const after = Number(preview.enemyLibertyAfter || 0);
     const hasDrop = before > 0 && after > 0 && before > after;
     if (hasDrop) {
-      parts.push(`逃げ道 ${before}→${after}${preview.nearEncircle ? "：包囲寸前！" : ""}`);
+      parts.push(`OPEN ${before}→${after}${preview.nearEncircle ? "：包囲寸前！" : ""}`);
     }
 
     if (!parts.length) return;
@@ -2664,8 +2714,8 @@ const [thinking, setThinking] = useState(false);
     if (!target) return;
 
     const span = document.createElement("span");
-    span.id = "wt-liberty-preview-line-v1";
-    span.className = "pvliberty" + (preview.nearEncircle ? " atari" : "") + (preview.doubleMove ? " double" : "");
+    span.id = "wt-openSide-preview-line-v1";
+    span.className = "pvopenSide" + (preview.nearEncircle ? " atari" : "") + (preview.doubleMove ? " double" : "");
     span.textContent = " · " + parts.join(" · ");
     target.insertAdjacentElement("afterend", span);
   }, [
@@ -2706,7 +2756,7 @@ const [thinking, setThinking] = useState(false);
   // WT_LIBERTY_BOARD_BADGES_V3_HOOK
   useEffect(() => {
     if (typeof document === "undefined") return;
-    const SID = "wt-liberty-board-badges-style-v3";
+    const SID = "wt-openSide-board-badges-style-v3";
     if (!document.getElementById(SID)) {
       const el = document.createElement("style");
       el.id = SID;
@@ -4011,8 +4061,8 @@ async function submitScore() {
                     if (!lb) return null;
                     return (
                       <div className={`lib-badge lib-${lb.status} lib-${lb.owner === "RED" ? "r" : "b"}`}
-                           title={`${lb.owner === "RED" ? "RED" : "BLUE"}の逃げ道 ${lb.liberty}（${WT_LIB_STATUS_JA[lb.status]}）`}>
-                        逃{lb.liberty}
+                           title={`${lb.owner === "RED" ? "RED" : "BLUE"} OPEN ${lb.openSide ?? lb.liberty}（${WT_LIB_STATUS_JA[lb.status]}）`}>
+                        OP{lb.openSide ?? lb.liberty}
                       </div>
                     );
                   })()}
@@ -5412,7 +5462,7 @@ async function submitScore() {
       title: "ENCIRCLE!",
       badge: "包囲",
       color: DEMO_COLORS.encircle,
-      text: "ENCIRCLEは囲みによる支配。相手の逃げ道を塞ぐと一気に盤面が動きます。",
+      text: "ENCIRCLEは囲みによる支配。相手のOPENを塞ぐと一気に盤面が動きます。",
       path: [[1,1],[1,2],[2,2],[3,2],[3,1]],
       encircle: [[2,1]],
       caption: "囲んだ内側を奪う",
