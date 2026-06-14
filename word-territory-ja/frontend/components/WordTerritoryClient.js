@@ -10,7 +10,7 @@ function wtActualBoardModeFromState(state, fallback = "standard") {
   return fallback || "standard";
 }
 function wtBoardModeLabel(mode) {
-  return mode === "quick" ? "Quick 5×5" : "標準 7×7";
+  return mode === "quick" ? "Quick 5×5：短時間対戦" : "標準 7×7";
 }
 // WT_QUICK5_MODE_SYNC_V1_END
 
@@ -2395,8 +2395,8 @@ export default function Home() {
 
   function wtBoardModeLabel(value = boardMode) {
     const bm = wtNormalizeBoardModeValue(value);
-    if (bm === "intro") return "導入 5×5（OPEN練習）";
-    if (bm === "quick5") return "Quick 5×5";
+    if (bm === "intro") return "導入 5×5：はじめての練習";
+    if (bm === "quick5") return "Quick 5×5：短時間対戦";
     return "標準 7×7";
   }
 
@@ -3801,7 +3801,7 @@ async function submitScore() {
       <div className="hdr">
         <div className="hdr-l">
           <h1>WORD TERRITORY{dailyMode&&dailyInfo&&<span className="dpill">今日の盤面 #{dailyInfo.dayNumber}</span>}</h1>
-          <p className="sub">開始形: {state.openingName} · {spectatorMode ? `観戦モード · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "ボット対ボット" : thinking?"ボット思考中…":asyncMode ? (state.currentPlayer===asyncRole?`あなたの手番 (${asyncRole})`:`待機中: ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"ボットの手番":`あなたの手番 (${state.currentPlayer})`} · {state.boardSize===5?'Quick 5×5':'標準 7×7'} · ラウンド {state.turn}</p>
+          <p className="sub">開始形: {state.openingName} · {spectatorMode ? `観戦モード · ${state.botStyle || "Raider"} duel` : asyncMode ? `Async PvP · You are ${asyncRole}` : `Bot: ${state.botStyle || "Raider"}`} · {spectatorMode ? "ボット対ボット" : thinking?"ボット思考中…":asyncMode ? (state.currentPlayer===asyncRole?`あなたの手番 (${asyncRole})`:`待機中: ${state.currentPlayer}`) : state.currentPlayer===state.botPlayer?"ボットの手番":`あなたの手番 (${state.currentPlayer})`} · {state.boardSize===5?'Quick 5×5：短時間対戦':'標準 7×7'} · ラウンド {state.turn}</p>
           <p className="opening-note">{OPENING_NOTES[state.openingName] || "言葉が領地になる。 通常モードはカードなしで、単語・陣地・奪字・2x2回転に集中します。一手ごとに盤面が変わる。まずは5x5で短く遊び、緑のマスに1文字を置き、文字をつないで単語を作ります。"}</p>
         </div>
         <div className="hdr-r">
@@ -3812,8 +3812,8 @@ async function submitScore() {
               <select value={mode} onChange={e=>setMode(e.target.value)}>
                 <option value="easy">やさしい</option><option value="normal">ふつう</option>
                 <option value="strong">強い</option>
-              </select> <label className="boardModeCtl">盤面 <select value={boardMode} onChange={e=>changeBoardMode(e.target.value)}><option value="standard">標準 7×7</option><option value="quick5">Quick 5×5</option>
-                <option value="intro">導入 5×5</option></select>
+              </select> <label className="boardModeCtl">盤面 <select value={boardMode} onChange={e=>changeBoardMode(e.target.value)}><option value="standard">標準 7×7</option><option value="quick5">Quick 5×5：短時間対戦</option>
+                <option value="intro">導入 5×5：はじめての練習</option></select>
               {/* WT_QUICK5_MODE_SYNC_V1_DISPLAY */}
               <div className="modeActual" title="実際の盤面サイズ">
                 実盤面 {wtBoardModeLabel(wtActualBoardModeFromState(state, boardMode))}
@@ -3879,7 +3879,7 @@ async function submitScore() {
             <li><strong>デイリーチャレンジ</strong> — same board worldwide each day. One attempt. 強い bot.</li>
           <li><strong>奪字</strong> — 1試合2回まで。敵文字を単語に含めると、そのロックを中立化します。</li>
             <li><strong>OPEN / Open Sides</strong> — 領地グループの周囲に残る、まだ塞がれていない接点です。<strong>OP1</strong>は包囲寸前、<strong>OP2</strong>は圧迫、<strong>OP3</strong>はまだ余裕。単語で相手のOPENを減らすと、次の捕獲・囲みに近づきます。</li>
-            <li><strong>練習 5×5</strong> — OPENと包囲を覚えるための導入盤です。ボットはTutorとして弱めに動きます。繰り返し遊ぶ短時間対戦はQuick 5×5を使います。</li>
+            <li><strong>導入 5×5：はじめての練習</strong> — OPENと包囲を覚えるための導入盤です。ボットはTutorとして弱めに動きます。繰り返し遊ぶ短時間対戦はQuick 5×5：短時間対戦を使います。</li>
           </ol>
         </div>
       )}
@@ -4156,8 +4156,8 @@ async function submitScore() {
               <label className="mini-select-label">盤面：
                 <select value={boardMode} onChange={e=>changeBoardMode(e.target.value)}>
                   <option value="standard">標準 7×7</option>
-                  <option value="quick5">Quick 5×5</option>
-                <option value="intro">導入 5×5</option>
+                  <option value="quick5">Quick 5×5：短時間対戦</option>
+                <option value="intro">導入 5×5：はじめての練習</option>
                 </select>
               </label>
                                     <div className="brow">
@@ -5990,3 +5990,5 @@ async function submitScore() {
   }, true);
 })();
 // WT_JA_ABOUT_CLICK_GUARD_V3_END
+
+/* WT_CORE_MODE_TEXT_JA: 基本モードでは、救済交換・読み合い交換は使えません。 */
