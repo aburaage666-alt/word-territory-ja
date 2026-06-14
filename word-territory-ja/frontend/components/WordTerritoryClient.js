@@ -2376,7 +2376,49 @@ export default function Home() {
   const [error,  setError]      = useState("");
   const [suggestions, setSugg]  = useState([]);
   const [mode,   setMode]       = useState("easy");
-  const [boardMode, setBoardMode] = useState("standard"); // WT_QUICK5_UI_V2
+  const [boardMode, setBoardMode] = useState("standard");
+
+  // WT_QUICK5_FETCH_GUARD_V2_BEGIN
+  // Safety net: some API helper paths may forget boardMode.
+  // While this component is mounted, inject the selected boardMode into POST /games.
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.fetch !== "function") return;
+
+    const originalFetch = window.fetch;
+
+    window.fetch = (input, init = {}) => {
+      try {
+        const url = typeof input === "string" ? input : (input && input.url) || "";
+        const method = String((init && init.method) || "GET").toUpperCase();
+
+        if (method === "POST" && /\/games\/?$/.test(url)) {
+          let body = init && init.body;
+          if (typeof body === "string") {
+            const payload = JSON.parse(body);
+            if (payload && typeof payload === "object" && !Array.isArray(payload) && !Object.prototype.hasOwnProperty.call(payload, "boardMode")) {
+              init = {
+                ...init,
+                body: JSON.stringify({
+                  ...payload,
+                  boardMode: boardMode || "standard",
+                }),
+              };
+            }
+          }
+        }
+      } catch (_e) {
+        // Never block game creation because of the guard.
+      }
+
+      return originalFetch(input, init);
+    };
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [boardMode]);
+  // WT_QUICK5_FETCH_GUARD_V2_END
+ // WT_QUICK5_UI_V2
 const [thinking, setThinking] = useState(false);
   const [preview, setPreview]   = useState(null);
 

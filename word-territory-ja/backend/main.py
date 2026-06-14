@@ -465,7 +465,7 @@ def create_daily_game():
     date_str = get_today_utc()
     idx = date_to_opening_idx(date_str)
     game_id = str(uuid.uuid4())
-    state = build_initial_state(bot_level="strong", opening_idx=idx)
+    state = build_initial_state(bot_level="strong", opening_idx=idx, board_mode=getattr(req, "boardMode", "standard"))
     GAMES[game_id] = state
     return CreateGameResponse(game_id=game_id, state=state)
 
