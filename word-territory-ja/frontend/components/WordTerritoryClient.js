@@ -2378,6 +2378,40 @@ export default function Home() {
   const [mode,   setMode]       = useState("easy");
   const [boardMode, setBoardMode] = useState("standard");
 
+  // WT_BOARDMODE_MISMATCH_GUIDANCE_V1_BEGIN
+  // When selector mode and current game state differ, tell the player that
+  // the selected mode applies after pressing "新しいゲーム".
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const cssId = "wt-boardmode-mismatch-style-v1";
+    if (!document.getElementById(cssId)) {
+      const style = document.createElement("style");
+      style.id = cssId;
+      style.textContent =
+        ".modeMismatch{margin-top:3px;font-size:11px;font-weight:900;color:#b45309;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:3px 6px;line-height:1.25}" +
+        ".modeMismatch strong{color:#7c2d12}";
+      document.head.appendChild(style);
+    }
+
+    const old = document.getElementById("wt-boardmode-mismatch-v1");
+    if (old) old.remove();
+
+    const actual = wtActualBoardModeFromState(state, boardMode);
+    if (!state || !boardMode || actual === boardMode) return;
+
+    const anchor = document.querySelector(".modeActual");
+    if (!anchor) return;
+
+    const div = document.createElement("div");
+    div.id = "wt-boardmode-mismatch-v1";
+    div.className = "modeMismatch";
+    div.innerHTML = `<strong>${wtBoardModeLabel(boardMode)}</strong> は新しいゲームで反映`;
+    anchor.insertAdjacentElement("afterend", div);
+  }, [boardMode, state?.boardSize, state?.board?.length]);
+  // WT_BOARDMODE_MISMATCH_GUIDANCE_V1_END
+
+
   // WT_QUICK5_FETCH_GUARD_V2_BEGIN
   // Safety net: some API helper paths may forget boardMode.
   // While this component is mounted, inject the selected boardMode into POST /games.
