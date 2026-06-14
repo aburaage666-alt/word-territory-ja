@@ -27,6 +27,23 @@ function sanitizeMarketData(v){if(Array.isArray(v))return v.map(sanitizeMarketDa
 function normalizeKanaInput(value){const raw=String(value||"").normalize("NFKC"); const hira=raw.replace(/[\u30a1-\u30f6]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0x60)); const chars=Array.from(hira).filter(ch=>/^[\u3041-\u3096\u30fc]$/.test(ch)); return chars.length?chars[chars.length-1]:"";}
 function errorMessage(data,fallback){if(!data)return fallback||"通信エラーが発生しました。"; if(typeof data==="string")return data; if(typeof data.detail==="string")return data.detail; if(Array.isArray(data.detail))return data.detail.map(x=>typeof x==="string"?x:(x?.msg||JSON.stringify(x))).join(" / "); if(data.error)return String(data.error); try{return JSON.stringify(data);}catch{return fallback||"エラーが発生しました。";}}
 async function request(path,options={}){
+  // WT_API_BOARDMODE_INJECT_FINAL2_V1_BEGIN
+  try {
+    const __method = String((options && options.method) || "GET").toUpperCase();
+    const __path = String(path || "");
+    if (__method === "POST" && /\/games(\?|$)/.test(__path)) {
+      const __text = (typeof document !== "undefined" && document.body) ? document.body.innerText : "";
+      const __domMode = /盤面\s*Quick\s*5[×x]5/.test(__text) ? "quick" : (/盤面\s*標準\s*7[×x]7/.test(__text) ? "standard" : "");
+      const __mode = (typeof window !== "undefined" && (window.__wtSelectedBoardMode || window.__wtPendingBoardMode || window.localStorage?.getItem("wtBoardMode"))) || __domMode || "standard";
+      let __body = {};
+      try { __body = options.body ? JSON.parse(options.body) : {}; } catch (_e) { __body = {}; }
+      __body.boardMode = __mode;
+      __body.board_mode = __mode;
+      options = { ...options, body: JSON.stringify(__body) };
+    }
+  } catch (_e) {}
+  // WT_API_BOARDMODE_INJECT_FINAL2_V1_END
+
   // WT_API_BOARDMODE_INJECT_HARD_V1_BEGIN
   // Final safety net: every POST /games request gets the selected boardMode.
   // This catches requests from createGame(), button handlers, and stale React state.
