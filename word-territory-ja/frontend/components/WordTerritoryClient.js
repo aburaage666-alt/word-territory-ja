@@ -1,6 +1,19 @@
 import Head from "next/head";
 import Link from "next/link";
 import {useEffect, useMemo, useRef, useState } from "react";
+
+// WT_QUICK5_MODE_SYNC_V1_BEGIN
+function wtActualBoardModeFromState(state, fallback = "standard") {
+  const n = Number(state?.boardSize || state?.board?.length || 0);
+  if (n === 5) return "quick";
+  if (n === 7) return "standard";
+  return fallback || "standard";
+}
+function wtBoardModeLabel(mode) {
+  return mode === "quick" ? "Quick 5×5" : "標準 7×7";
+}
+// WT_QUICK5_MODE_SYNC_V1_END
+
 import {
   botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyLeaderboard,
   getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, getThreat, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, rotateAsyncBlock, passAsyncTurn,
@@ -3686,7 +3699,12 @@ async function submitScore() {
               <select value={mode} onChange={e=>setMode(e.target.value)}>
                 <option value="easy">やさしい</option><option value="normal">ふつう</option>
                 <option value="strong">強い</option>
-              </select> <label className="boardModeCtl">盤面 <select value={boardMode} onChange={e=>setBoardMode(e.target.value)}><option value="standard">標準 7×7</option><option value="quick">Quick 5×5</option></select></label>
+              </select> <label className="boardModeCtl">盤面 <select value={boardMode} onChange={e=>setBoardMode(e.target.value)}><option value="standard">標準 7×7</option><option value="quick">Quick 5×5</option></select>
+              {/* WT_QUICK5_MODE_SYNC_V1_DISPLAY */}
+              <div className="modeActual" title="実際の盤面サイズ">
+                実盤面 {wtBoardModeLabel(wtActualBoardModeFromState(state, boardMode))}
+              </div>
+</label>
             </div>
           )}
           {dailyInfo&&!dailyMode&&(
