@@ -7369,3 +7369,298 @@ except Exception:
 
 # WT_LIBERTY_PREVIEW_V1_END
 
+
+# WT_LIBERTY_REFINED_PREVIEW_V2_BEGIN
+# Read-only pressure layer:
+# - compute_group_liberties(): WT escape-route count, not strict Go liberty.
+# - liberty_status(): 4-stage pressure label.
+# - preview_move wrapper: adds future-facing escape route X->Y and double-move feedback.
+# Rules/scoring/capture/bot choice are unchanged.
+
+def compute_group_liberties(state, owner):
+    # Connected owner groups with adjacent escape-route count.
+    # WT definition:
+    #   escape route = adjacent owner-less / neutral / empty cell.
+    #   opponent-owned cells are not exits.
+    #   fortified cells are not exits.
+    # Read-only: does not affect capture rules.
+    board = getattr(state, "board", []) or []
+    n = len(board)
+
+    def neigh(r, c):
+        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < n and 0 <= nc < len(board[nr]):
+                yield nr, nc
+
+    visited = set()
+    groups = []
+    for r in range(n):
+        for c in range(len(board[r])):
+            if getattr(board[r][c], "owner", None) == owner and (r, c) not in visited:
+                cells = []
+                libs = set()
+                stack = [(r, c)]
+                while stack:
+                    cr, cc = stack.pop()
+                    if (cr, cc) in visited:
+                        continue
+                    visited.add((cr, cc))
+                    cells.append((cr, cc))
+
+                    for nr, nc in neigh(cr, cc):
+                        ncell = board[nr][nc]
+                        o = getattr(ncell, "owner", None)
+                        if o == owner and (nr, nc) not in visited:
+                            stack.append((nr, nc))
+                        elif o is None and not bool(getattr(ncell, "fortified", False)):
+                            libs.add((nr, nc))
+
+                groups.append({
+                    "owner": owner,
+                    "cells": set(cells),
+                    "liberty": len(libs),
+                    "libertyCells": set(libs),
+                    "nearEncircle": len(libs) <= 1,
+                })
+    return groups
+
+
+def liberty_status(n: int) -> str:
+    try:
+        n = int(n)
+    except Exception:
+        n = 0
+    if n <= 0:
+        return "捕獲可能"
+    if n == 1:
+        return "包囲寸前"
+    if n == 2:
+        return "圧迫"
+    if n == 3:
+        return "まだ余裕"
+    return "安全"
+
+
+def _cell_liberty_map(state, owner):
+    out = {}
+    for g in compute_group_liberties(state, owner):
+        for cell in g.get("cells", set()):
+            out[cell] = int(g.get("liberty", 0) or 0)
+    return out
+
+
+try:
+    _wt_liberty_refined_orig_preview_v2 = preview_move
+
+    def preview_move(state: GameState, row: int, col: int, letter: str, path) -> PreviewMoveResponse:
+        response = _wt_liberty_refined_orig_preview_v2(state, row, col, letter, path)
+
+        try:
+            if not getattr(response, "isInDictionary", False):
+                return response
+            if getattr(response, "errorMessage", None):
+                return response
+
+            after = validate_and_apply_move(clone_state(state), row, col, letter, path)
+            last = after.moveHistory[-1]
+
+            total = max(0, int(getattr(last, "territoryGained", 0) or 0))
+            cap = max(0, min(int(getattr(last, "captureCount", 0) or 0), total))
+            path_gain = max(0, total - cap)
+
+            try:
+                response.territoryGain = total
+                response.captureGain = cap
+                response.pathGain = path_gain
+                response.lockGain = int(getattr(last, "fortifiedCellsGained", 0) or 0)
+                response.captureHappened = cap > 0
+                response.captureCount = int(getattr(last, "captureCount", 0) or 0)
+                response.comboLabels = list(getattr(last, "comboLabels", []) or [])
+                # Tuned from attached measurement: avoid over-labeling tiny path+capture moves.
+                response.doubleMove = bool(path_gain >= 3 and cap >= 1)
+            except Exception:
+                pass
+
+            opp = other_player(state.currentPlayer)
+            before_map = _cell_liberty_map(state, opp)
+            after_map = _cell_liberty_map(after, opp)
+
+            best_drop = 0
+            best_before = None
+            best_after = None
+
+            for cell, after_lib in after_map.items():
+                before_lib = before_map.get(cell)
+                if before_lib is None:
+                    continue
+                drop = int(before_lib) - int(after_lib)
+                if drop > best_drop or (
+                    drop == best_drop and drop > 0 and
+                    (best_after is None or int(after_lib) < int(best_after))
+                ):
+                    best_drop = drop
+                    best_before = int(before_lib)
+                    best_after = int(after_lib)
+
+            if best_after is not None and best_drop > 0:
+                try:
+                    response.enemyLibertyBefore = int(best_before or 0)
+                    response.enemyLibertyAfter = int(best_after or 0)
+                    response.nearEncircle = int(best_after or 0) <= 1
+                    response.enemyLibertyStatus = liberty_status(int(best_after or 0))
+                except Exception:
+                    pass
+
+        except Exception:
+            # Preview must never break normal input.
+            pass
+
+        return response
+
+except Exception:
+    pass
+
+# WT_LIBERTY_REFINED_PREVIEW_V2_END
+
+
+# WT_LIBERTY_REFINED_PREVIEW_V3_BEGIN
+# Read-only pressure layer.
+# Adds future-facing 逃げ道 / liberty values to preview only.
+# Does not change scoring, legal moves, capture rules, or bot rules.
+
+def compute_group_liberties(state, owner):
+    board = getattr(state, "board", []) or []
+    n = len(board)
+
+    def neigh(r, c):
+        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < n and 0 <= nc < len(board[nr]):
+                yield nr, nc
+
+    visited = set()
+    groups = []
+
+    for r in range(n):
+        for c in range(len(board[r])):
+            if getattr(board[r][c], "owner", None) == owner and (r, c) not in visited:
+                cells = []
+                libs = set()
+                stack = [(r, c)]
+
+                while stack:
+                    cr, cc = stack.pop()
+                    if (cr, cc) in visited:
+                        continue
+                    visited.add((cr, cc))
+                    cells.append((cr, cc))
+
+                    for nr, nc in neigh(cr, cc):
+                        ncell = board[nr][nc]
+                        o = getattr(ncell, "owner", None)
+                        if o == owner and (nr, nc) not in visited:
+                            stack.append((nr, nc))
+                        elif o is None and not bool(getattr(ncell, "fortified", False)):
+                            libs.add((nr, nc))
+
+                groups.append({
+                    "owner": owner,
+                    "cells": set(cells),
+                    "liberty": len(libs),
+                    "libertyCells": set(libs),
+                    "nearEncircle": len(libs) <= 1,
+                })
+
+    return groups
+
+
+def liberty_status(n: int) -> str:
+    try:
+        n = int(n)
+    except Exception:
+        n = 0
+    if n <= 0:
+        return "\u6355\u7372\u53ef\u80fd"
+    if n == 1:
+        return "\u5305\u56f2\u5bf8\u524d"
+    if n == 2:
+        return "\u5727\u8feb"
+    if n == 3:
+        return "\u307e\u3060\u4f59\u88d5"
+    return "\u5b89\u5168"
+
+
+def _cell_liberty_map(state, owner):
+    out = {}
+    for g in compute_group_liberties(state, owner):
+        for cell in g.get("cells", set()):
+            out[cell] = int(g.get("liberty", 0) or 0)
+    return out
+
+
+try:
+    _wt_liberty_refined_orig_preview_v3 = preview_move
+
+    def preview_move(state: GameState, row: int, col: int, letter: str, path) -> PreviewMoveResponse:
+        response = _wt_liberty_refined_orig_preview_v3(state, row, col, letter, path)
+
+        try:
+            if not getattr(response, "isInDictionary", False):
+                return response
+            if getattr(response, "errorMessage", None):
+                return response
+
+            after = validate_and_apply_move(clone_state(state), row, col, letter, path)
+            last = after.moveHistory[-1]
+
+            total = max(0, int(getattr(last, "territoryGained", 0) or 0))
+            cap = max(0, min(int(getattr(last, "captureCount", 0) or 0), total))
+            path_gain = max(0, total - cap)
+
+            response.territoryGain = total
+            response.captureGain = cap
+            response.pathGain = path_gain
+            response.lockGain = int(getattr(last, "fortifiedCellsGained", 0) or 0)
+            response.captureHappened = cap > 0
+            response.captureCount = int(getattr(last, "captureCount", 0) or 0)
+            response.comboLabels = list(getattr(last, "comboLabels", []) or [])
+            response.doubleMove = bool(path_gain >= 3 and cap >= 1)
+
+            opp = other_player(state.currentPlayer)
+            before_map = _cell_liberty_map(state, opp)
+            after_map = _cell_liberty_map(after, opp)
+
+            best_drop = 0
+            best_before = None
+            best_after = None
+
+            for cell, after_lib in after_map.items():
+                before_lib = before_map.get(cell)
+                if before_lib is None:
+                    continue
+                drop = int(before_lib) - int(after_lib)
+                if drop > best_drop or (
+                    drop == best_drop and drop > 0 and
+                    (best_after is None or int(after_lib) < int(best_after))
+                ):
+                    best_drop = drop
+                    best_before = int(before_lib)
+                    best_after = int(after_lib)
+
+            if best_after is not None and best_drop > 0:
+                response.enemyLibertyBefore = int(best_before or 0)
+                response.enemyLibertyAfter = int(best_after or 0)
+                response.nearEncircle = int(best_after or 0) <= 1
+                response.enemyLibertyStatus = liberty_status(int(best_after or 0))
+
+        except Exception:
+            pass
+
+        return response
+
+except Exception:
+    pass
+
+# WT_LIBERTY_REFINED_PREVIEW_V3_END
+

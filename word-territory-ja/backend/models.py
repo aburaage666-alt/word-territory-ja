@@ -129,7 +129,8 @@ class PreviewMoveResponse(BaseModel):
     doubleMove: bool = False        # 二重の手: claimed path AND captured by enclosure
     enemyLibertyBefore: int = 0     # most-threatened enemy group's 逃げ道 before this move
     enemyLibertyAfter: int = 0      # ...and after this move
-    nearEncircle: bool = False      # 包囲寸前: this move drops an enemy group to 1 逃げ道    # enemy cells flipped by enclosure (囲み)
+    nearEncircle: bool = False
+    enemyLibertyStatus: str = ""    # 安全/まだ余裕/圧迫/包囲寸前/捕獲可能      # 包囲寸前: this move drops an enemy group to 1 逃げ道    # enemy cells flipped by enclosure (囲み)
     lockGain: int = 0
     captureHappened: bool = False
     captureCount: int = 0

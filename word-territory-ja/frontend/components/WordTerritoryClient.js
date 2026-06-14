@@ -10,6 +10,74 @@ import {
 // ── helpers ──────────────────────────────────────────────────────────────────
 const asKey = (r, c) => `${r}-${c}`;
 
+// WT_LIBERTY_BOARD_BADGES_V3_BEGIN
+// Client-side board 逃げ道 badges. Mirrors backend compute_group_liberties.
+// Uses the same key style as asKey: "row-col".
+function wtLibertyKey(r, c) { return `${r}-${c}`; }
+function wtLibStatusKey(n) { return n <= 1 ? "near" : n === 2 ? "press" : n === 3 ? "room" : "safe"; }
+const WT_LIB_STATUS_JA = { near: "包囲寸前", press: "圧迫", room: "まだ余裕", safe: "安全" };
+
+function computeBoardLiberties(board) {
+  const out = new Map();
+  if (!Array.isArray(board)) return out;
+
+  const n = board.length;
+  const inb = (r, c) => r >= 0 && r < n && Array.isArray(board[r]) && c >= 0 && c < board[r].length;
+  const seen = new Set();
+
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < (board[r]?.length || 0); c++) {
+      const owner = board[r][c]?.owner;
+      const startKey = wtLibertyKey(r, c);
+
+      if ((owner === "RED" || owner === "BLUE") && !seen.has(startKey)) {
+        const cells = [];
+        const libs = new Set();
+        const stack = [[r, c]];
+
+        while (stack.length) {
+          const [cr, cc] = stack.pop();
+          const kk = wtLibertyKey(cr, cc);
+          if (seen.has(kk)) continue;
+
+          seen.add(kk);
+          cells.push([cr, cc]);
+
+          for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const nr = cr + dr;
+            const nc = cc + dc;
+            if (!inb(nr, nc)) continue;
+
+            const cell = board[nr][nc];
+            const o = cell?.owner;
+
+            if (o === owner && !seen.has(wtLibertyKey(nr, nc))) {
+              stack.push([nr, nc]);
+            } else if (o == null && !cell?.fortified) {
+              libs.add(wtLibertyKey(nr, nc));
+            }
+          }
+        }
+
+        const liberty = libs.size;
+        if (liberty <= 3) {
+          cells.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+          out.set(wtLibertyKey(cells[0][0], cells[0][1]), {
+            owner,
+            liberty,
+            status: wtLibStatusKey(liberty),
+            size: cells.length,
+          });
+        }
+      }
+    }
+  }
+
+  return out;
+}
+// WT_LIBERTY_BOARD_BADGES_V3_END
+
+
 // WT_JA_自由_INPUT_FIX_20260606
 const WT_JA_自由_INPUT_KANA_POOL = "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a\u308b\u308c\u308d\u308f\u3092\u3093\u304c\u304e\u3050\u3052\u3054\u3056\u3058\u305a\u305c\u305e\u3060\u3062\u3065\u3067\u3069\u3070\u3073\u3076\u3079\u307c\u3071\u3074\u3077\u307a\u307d";
 
@@ -2299,6 +2367,62 @@ export default function Home() {
 const [thinking, setThinking] = useState(false);
   const [preview, setPreview]   = useState(null);
 
+  // WT_LIBERTY_REFINED_PREVIEW_UI_V2_BEGIN
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    let style = document.getElementById("wt-liberty-preview-style-v2");
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "wt-liberty-preview-style-v2";
+      style.textContent =
+        ".pvliberty{display:inline-flex;align-items:center;gap:4px;margin-left:6px;font-weight:900;color:#7c2d12}" +
+        ".pvliberty.atari{color:#b91c1c}" +
+        ".pvliberty.double{color:#7c3aed}";
+      document.head.appendChild(style);
+    }
+
+    const old = document.getElementById("wt-liberty-preview-line-v2");
+    if (old) old.remove();
+
+    if (!preview || !preview.isInDictionary) return;
+
+    const parts = [];
+    if (preview.doubleMove) {
+      parts.push("⚑二重の手");
+    }
+
+    const before = Number(preview.enemyLibertyBefore || 0);
+    const after = Number(preview.enemyLibertyAfter || 0);
+    const status = String(preview.enemyLibertyStatus || "");
+    const hasDrop = before > 0 && after > 0 && before > after;
+
+    if (hasDrop) {
+      const tail = status ? `：${status}${preview.nearEncircle && status !== "包囲寸前" ? "！" : ""}` : (preview.nearEncircle ? "：包囲寸前！" : "");
+      parts.push(`逃げ道 ${before}→${after}${tail}`);
+    }
+
+    if (!parts.length) return;
+
+    const target = document.querySelector(".pvbreak") || document.querySelector(".pvstats");
+    if (!target) return;
+
+    const span = document.createElement("span");
+    span.id = "wt-liberty-preview-line-v2";
+    span.className = "pvliberty" + (preview.nearEncircle ? " atari" : "") + (preview.doubleMove ? " double" : "");
+    span.textContent = " · " + parts.join(" · ");
+    target.insertAdjacentElement("afterend", span);
+  }, [
+    preview?.isInDictionary,
+    preview?.doubleMove,
+    preview?.enemyLibertyBefore,
+    preview?.enemyLibertyAfter,
+    preview?.nearEncircle,
+    preview?.enemyLibertyStatus
+  ]);
+  // WT_LIBERTY_REFINED_PREVIEW_UI_V2_END
+
+
   // WT_LIBERTY_PREVIEW_UI_V1_BEGIN
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -2375,6 +2499,26 @@ const [thinking, setThinking] = useState(false);
   const [threatsRaw,  _setThreats]    = useState([]); // opponent capture threats, raw API payload
   const threats = useMemo(() => normalizeThreats(threatsRaw), [threatsRaw]);
   const setThreats = (value) => _setThreats(normalizeThreats(value));
+
+  // WT_LIBERTY_BOARD_BADGES_V3_HOOK
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const SID = "wt-liberty-board-badges-style-v3";
+    if (!document.getElementById(SID)) {
+      const el = document.createElement("style");
+      el.id = SID;
+      el.textContent =
+        ".cell-slot,.board-cell-wrap,.board-cell{position:relative}" +
+        ".lib-badge{position:absolute;top:1px;left:1px;z-index:7;font-size:9px;font-weight:900;line-height:1.1;padding:1px 3px;border-radius:6px;pointer-events:none;background:rgba(255,255,255,.94);border:1px solid;letter-spacing:-.5px;box-shadow:0 1px 2px rgba(15,23,42,.12)}" +
+        ".lib-near{color:#dc2626;border-color:#dc2626;background:#fff1f2}" +
+        ".lib-press{color:#b45309;border-color:#f59e0b;background:#fffbeb}" +
+        ".lib-room{color:#475569;border-color:#cbd5e1;background:#f8fafc}";
+      document.head.appendChild(el);
+    }
+  }, []);
+
+  const libBadges = useMemo(() => computeBoardLiberties(state?.board), [state?.board, state?.turn, state?.winner]);
+
   const [asyncMode,   setAsyncMode]   = useState(false);
   const [asyncToken,  setAsyncToken]  = useState("");
   const [asyncRole,   setAsyncRole]   = useState("");
@@ -3653,6 +3797,18 @@ async function submitScore() {
                     <span className="vp-num">{vp.tier==='strong' ? `+${vp.gain}T` : vp.tier==='frontline' ? `+${vp.gain}T` : (Number(vp.gain)||0) > 0 ? `+${vp.gain}T` : 'SET'}</span>
                     {vp.tier==='strong' && <span className="vp-star">★</span>}
                   </div>}
+                  {/* WT_LIBERTY_BOARD_BADGES_V3_RENDER */}
+                  {!state.winner && (() => {
+                    const lb = libBadges.get(wtLibertyKey(cell.row, cell.col));
+                    if (!lb) return null;
+                    return (
+                      <div className={`lib-badge lib-${lb.status} lib-${lb.owner === "RED" ? "r" : "b"}`}
+                           title={`${lb.owner === "RED" ? "RED" : "BLUE"}の逃げ道 ${lb.liberty}（${WT_LIB_STATUS_JA[lb.status]}）`}>
+                        逃{lb.liberty}
+                      </div>
+                    );
+                  })()}
+
                 </div>;
               }))}
               {bridgeSvgPoints && (
