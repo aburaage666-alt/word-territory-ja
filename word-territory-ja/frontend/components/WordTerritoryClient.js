@@ -2376,19 +2376,20 @@ export default function Home() {
   const [error,  setError]      = useState("");
   const [suggestions, setSugg]  = useState([]);
   const [mode,   setMode]       = useState("easy");
-  const [boardMode, setBoardMode] = useState(() => (typeof window !== "undefined" ? (window.localStorage.getItem("wtBoardMode") || "quick") : "quick")); // WT_DIRECT_FINAL_QUICK_DEFAULT_V3
+  const [boardMode, setBoardMode] = useState(() => (typeof window !== "undefined" ? (window.localStorage.getItem("wtBoardMode") || "standard") : "standard")); // WT_INTRO_QUICK_BOARDMODE_DEFAULT_FINAL_V1
 
 
-  // WT_DIRECT_BOARDMODE_HELPERS_V3_BEGIN
+  // WT_INTRO_QUICK_BOARDMODE_HELPERS_FINAL_V1_BEGIN
   function wtNormalizeBoardModeValue(value) {
     const v = String(value || "").toLowerCase();
+    if (v.includes("intro") || v.includes("tutorial") || v.includes("learn") || v.includes("導入")) return "intro";
     if (v.includes("quick") || v.includes("5")) return "quick";
     return "standard";
   }
 
   function wtBoardModePayload(value = boardMode) {
     const bm = wtNormalizeBoardModeValue(value);
-    const size = bm === "quick" ? 5 : 7;
+    const size = bm === "standard" ? 7 : 5;
     return { boardMode: bm, board_mode: bm, boardSize: size, board_size: size };
   }
 
@@ -2402,7 +2403,7 @@ export default function Home() {
     }
     await boot(mode, bm);
   }
-  // WT_DIRECT_BOARDMODE_HELPERS_V3_END
+  // WT_INTRO_QUICK_BOARDMODE_HELPERS_FINAL_V1_END
   // UX rule: changing board mode immediately starts a new game in that mode.
   // This prevents "selector says Quick but current board is still 7x7".
   useEffect(() => {
@@ -3804,7 +3805,8 @@ async function submitScore() {
               <select value={mode} onChange={e=>setMode(e.target.value)}>
                 <option value="easy">やさしい</option><option value="normal">ふつう</option>
                 <option value="strong">強い</option>
-              </select> <label className="boardModeCtl">盤面 <select value={boardMode} onChange={e=>changeBoardMode(e.target.value)}><option value="standard">標準 7×7</option><option value="quick">Quick 5×5</option></select>
+              </select> <label className="boardModeCtl">盤面 <select value={boardMode} onChange={e=>changeBoardMode(e.target.value)}><option value="standard">標準 7×7</option><option value="quick">Quick 5×5</option>
+                <option value="intro">導入 5×5</option></select>
               {/* WT_QUICK5_MODE_SYNC_V1_DISPLAY */}
               <div className="modeActual" title="実際の盤面サイズ">
                 実盤面 {wtBoardModeLabel(wtActualBoardModeFromState(state, boardMode))}
@@ -4147,6 +4149,7 @@ async function submitScore() {
                 <select value={boardMode} onChange={e=>changeBoardMode(e.target.value)}>
                   <option value="standard">標準 7×7</option>
                   <option value="quick">Quick 5×5</option>
+                <option value="intro">導入 5×5</option>
                 </select>
               </label>
                                     <div className="brow">

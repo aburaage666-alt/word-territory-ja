@@ -27,6 +27,31 @@ function sanitizeMarketData(v){if(Array.isArray(v))return v.map(sanitizeMarketDa
 function normalizeKanaInput(value){const raw=String(value||"").normalize("NFKC"); const hira=raw.replace(/[\u30a1-\u30f6]/g,ch=>String.fromCharCode(ch.charCodeAt(0)-0x60)); const chars=Array.from(hira).filter(ch=>/^[\u3041-\u3096\u30fc]$/.test(ch)); return chars.length?chars[chars.length-1]:"";}
 function errorMessage(data,fallback){if(!data)return fallback||"通信エラーが発生しました。"; if(typeof data==="string")return data; if(typeof data.detail==="string")return data.detail; if(Array.isArray(data.detail))return data.detail.map(x=>typeof x==="string"?x:(x?.msg||JSON.stringify(x))).join(" / "); if(data.error)return String(data.error); try{return JSON.stringify(data);}catch{return fallback||"エラーが発生しました。";}}
 async function request(path,options={}){
+  // WT_INTRO_QUICK_BOARDMODE_REQUEST_FINAL_V1
+  try {
+    const method = String((options && options.method) || "GET").toUpperCase();
+    if (method === "POST" && String(path || "") === "/games") {
+      let body = {};
+      try { body = options.body ? JSON.parse(options.body) : {}; } catch (_) { body = {}; }
+      const text = (typeof document !== "undefined" && document.body && document.body.innerText) ? document.body.innerText : "";
+      const domMode =
+        /盤面\s*導入\s*5[×x]5/.test(text) ? "intro" :
+        (/盤面\s*Quick\s*5[×x]5/.test(text) ? "quick" :
+        (/盤面\s*標準\s*7[×x]7/.test(text) ? "standard" : ""));
+      const mode = body.boardMode || body.board_mode ||
+        (typeof window !== "undefined" && (window.__wtSelectedBoardMode || window.__wtPendingBoardMode || (window.localStorage && window.localStorage.getItem("wtBoardMode")))) ||
+        domMode || "standard";
+      const raw = String(mode).toLowerCase();
+      const bm = raw.includes("intro") || raw.includes("tutorial") || raw.includes("learn") ? "intro" : (raw.includes("quick") || raw.includes("5") ? "quick" : "standard");
+      const size = bm === "standard" ? 7 : 5;
+      body.boardMode = bm;
+      body.board_mode = bm;
+      body.boardSize = size;
+      body.board_size = size;
+      options = { ...options, body: JSON.stringify(body) };
+    }
+  } catch (_) {}
+
   // WT_DIRECT_FINAL_BOARDMODE_REQUEST_V3
   try {
     const method = String((options && options.method) || "GET").toUpperCase();
@@ -114,19 +139,22 @@ async function request(path,options={}){
 const res=await fetch(`${API_BASE}${path}`,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}}); let data=null; try{data=await res.json();}catch{} if(!res.ok)throw new Error(errorMessage(data,`HTTP ${res.status}`)); return sanitizeMarketData(data);}
 function payloadArgs(args){if(args.length===1&&args[0]&&typeof args[0]==="object"){const p=args[0]; return {gameId:p.gameId||p.game_id||p.id,body:{row:p.row,col:p.col,letter:p.letter,path:p.path||[]}};} const [gameId,row,col,letter,path]=args; return {gameId,body:{row,col,letter,path:path||[]}};}
 function listFrom(value,key){if(Array.isArray(value))return value; if(!value||typeof value!=="object")return []; if(key&&Array.isArray(value[key]))return value[key]; for(const k of ["suggestions","threats","almost","moves","items","results","data"]){if(Array.isArray(value[k]))return value[k];} return [];}
-export async function createGame(payload = {}, boardMode = "quick") {
+export async function createGame(payload = {}, boardMode = "standard") {
   const text = (typeof document !== "undefined" && document.body && document.body.innerText) ? document.body.innerText : "";
   const fromDom =
-    /盤面\s*Quick\s*5[×x]5/.test(text) || /Board\s*Quick\s*5[×x]5/i.test(text) ? "quick" :
-    (/盤面\s*標準\s*7[×x]7/.test(text) || /Board\s*Standard\s*7[×x]7/i.test(text) ? "standard" : "");
+    /盤面\s*導入\s*5[×x]5/.test(text) || /Intro\s*5[×x]5/i.test(text) ? "intro" :
+    (/盤面\s*Quick\s*5[×x]5/.test(text) || /Board\s*Quick\s*5[×x]5/i.test(text) ? "quick" :
+    (/盤面\s*標準\s*7[×x]7/.test(text) || /Board\s*Standard\s*7[×x]7/i.test(text) ? "standard" : ""));
   const mode =
     (payload && (payload.boardMode || payload.board_mode)) ||
     (typeof window !== "undefined" && (window.__wtSelectedBoardMode || window.__wtPendingBoardMode || (window.localStorage && window.localStorage.getItem("wtBoardMode")))) ||
     fromDom ||
     boardMode ||
-    "quick";
-  const bm = String(mode).toLowerCase().includes("quick") || String(mode).includes("5") ? "quick" : "standard";
-  const size = bm === "quick" ? 5 : 7;
+    "standard";
+  const raw = String(mode).toLowerCase();
+  const bm = raw.includes("intro") || raw.includes("tutorial") || raw.includes("learn") ? "intro" :
+             (raw.includes("quick") || raw.includes("5") ? "quick" : "standard");
+  const size = bm === "standard" ? 7 : 5;
   const body = {
     ...(payload && typeof payload === "object" ? payload : {}),
     boardMode: bm,

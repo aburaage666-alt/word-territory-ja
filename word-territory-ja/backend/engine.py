@@ -7698,3 +7698,168 @@ def liberty_status(n: int) -> str:
     return "Safe"
 # WT_OPEN_SIDES_TERMS_V1_END
 
+
+# WT_QUICK5_INTRO_DIRECT_FINAL_V1_BEGIN
+# Final runtime layer for board modes.
+# - standard: normal 7x7
+# - quick / 5x5: normal competitive 5x5
+# - intro / tutorial: 5x5 teaching opening for early OP pressure and capture.
+try:
+    WT_QI_STANDARD_BOARD_SIZE_V1 = int(BOARD_SIZE)
+except Exception:
+    WT_QI_STANDARD_BOARD_SIZE_V1 = 7
+
+try:
+    WT_QI_STANDARD_OPENING_COORDS_V1 = list(OPENING_COORDS)
+except Exception:
+    WT_QI_STANDARD_OPENING_COORDS_V1 = [(1, 3), (2, 2), (2, 3), (2, 4), (2, 5), (3, 3), (4, 3)]
+
+try:
+    WT_QI_STANDARD_MAX_TURNS_V1 = int(MAX_TURNS)
+except Exception:
+    WT_QI_STANDARD_MAX_TURNS_V1 = 35
+
+WT_QI_QUICK_BOARD_SIZE_V1 = 5
+WT_QI_QUICK_MAX_TURNS_V1 = 20
+WT_QI_QUICK_OPENING_COORDS_V1 = [(0, 2), (1, 1), (1, 2), (1, 3), (2, 2)]
+
+def _wt_qi_normalize_mode_v1(board_mode=None, board_size=None):
+    mode = str(board_mode or "").lower().strip()
+    try:
+        n = int(board_size) if board_size is not None else None
+    except Exception:
+        n = None
+
+    if mode in ("intro", "tutorial", "quick-intro", "quick_intro", "learn", "opening"):
+        return "intro", WT_QI_QUICK_BOARD_SIZE_V1
+    if mode in ("quick", "5", "5x5", "quick5", "quick-5x5") or n == WT_QI_QUICK_BOARD_SIZE_V1:
+        return "quick", WT_QI_QUICK_BOARD_SIZE_V1
+    return "standard", WT_QI_STANDARD_BOARD_SIZE_V1
+
+def _wt_qi_set_runtime_v1(size=None):
+    global BOARD_SIZE, OPENING_COORDS, MAX_TURNS
+    n = WT_QI_QUICK_BOARD_SIZE_V1 if int(size or WT_QI_STANDARD_BOARD_SIZE_V1) == WT_QI_QUICK_BOARD_SIZE_V1 else WT_QI_STANDARD_BOARD_SIZE_V1
+    BOARD_SIZE = n
+    if n == WT_QI_QUICK_BOARD_SIZE_V1:
+        OPENING_COORDS = list(WT_QI_QUICK_OPENING_COORDS_V1)
+        MAX_TURNS = WT_QI_QUICK_MAX_TURNS_V1
+    else:
+        OPENING_COORDS = list(WT_QI_STANDARD_OPENING_COORDS_V1)
+        MAX_TURNS = WT_QI_STANDARD_MAX_TURNS_V1
+    return n
+
+def sync_board_runtime(state):
+    return _wt_qi_set_runtime_v1(getattr(state, "boardSize", WT_QI_STANDARD_BOARD_SIZE_V1))
+
+_WT_QI_INTRO_LAYOUT_V1 = {
+    "blue": [((0, 0), "し")],
+    "red": [((4, 4), "し")],
+    "neutral": [
+        ((0, 1), "ま"), ((1, 0), "つ"), ((1, 1), "か"), ((1, 2), "な"),
+        ((2, 2), "み"),
+        ((2, 3), "な"), ((3, 3), "か"), ((4, 3), "つ"), ((3, 4), "ま"),
+    ],
+}
+
+def _wt_qi_apply_intro_opening_v1(state):
+    try:
+        if len(state.board) != WT_QI_QUICK_BOARD_SIZE_V1:
+            return state
+        for r in range(len(state.board)):
+            for c in range(len(state.board[r])):
+                cell = state.board[r][c]
+                cell.letter = None
+                cell.owner = None
+                cell.fortified = False
+
+        for (r, c), ch in _WT_QI_INTRO_LAYOUT_V1["blue"]:
+            state.board[r][c].letter = ch
+            state.board[r][c].owner = "BLUE"
+        for (r, c), ch in _WT_QI_INTRO_LAYOUT_V1["red"]:
+            state.board[r][c].letter = ch
+            state.board[r][c].owner = "RED"
+        for (r, c), ch in _WT_QI_INTRO_LAYOUT_V1["neutral"]:
+            state.board[r][c].letter = ch
+
+        state.openingName = "QUICK 5×5 · 導入（OPEN）"
+        try:
+            active, preview = generate_letter_market(state)
+            state.marketLetters = active
+            state.previewLetters = preview
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return state
+
+try:
+    _WT_QI_ORIGINAL_BUILD_INITIAL_STATE_V1
+except NameError:
+    _WT_QI_ORIGINAL_BUILD_INITIAL_STATE_V1 = build_initial_state
+
+def build_initial_state(bot_level: str = "normal", opening_idx: int | None = None, board_mode: str = "standard", board_size: int | None = None) -> GameState:
+    mode, size = _wt_qi_normalize_mode_v1(board_mode, board_size)
+    _wt_qi_set_runtime_v1(size)
+
+    try:
+        state = _WT_QI_ORIGINAL_BUILD_INITIAL_STATE_V1(bot_level=bot_level, opening_idx=opening_idx, board_mode=mode, board_size=size)
+    except TypeError:
+        try:
+            state = _WT_QI_ORIGINAL_BUILD_INITIAL_STATE_V1(bot_level=bot_level, opening_idx=opening_idx)
+        except TypeError:
+            state = _WT_QI_ORIGINAL_BUILD_INITIAL_STATE_V1(bot_level=bot_level)
+
+    state.boardSize = size
+    try:
+        state.coreMode = bool(size == WT_QI_QUICK_BOARD_SIZE_V1)
+    except Exception:
+        pass
+    try:
+        state.synergyState = dict(getattr(state, "synergyState", {}) or {})
+        state.synergyState["_boardMode"] = mode
+    except Exception:
+        pass
+
+    if mode == "intro":
+        state = _wt_qi_apply_intro_opening_v1(state)
+    else:
+        try:
+            if size == WT_QI_QUICK_BOARD_SIZE_V1 and not str(state.openingName or "").startswith("QUICK 5×5"):
+                state.openingName = "QUICK 5×5 · " + str(state.openingName or "OPENING")
+        except Exception:
+            pass
+
+    return state
+
+def _wt_qi_wrap_state_fn_v1(fn):
+    def wrapped(state, *args, **kwargs):
+        sync_board_runtime(state)
+        return fn(state, *args, **kwargs)
+    wrapped.__name__ = getattr(fn, "__name__", "wrapped")
+    wrapped.__doc__ = getattr(fn, "__doc__", None)
+    return wrapped
+
+for _wt_qi_name in [
+    "validate_and_apply_move",
+    "apply_seed_move",
+    "preview_move",
+    "pass_turn",
+    "find_candidate_words",
+    "find_almost_words",
+    "apply_bot_move",
+    "apply_demo_bot_move",
+    "get_market_stats",
+    "get_letter_preview_moves",
+    "get_threat_preview",
+    "get_placeable_empty_cells",
+    "apply_dazi_move",
+    "rotate_block_state",
+]:
+    _wt_qi_fn = globals().get(_wt_qi_name)
+    if callable(_wt_qi_fn) and not getattr(_wt_qi_fn, "_wt_qi_wrapped_final_v1", False):
+        _wt_qi_wrapped = _wt_qi_wrap_state_fn_v1(_wt_qi_fn)
+        _wt_qi_wrapped._wt_qi_wrapped_final_v1 = True
+        globals()[_wt_qi_name] = _wt_qi_wrapped
+
+# WT_QUICK5_INTRO_DIRECT_FINAL_V1_END
+
