@@ -21,6 +21,7 @@ import {
   useFreeLetter,
   swapLetter,
   createAsyncMatch,
+  getAsyncMatch,
   submitAsyncMove,
   seedAsyncMove,
   rotateAsyncBlock,
@@ -31,8 +32,9 @@ import {
   getIntents,
   getPuzzles,
   startPuzzle,
+  getDailyPuzzle,
+  startDailyPuzzle,
   WT_JA_API_DEFINITIVE_20260606,
-  getAsyncMatch,
   getSynergyOptions,
   selectSynergy,
 } from "../lib/api";
@@ -2359,6 +2361,22 @@ export default function Home() {
   const [intents, setIntents] = useState([]);
   const [puzzles, setPuzzles] = useState([]); // 詰めワード list
   const [showPuzzles, setShowPuzzles] = useState(false);
+  const [dailyPzDay, setDailyPzDay] = useState(null);
+
+  // WT_DAILY_ROAD_OASIS_UI_CSS_V4
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const SID = "wt-daily-road-oasis-ui-v4";
+    if (document.getElementById(SID)) return;
+    const el = document.createElement("style");
+    el.id = SID;
+    el.textContent =
+      ".btrain.bdaily{background:#7c3aed;border-color:#7c3aed}" +
+      ".oasis-badge{position:absolute;bottom:1px;right:1px;z-index:6;font-size:9px;font-weight:900;line-height:1.1;padding:1px 3px;border-radius:6px;pointer-events:none;background:#fef3c7;border:1px solid #f59e0b;color:#92400e;letter-spacing:-.5px}" +
+      ".oasis-badge.oasis-won{background:#fde68a;color:#7c2d12;box-shadow:0 0 0 2px rgba(245,158,11,.4)}";
+    document.head.appendChild(el);
+  }, []);
+
 
   // WT_TRAINING_PUZZLE_UI_CSS_V1
   useEffect(() => {
@@ -2690,7 +2708,9 @@ const [thinking, setThinking] = useState(false);
   const libBadges = useMemo(() => computeBoardLiberties(state?.board), [state?.board, state?.turn, state?.winner]);
 
   
-  // WT_TRAINING_PUZZLE_FUNCTIONS_V1
+  
+  const oasisMap = useMemo(() => { const m = new Map(); (state?.puzzleOasis || []).forEach(o => m.set(`${o.row}-${o.col}`, o.value)); return m; }, [state?.puzzleOasis]);
+// WT_TRAINING_PUZZLE_FUNCTIONS_V1
   const openPuzzlePicker = async () => {
     try {
       setPuzzles(await getPuzzles());
@@ -2700,7 +2720,34 @@ const [thinking, setThinking] = useState(false);
     setShowPuzzles(true);
   };
 
-  const loadPuzzle = async (pid) => {
+  
+  // WT_DAILY_ROAD_OASIS_DAILY_FUNC_V4
+  const loadDailyPuzzle = async () => {
+    try {
+      const meta = await getDailyPuzzle().catch(() => null);
+      const d = await startDailyPuzzle();
+      setShowPuzzles(false);
+      setDailyPzDay(meta && meta.dayNumber ? meta.dayNumber : null);
+      if (typeof setAsyncMode === "function") setAsyncMode(false);
+      if (typeof setSpectatorMode === "function") setSpectatorMode(false);
+      if (typeof setDailyMode === "function") setDailyMode(false);
+      setGameId(d.game_id);
+      setState(d.state);
+      reset();
+      if (typeof setMarket === "function") {
+        setMarket({
+          active: d.state.marketLetters || [],
+          preview: d.state.previewLetters || [],
+          stats: [],
+          freeLetterUsed: !!d.state.freeLetterUsed,
+        });
+      }
+    } catch (err) {
+      setError(err.message || "今日の詰めワードを開始できませんでした");
+    }
+  };
+
+const loadPuzzle = async (pid) => {
     try {
       const d = await startPuzzle(pid);
       setShowPuzzles(false);
@@ -3989,6 +4036,8 @@ async function submitScore() {
             {/* WT_TRAINING_PUZZLE_PANEL_V1 */}
             <div className="train-strip">
               <button className="btrain" onClick={openPuzzlePicker}>📚 詰めワード</button>
+              {/* WT_DAILY_ROAD_OASIS_DAILY_BUTTON_V4 */}
+              <button className="btrain bdaily" onClick={loadDailyPuzzle}>📅 今日の詰めワード</button>
             </div>
             {state?.puzzleId && (
               <div className={`puzzle-banner${state.puzzleSolved ? " puzzle-solved" : ""}`}>
@@ -4045,6 +4094,8 @@ async function submitScore() {
                     rotateCandidate={rotateCandidateSet.has(k)}
                     rotateAnchor={rotateAnchorSet.has(k)}
                     onClick={()=>clickCell(cell.row,cell.col)}/>
+                  {/* WT_DAILY_ROAD_OASIS_CELL_BADGE_V4 */}
+                  {oasisMap.has(k) && <div className={`oasis-badge ${cell.owner === "RED" ? "oasis-won" : ""}`}>★+{oasisMap.get(k)}</div>}
                   {showVp && <div className={`vp-overlay vp-${vp.tier || 'basic'}`} title={vp.word ? `${vp.word} · 領地変動 +${vp.gain||0}${vp.synergyPreview ? ' · '+vp.synergyPreview : ''}` : 'Setup'}>
                     <span className="vp-num">{vp.tier==='strong' ? `+${vp.gain}T` : vp.tier==='frontline' ? `+${vp.gain}T` : (Number(vp.gain)||0) > 0 ? `+${vp.gain}T` : 'SET'}</span>
                     {vp.tier==='strong' && <span className="vp-star">★</span>}

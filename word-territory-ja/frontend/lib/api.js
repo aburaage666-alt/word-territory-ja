@@ -264,3 +264,7 @@ export async function rotateAsyncBlock(gameId, token, payload) {
 export async function seedAsyncMove(gameId,token,...args){let body; if(args.length===1&&args[0]&&typeof args[0]==="object")body=args[0]; else body={row:args[0],col:args[1],letter:args[2]}; return request(`/async/games/${gameId}/seed-move?token=${encodeURIComponent(token)}`,{method:"POST",body:JSON.stringify(body)});}
 export async function passAsyncTurn(gameId,token){return request(`/async/games/${gameId}/pass?token=${encodeURIComponent(token)}`,{method:"POST"});}
 export async function joinWaitlist(email){return request("/waitlist",{method:"POST",body:JSON.stringify({email})});}
+
+export async function getDailyPuzzle() { return request("/daily/puzzle"); }
+
+export async function startDailyPuzzle() { return request("/daily/puzzle/start", { method: "POST" }); }

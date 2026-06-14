@@ -83,6 +83,7 @@ class GameState(BaseModel):
     puzzleTitle: str = ""
     puzzleHint: str = ""
     puzzleSolved: bool = False
+    puzzleOasis: list = []               # Training/Daily only: star cells
 class CreateGameRequest(BaseModel):
     boardMode: str = "standard"
     boardSize: int | None = None

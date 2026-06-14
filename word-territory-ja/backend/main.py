@@ -90,7 +90,9 @@ from engine import (
     rotate_block_state,
     preview_move,
     validate_and_apply_move,
-swap_market_tile, )
+    swap_market_tile,
+    puzzle_id_for_day,
+)
 from models import (
     CreateGameRequest,
     CreateGameResponse,
@@ -914,3 +916,36 @@ def get_intents(game_id: str):
         return {"intents": get_intent_suggestions(state)}
     except Exception:
         return {"intents": []}
+
+
+def _wt_daily_road_oasis_today_v4():
+    import datetime as _dt
+    today = _dt.datetime.utcnow().date()
+    return today.isoformat(), int(today.strftime("%j"))
+
+
+@app.get("/daily/puzzle")
+def wt_get_daily_puzzle_daily_road_oasis_v4():
+    date_str, day = _wt_daily_road_oasis_today_v4()
+    pid = puzzle_id_for_day(day)
+    meta = next((p for p in list_training_puzzles() if p["id"] == pid), {})
+    return {
+        "dateStr": date_str,
+        "dayNumber": day,
+        "puzzleId": pid,
+        "title": meta.get("title", ""),
+        "hint": meta.get("hint", ""),
+    }
+
+
+@app.post("/daily/puzzle/start", response_model=CreateGameResponse)
+def wt_start_daily_puzzle_daily_road_oasis_v4():
+    _date_str, day = _wt_daily_road_oasis_today_v4()
+    pid = puzzle_id_for_day(day)
+    state = build_puzzle_state(pid)
+    if state is None:
+        raise HTTPException(status_code=404, detail="今日の詰めワードがありません")
+    game_id = str(uuid.uuid4())
+    GAMES[game_id] = state
+    return CreateGameResponse(game_id=game_id, state=state)
+

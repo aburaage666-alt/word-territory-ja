@@ -116,6 +116,14 @@ export default function About() {
         </div>
       </div>
 
+
+      <div style={card}>
+        <div style={{ fontWeight: 900, fontSize: 14.5, color: "#1f2937" }}>詰めワード / Daily / ROAD</div>
+        <div style={{ fontSize: 13.5, color: "#475569", lineHeight: 1.6, marginTop: 4 }}>
+          詰めワードは1手で課題を解く練習モードです。Dailyでは毎日同じ問題に挑戦できます。ROADは左右または上下の接続を作る課題で、急所マスはTraining/Dailyだけに表示される★マスです。標準対戦のルールは増やしません。
+        </div>
+      </div>
+
       <div style={{ textAlign: "center", marginTop: 22 }}>
         <a href="/" style={{ textDecoration: "none", border: "1px solid #7c3aed", borderRadius: 999, padding: "10px 18px", color: "#fff", background: "#7c3aed", fontWeight: 900, fontSize: 14 }}>ゲームを始める</a>
       </div>
