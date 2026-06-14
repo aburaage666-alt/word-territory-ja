@@ -225,19 +225,6 @@ export async function previewMove(...args){const {gameId,body}=payloadArgs(args)
 export async function passTurn(gameId){return request(`/games/${gameId}/pass`,{method:"POST"});}
 export async function botMove(gameId){return request(`/games/${gameId}/bot-move`,{method:"POST"});}
 export async function autoMove(gameId,demo=false){const q=demo?"?demo=true":""; return request(`/games/${gameId}/auto-move${q}`,{method:"POST"});}
-
-export async function getPuzzles() {
-  const data = await request("/puzzles");
-  return Array.isArray(data?.puzzles) ? data.puzzles : [];
-}
-
-export async function startPuzzle(puzzleId) {
-  return request("/puzzles/start", {
-    method: "POST",
-    body: JSON.stringify({ puzzleId }),
-  });
-}
-
 export async function getSuggestions(gameId){return listFrom(await request(`/games/${gameId}/suggestions`),"suggestions");}
 export async function getAlmost(gameId){return listFrom(await request(`/games/${gameId}/almost`),"almost");}
 export async function getSynergyOptions(gameId){return request(`/games/${gameId}/synergy-options`);}
@@ -264,7 +251,3 @@ export async function rotateAsyncBlock(gameId, token, payload) {
 export async function seedAsyncMove(gameId,token,...args){let body; if(args.length===1&&args[0]&&typeof args[0]==="object")body=args[0]; else body={row:args[0],col:args[1],letter:args[2]}; return request(`/async/games/${gameId}/seed-move?token=${encodeURIComponent(token)}`,{method:"POST",body:JSON.stringify(body)});}
 export async function passAsyncTurn(gameId,token){return request(`/async/games/${gameId}/pass?token=${encodeURIComponent(token)}`,{method:"POST"});}
 export async function joinWaitlist(email){return request("/waitlist",{method:"POST",body:JSON.stringify({email})});}
-
-export async function getDailyPuzzle() { return request("/daily/puzzle"); }
-
-export async function startDailyPuzzle() { return request("/daily/puzzle/start", { method: "POST" }); }

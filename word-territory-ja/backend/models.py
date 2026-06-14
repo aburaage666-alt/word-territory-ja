@@ -78,12 +78,6 @@ class GameState(BaseModel):
 
     introMode: bool = False             # teaching board: 5x5 intro, komi=0, tutor bot
     boardMode: str = "standard"         # "standard" | "quick5" | "intro"
-    puzzleId: str = ""                   # 詰めワード: active puzzle id
-    puzzleGoal: dict = {}                # {"type": "capture"|"near_encircle"|"connect"}
-    puzzleTitle: str = ""
-    puzzleHint: str = ""
-    puzzleSolved: bool = False
-    puzzleOasis: list = []               # Training/Daily only: star cells
 class CreateGameRequest(BaseModel):
     boardMode: str = "standard"
     boardSize: int | None = None
