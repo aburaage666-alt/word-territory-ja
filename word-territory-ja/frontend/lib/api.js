@@ -225,6 +225,19 @@ export async function previewMove(...args){const {gameId,body}=payloadArgs(args)
 export async function passTurn(gameId){return request(`/games/${gameId}/pass`,{method:"POST"});}
 export async function botMove(gameId){return request(`/games/${gameId}/bot-move`,{method:"POST"});}
 export async function autoMove(gameId,demo=false){const q=demo?"?demo=true":""; return request(`/games/${gameId}/auto-move${q}`,{method:"POST"});}
+
+export async function getPuzzles() {
+  const data = await request("/puzzles");
+  return Array.isArray(data?.puzzles) ? data.puzzles : [];
+}
+
+export async function startPuzzle(puzzleId) {
+  return request("/puzzles/start", {
+    method: "POST",
+    body: JSON.stringify({ puzzleId }),
+  });
+}
+
 export async function getSuggestions(gameId){return listFrom(await request(`/games/${gameId}/suggestions`),"suggestions");}
 export async function getAlmost(gameId){return listFrom(await request(`/games/${gameId}/almost`),"almost");}
 export async function getSynergyOptions(gameId){return request(`/games/${gameId}/synergy-options`);}

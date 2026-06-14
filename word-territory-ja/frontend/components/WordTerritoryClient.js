@@ -1,24 +1,41 @@
 import Head from "next/head";
 import Link from "next/link";
-import {useEffect, useMemo, useRef, useState } from "react";
-
-// WT_QUICK5_MODE_SYNC_V1_BEGIN
-function wtActualBoardModeFromState(state, fallback = "standard") {
-  const n = Number(state?.boardSize || state?.board?.length || 0);
-  if (n === 5) return "quick";
-  if (n === 7) return "standard";
-  return fallback || "standard";
-}
-function wtBoardModeLabel(mode) {
-  return mode === "quick" ? "Quick 5×5" : "標準 7×7";
-}
-// WT_QUICK5_MODE_SYNC_V1_END
-
 import {
-  botMove, autoMove, createGame, createDailyGame, getDailyInfo, getDailyLeaderboard,
-  getAlmost, getLetterPreview, getMarket, getSuggestions, getSynergyOptions, selectSynergy, getThreat, createAsyncMatch, getAsyncMatch, submitAsyncMove, seedAsyncMove, rotateAsyncBlock, passAsyncTurn,
-  joinWaitlist, passTurn, previewMove, rotateBlock, seedMove, submitDailyScore, submitMove, daziMove, daziAsyncMove,
-  useFreeLetter, swapLetter, getIntents} from "../lib/api";
+  createGame,
+  createDailyGame,
+  getDailyInfo,
+  getDailyLeaderboard,
+  submitDailyScore,
+  getSuggestions,
+  botMove,
+  autoMove,
+  submitMove,
+  previewMove,
+  daziMove,
+  rotateBlock,
+  passTurn,
+  seedMove,
+  getMarket,
+  getLetterPreview,
+  getAlmost,
+  useFreeLetter,
+  swapLetter,
+  createAsyncMatch,
+  submitAsyncMove,
+  seedAsyncMove,
+  rotateAsyncBlock,
+  daziAsyncMove,
+  passAsyncTurn,
+  joinWaitlist,
+  getThreat,
+  getIntents,
+  getPuzzles,
+  startPuzzle,
+  WT_JA_API_DEFINITIVE_20260606,
+  getAsyncMatch,
+  getSynergyOptions,
+  selectSynergy,
+} from "../lib/api";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const asKey = (r, c) => `${r}-${c}`;
@@ -2340,6 +2357,33 @@ export default function Home() {
   const [state,  setState]      = useState(null);
 
   const [intents, setIntents] = useState([]);
+  const [puzzles, setPuzzles] = useState([]); // 詰めワード list
+  const [showPuzzles, setShowPuzzles] = useState(false);
+
+  // WT_TRAINING_PUZZLE_UI_CSS_V1
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const SID = "wt-training-puzzle-ui-v1";
+    if (document.getElementById(SID)) return;
+    const el = document.createElement("style");
+    el.id = SID;
+    el.textContent =
+      ".train-strip{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin:8px 0 10px}" +
+      ".btrain{border:1px solid #1e3a8a;background:#1e3a8a;color:#fff;border-radius:999px;padding:8px 13px;font-weight:900;cursor:pointer}" +
+      ".puzzle-banner{margin:6px auto 10px;max-width:560px;padding:10px 14px;border-radius:12px;background:#eef4ff;border:1px solid #c7d7f5;text-align:center}" +
+      ".puzzle-banner.puzzle-solved{background:#ecfdf3;border-color:#a7f3c8}" +
+      ".pz-title{font-weight:900;color:#1e3a8a;font-size:15px}.pz-hint{margin-top:3px;color:#334155;font-size:13px}" +
+      ".pz-done{margin-top:8px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}.pz-check{font-weight:900;color:#15803d}" +
+      ".pz-picker-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:80;display:flex;align-items:center;justify-content:center;padding:16px}" +
+      ".pz-picker{background:#fff;border-radius:16px;max-width:440px;width:100%;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.3)}" +
+      ".pz-picker-head{font-weight:900;font-size:16px;margin-bottom:10px;color:#0f172a}" +
+      ".pz-item{display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px;border-radius:10px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer}" +
+      ".pz-item:hover{background:#eef4ff;border-color:#c7d7f5}.pz-item-title{font-weight:800;color:#1e3a8a}.pz-item-hint{font-size:12px;color:#64748b;margin-top:2px}" +
+      ".pz-close{margin-top:8px;width:100%;padding:8px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;cursor:pointer}" +
+      ".bsm-train{background:#1e3a8a;color:#fff}";
+    document.head.appendChild(el);
+  }, []);
+
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -2645,7 +2689,41 @@ const [thinking, setThinking] = useState(false);
 
   const libBadges = useMemo(() => computeBoardLiberties(state?.board), [state?.board, state?.turn, state?.winner]);
 
-  const [asyncMode,   setAsyncMode]   = useState(false);
+  
+  // WT_TRAINING_PUZZLE_FUNCTIONS_V1
+  const openPuzzlePicker = async () => {
+    try {
+      setPuzzles(await getPuzzles());
+    } catch (_) {
+      setPuzzles([]);
+    }
+    setShowPuzzles(true);
+  };
+
+  const loadPuzzle = async (pid) => {
+    try {
+      const d = await startPuzzle(pid);
+      setShowPuzzles(false);
+      if (typeof setAsyncMode === "function") setAsyncMode(false);
+      if (typeof setSpectatorMode === "function") setSpectatorMode(false);
+      if (typeof setDailyMode === "function") setDailyMode(false);
+      setGameId(d.game_id);
+      setState(d.state);
+      reset();
+      if (typeof setMarket === "function") {
+        setMarket({
+          active: d.state.marketLetters || [],
+          preview: d.state.previewLetters || [],
+          stats: [],
+          freeLetterUsed: !!d.state.freeLetterUsed,
+        });
+      }
+    } catch (e) {
+      setError(e.message || "詰めワードを開始できませんでした");
+    }
+  };
+
+const [asyncMode,   setAsyncMode]   = useState(false);
   const [asyncToken,  setAsyncToken]  = useState("");
   const [asyncRole,   setAsyncRole]   = useState("");
   const [inviteUrl,   setInviteUrl]   = useState("");
@@ -3007,6 +3085,8 @@ const [thinking, setThinking] = useState(false);
   useEffect(() => {
     if (!state || !gameId) return;
     if (asyncMode || spectatorMode) return;
+    // WT_TRAINING_PUZZLE_NO_BOT_REPLY_V1
+    if (state.puzzleId) return;
     if (state.winner && state.winner !== "") return;  // stops on RED/BLUE/DRAW
     if (state.currentPlayer !== state.botPlayer) return;
     let cancelled = false;
@@ -3905,7 +3985,45 @@ async function submitScore() {
                         {state?.winner && state.winner !== "" && (
               <div className={`end-flood ${state.winner==="RED"?"flood-red":state.winner==="BLUE"?"flood-blue":"flood-draw"}`} key={`flood-${state.winner}`}/>
             )}
-            <div className="board-wrap"><div className={`board ${boardOpeningClass} ${spectatorMode ? "board-demo" : ""} ${lastMoveIsSwing ? "board-swing" : ""} ${bridgeFlash ? "board-bridge" : ""}`}>
+            
+            {/* WT_TRAINING_PUZZLE_PANEL_V1 */}
+            <div className="train-strip">
+              <button className="btrain" onClick={openPuzzlePicker}>📚 詰めワード</button>
+            </div>
+            {state?.puzzleId && (
+              <div className={`puzzle-banner${state.puzzleSolved ? " puzzle-solved" : ""}`}>
+                <div className="pz-title">📚 {state.puzzleTitle}</div>
+                {!state.puzzleSolved && <div className="pz-hint">{state.puzzleHint}</div>}
+                {state.puzzleSolved && (
+                  <div className="pz-done">
+                    <span className="pz-check">✅ 解けた！</span>
+                    <button className="bsm" onClick={() => loadPuzzle(state.puzzleId)}>もう一度</button>
+                    {(() => {
+                      const idx = puzzles.findIndex(p => p.id === state.puzzleId);
+                      const nxt = idx >= 0 ? puzzles[idx + 1] : null;
+                      return nxt
+                        ? <button className="bsm bsm-train" onClick={() => loadPuzzle(nxt.id)}>次の問題 →</button>
+                        : <button className="bsm" onClick={openPuzzlePicker}>一覧へ</button>;
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
+            {showPuzzles && (
+              <div className="pz-picker-overlay" onClick={() => setShowPuzzles(false)}>
+                <div className="pz-picker" onClick={e => e.stopPropagation()}>
+                  <div className="pz-picker-head">📚 詰めワード — 1手で解こう</div>
+                  {puzzles.map(p => (
+                    <button key={p.id} className="pz-item" onClick={() => loadPuzzle(p.id)}>
+                      <div className="pz-item-title">{p.title}</div>
+                      <div className="pz-item-hint">{p.hint}</div>
+                    </button>
+                  ))}
+                  <button className="pz-close" onClick={() => setShowPuzzles(false)}>閉じる</button>
+                </div>
+              </div>
+            )}
+<div className="board-wrap"><div className={`board ${boardOpeningClass} ${spectatorMode ? "board-demo" : ""} ${lastMoveIsSwing ? "board-swing" : ""} ${bridgeFlash ? "board-bridge" : ""}`}>
               {state.board.map(row=>row.map(cell=>{
                 const k=asKey(cell.row,cell.col);
                 const vp = Array.isArray(valuePrev)

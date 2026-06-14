@@ -8108,3 +8108,239 @@ def choose_bot_move(state: GameState):
 
 # WT_INTRO_TUTOR_MODE_FINAL_V2_END
 
+
+# WT_TRAINING_PUZZLES_SAFE_V1_BEGIN
+# 詰めワード v1: one-move training puzzles.
+# No new game rules. Goals are judged by existing engine metrics:
+# capture / OPEN pressure / connected groups.
+
+try:
+    WT_TRAIN_STD_BOARD_SIZE_V1 = int(BOARD_SIZE)
+except Exception:
+    WT_TRAIN_STD_BOARD_SIZE_V1 = 7
+
+try:
+    WT_TRAIN_STD_OPENING_COORDS_V1 = list(OPENING_COORDS)
+except Exception:
+    WT_TRAIN_STD_OPENING_COORDS_V1 = [(1, 3), (2, 2), (2, 3), (2, 4), (2, 5), (3, 3), (4, 3)]
+
+try:
+    WT_TRAIN_STD_MAX_TURNS_V1 = int(MAX_TURNS)
+except Exception:
+    WT_TRAIN_STD_MAX_TURNS_V1 = 35
+
+WT_TRAIN_QUICK_SIZE_V1 = 5
+WT_TRAIN_QUICK_MAX_TURNS_V1 = 20
+WT_TRAIN_QUICK_OPENING_COORDS_V1 = [(0, 2), (1, 1), (1, 2), (1, 3), (2, 2)]
+
+def _wt_train_mode_v1(board_mode=None, board_size=None):
+    raw = str(board_mode or "").lower().replace("-", "").replace("_", "")
+    try:
+        n = int(board_size) if board_size is not None else None
+    except Exception:
+        n = None
+    if raw in ("quick", "quick5", "quick5x5", "5x5", "training", "puzzle") or n == 5:
+        return "quick5", WT_TRAIN_QUICK_SIZE_V1
+    return "standard", WT_TRAIN_STD_BOARD_SIZE_V1
+
+def _wt_train_set_runtime_v1(size=None):
+    global BOARD_SIZE, OPENING_COORDS, MAX_TURNS
+    try:
+        n = int(size)
+    except Exception:
+        n = WT_TRAIN_STD_BOARD_SIZE_V1
+    if n == WT_TRAIN_QUICK_SIZE_V1:
+        BOARD_SIZE = WT_TRAIN_QUICK_SIZE_V1
+        OPENING_COORDS = list(WT_TRAIN_QUICK_OPENING_COORDS_V1)
+        MAX_TURNS = WT_TRAIN_QUICK_MAX_TURNS_V1
+    else:
+        BOARD_SIZE = WT_TRAIN_STD_BOARD_SIZE_V1
+        OPENING_COORDS = list(WT_TRAIN_STD_OPENING_COORDS_V1)
+        MAX_TURNS = WT_TRAIN_STD_MAX_TURNS_V1
+    return BOARD_SIZE
+
+def sync_board_runtime(state):
+    return _wt_train_set_runtime_v1(getattr(state, "boardSize", WT_TRAIN_STD_BOARD_SIZE_V1))
+
+try:
+    _WT_TRAIN_ORIGINAL_BUILD_INITIAL_STATE_V1
+except NameError:
+    _WT_TRAIN_ORIGINAL_BUILD_INITIAL_STATE_V1 = build_initial_state
+
+def build_initial_state(bot_level: str = "easy", opening_idx: int | None = None, board_mode: str = "standard", board_size: int | None = None) -> GameState:
+    mode, size = _wt_train_mode_v1(board_mode, board_size)
+    _wt_train_set_runtime_v1(size)
+
+    try:
+        state = _WT_TRAIN_ORIGINAL_BUILD_INITIAL_STATE_V1(bot_level=bot_level, opening_idx=opening_idx, board_mode=mode, board_size=size)
+    except TypeError:
+        try:
+            state = _WT_TRAIN_ORIGINAL_BUILD_INITIAL_STATE_V1(bot_level=bot_level, opening_idx=opening_idx)
+        except TypeError:
+            state = _WT_TRAIN_ORIGINAL_BUILD_INITIAL_STATE_V1(bot_level=bot_level)
+
+    try:
+        state.boardSize = size
+        state.boardMode = mode
+        state.synergyState = dict(getattr(state, "synergyState", {}) or {})
+        state.synergyState["_boardMode"] = mode
+    except Exception:
+        pass
+    return state
+
+def _wt_train_wrap_state_fn_v1(fn):
+    def wrapped(state, *args, **kwargs):
+        sync_board_runtime(state)
+        return fn(state, *args, **kwargs)
+    wrapped.__name__ = getattr(fn, "__name__", "wrapped")
+    wrapped.__doc__ = getattr(fn, "__doc__", None)
+    return wrapped
+
+for _wt_train_name in [
+    "validate_and_apply_move",
+    "apply_seed_move",
+    "preview_move",
+    "pass_turn",
+    "find_candidate_words",
+    "find_almost_words",
+    "apply_bot_move",
+    "apply_demo_bot_move",
+    "get_market_stats",
+    "get_letter_preview_moves",
+    "get_threat_preview",
+    "get_intent_suggestions",
+    "get_placeable_empty_cells",
+    "apply_dazi_move",
+    "rotate_block_state",
+]:
+    _wt_train_fn = globals().get(_wt_train_name)
+    if callable(_wt_train_fn) and not getattr(_wt_train_fn, "_wt_training_safe_wrapped_v1", False):
+        _wt_train_wrapped = _wt_train_wrap_state_fn_v1(_wt_train_fn)
+        _wt_train_wrapped._wt_training_safe_wrapped_v1 = True
+        globals()[_wt_train_name] = _wt_train_wrapped
+
+TRAINING_PUZZLES = [
+    {
+        "id": "capture1",
+        "title": "第1問 · 囲んで取る",
+        "hint": "OP1（包囲寸前）の相手を、1手で囲んで取ろう。",
+        "player": "RED",
+        "market": ["い", "か", "し", "つ", "な"],
+        "goal": {"type": "capture"},
+        "cells": [
+            (2, 2, "BLUE", "ぬ"),
+            (2, 1, "RED", "き"), (3, 2, "RED", "た"), (2, 3, "RED", "の"),
+            (0, 2, None, "か"), (1, 1, None, "し"), (1, 3, None, "つ"),
+        ],
+    },
+    {
+        "id": "open1",
+        "title": "第2問 · OPENを詰める",
+        "hint": "相手のOPENを2→1にして、包囲寸前を作ろう。",
+        "player": "RED",
+        "market": ["い", "か", "し", "つ", "な"],
+        "goal": {"type": "near_encircle"},
+        "cells": [
+            (2, 2, "BLUE", "ぬ"),
+            (3, 2, "RED", "た"), (2, 3, "RED", "の"),
+            (1, 1, None, "か"), (1, 2, None, "し"), (1, 3, None, "つ"),
+            (2, 1, None, "な"), (3, 1, None, "い"), (0, 2, None, "か"), (2, 0, None, "し"),
+        ],
+    },
+    {
+        "id": "connect1",
+        "title": "第3問 · 自陣をつなぐ",
+        "hint": "離れた2つの自陣を、1つの単語でつなげよう。",
+        "player": "RED",
+        "market": ["い", "か", "し", "つ", "な"],
+        "goal": {"type": "connect"},
+        "cells": [
+            (2, 1, "RED", "ち"), (2, 3, "RED", "の"),
+            (1, 2, None, "か"), (2, 2, None, "し"), (3, 2, None, "つ"),
+            (1, 1, None, "な"), (3, 3, None, "い"), (1, 3, None, "か"), (3, 1, None, "し"),
+        ],
+    },
+]
+
+def list_training_puzzles():
+    return [{"id": p["id"], "title": p["title"], "hint": p["hint"]} for p in TRAINING_PUZZLES]
+
+def build_puzzle_state(puzzle_id: str):
+    pz = next((p for p in TRAINING_PUZZLES if p["id"] == puzzle_id), None)
+    if pz is None:
+        return None
+
+    _wt_train_set_runtime_v1(WT_TRAIN_QUICK_SIZE_V1)
+    state = build_initial_state(bot_level="easy", board_mode="quick5", board_size=WT_TRAIN_QUICK_SIZE_V1)
+    _wt_train_set_runtime_v1(WT_TRAIN_QUICK_SIZE_V1)
+
+    n = WT_TRAIN_QUICK_SIZE_V1
+    state.board = [[Cell(row=r, col=c) for c in range(n)] for r in range(n)]
+    state.boardSize = n
+    state.boardMode = "training"
+
+    for (r, c, owner, letter) in pz["cells"]:
+        cell = state.board[r][c]
+        cell.letter = letter
+        cell.owner = owner
+        cell.fortified = False
+
+    state.currentPlayer = pz.get("player", "RED")
+    state.botPlayer = "BLUE"
+    state.botLevel = "easy"
+    state.botStyle = "Training"
+    state.vsBot = True
+    state.coreMode = True
+    state.introMode = False
+
+    state.marketLetters = list(pz.get("market", []))[:3]
+    state.previewLetters = list(pz.get("market", []))[3:6]
+    state.usedWords = []
+    state.recentMoves = []
+    state.moveHistory = []
+    state.lastChangedCells = []
+    state.lastCapturedCells = []
+    state.lastFortifiedCells = []
+    state.lastComboLabels = []
+    state.consecutivePasses = 0
+    state.turn = 1
+    state.winner = None
+    state.openingName = "詰めワード"
+
+    state.puzzleId = pz["id"]
+    state.puzzleGoal = dict(pz["goal"])
+    state.puzzleTitle = pz["title"]
+    state.puzzleHint = pz["hint"]
+    state.puzzleSolved = False
+
+    try:
+        state.synergyOptions = []
+        state.selectedSynergy = ""
+        state.synergyState = dict(getattr(state, "synergyState", {}) or {})
+        state.synergyState["_boardMode"] = "training"
+    except Exception:
+        pass
+
+    try:
+        recalc_scores(state)
+    except Exception:
+        pass
+    return state
+
+def evaluate_puzzle_goal(before: GameState, after: GameState, goal: dict) -> bool:
+    gtype = (goal or {}).get("type")
+    player = before.currentPlayer
+    opp = other_player(player)
+    if gtype == "capture":
+        last = after.moveHistory[-1] if getattr(after, "moveHistory", None) else None
+        return bool(last and (last.captureCount or 0) > 0)
+    if gtype == "near_encircle":
+        return any(int(g.get("liberty", 99)) <= 1 for g in compute_group_liberties(after, opp))
+    if gtype == "connect":
+        before_groups = len(compute_group_liberties(before, player))
+        after_groups = len(compute_group_liberties(after, player))
+        return after_groups < before_groups
+    return False
+
+# WT_TRAINING_PUZZLES_SAFE_V1_END
+

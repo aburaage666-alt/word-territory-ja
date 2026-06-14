@@ -108,6 +108,14 @@ export default function About() {
         </div>
       </div>
 
+
+      <div style={card}>
+        <div style={{ fontWeight: 900, fontSize: 14.5, color: "#1f2937" }}>詰めワード / Training Puzzle</div>
+        <div style={{ fontSize: 13.5, color: "#475569", lineHeight: 1.6, marginTop: 4 }}>
+          1手で課題を解く練習モードです。OPEN / Open Sides、捕獲、接続を短い盤面で確認できます。標準ルールを増やさず、既存の盤面判断を学ぶためのモードです。
+        </div>
+      </div>
+
       <div style={{ textAlign: "center", marginTop: 22 }}>
         <a href="/" style={{ textDecoration: "none", border: "1px solid #7c3aed", borderRadius: 999, padding: "10px 18px", color: "#fff", background: "#7c3aed", fontWeight: 900, fontSize: 14 }}>ゲームを始める</a>
       </div>

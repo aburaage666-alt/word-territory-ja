@@ -83,6 +83,9 @@ from engine import (
     get_letter_preview_moves,
     get_threat_preview,
     get_intent_suggestions,
+    list_training_puzzles,
+    build_puzzle_state,
+    evaluate_puzzle_goal,
     pass_turn,
     rotate_block_state,
     preview_move,
@@ -275,8 +278,38 @@ def make_move(game_id: str, payload: MoveRequest):
         raise HTTPException(status_code=400, detail=str(exc))
     next_state = _wt_apply_board_mode(next_state, "quick" if getattr(next_state, "coreMode", False) else "standard")
     GAMES[game_id] = next_state
+    # WT_TRAINING_PUZZLE_SOLVED_V1
+    goal = getattr(state, "puzzleGoal", None)
+    if goal:
+        for f in ("puzzleId", "puzzleGoal", "puzzleTitle", "puzzleHint"):
+            try:
+                setattr(next_state, f, getattr(state, f))
+            except Exception:
+                pass
+        try:
+            next_state.puzzleSolved = bool(evaluate_puzzle_goal(state, next_state, goal))
+        except Exception:
+            next_state.puzzleSolved = False
+        GAMES[game_id] = next_state
     return next_state
 
+
+
+
+@app.get("/puzzles")
+def get_puzzles():
+    return {"puzzles": list_training_puzzles()}
+
+
+@app.post("/puzzles/start", response_model=CreateGameResponse)
+def start_puzzle(payload: dict):
+    pid = (payload or {}).get("puzzleId") or (payload or {}).get("id")
+    state = build_puzzle_state(pid)
+    if state is None:
+        raise HTTPException(status_code=404, detail="詰めワードが見つかりません")
+    game_id = str(uuid.uuid4())
+    GAMES[game_id] = state
+    return CreateGameResponse(game_id=game_id, state=state)
 
 @app.post("/games/{game_id}/seed-move", response_model=GameState)
 def seed_move(game_id: str, payload: SeedMoveRequest):
