@@ -29,7 +29,18 @@ function errorMessage(data,fallback){if(!data)return fallback||"通信エラー�
 async function request(path,options={}){const res=await fetch(`${API_BASE}${path}`,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}}); let data=null; try{data=await res.json();}catch{} if(!res.ok)throw new Error(errorMessage(data,`HTTP ${res.status}`)); return sanitizeMarketData(data);}
 function payloadArgs(args){if(args.length===1&&args[0]&&typeof args[0]==="object"){const p=args[0]; return {gameId:p.gameId||p.game_id||p.id,body:{row:p.row,col:p.col,letter:p.letter,path:p.path||[]}};} const [gameId,row,col,letter,path]=args; return {gameId,body:{row,col,letter,path:path||[]}};}
 function listFrom(value,key){if(Array.isArray(value))return value; if(!value||typeof value!=="object")return []; if(key&&Array.isArray(value[key]))return value[key]; for(const k of ["suggestions","threats","almost","moves","items","results","data"]){if(Array.isArray(value[k]))return value[k];} return [];}
-export async function createGame(payload={}, boardMode = "standard"){return request("/games",{method:"POST",body:JSON.stringify(payload)});}
+export async function createGame(payload={}, boardMode = "standard"){
+  const selectedBoardMode =
+    (payload && payload.boardMode) ||
+    (typeof window !== "undefined" && (window.__wtPendingBoardMode || window.localStorage?.getItem("wtBoardMode"))) ||
+    boardMode ||
+    "standard";
+  const body = {
+    ...(payload && typeof payload === "object" ? payload : {}),
+    boardMode: selectedBoardMode,
+  };
+  return request("/games",{method:"POST",body:JSON.stringify(body)});
+}
 export async function createDailyGame(){return request("/daily/games",{method:"POST"});}
 export async function getDailyInfo(){return request("/daily/today");}
 export async function getDailyLeaderboard(){return request("/daily/leaderboard");}

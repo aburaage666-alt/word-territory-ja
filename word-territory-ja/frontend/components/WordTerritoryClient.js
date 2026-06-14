@@ -2378,23 +2378,68 @@ export default function Home() {
   const [mode,   setMode]       = useState("easy");
   const [boardMode, setBoardMode] = useState("standard");
 
-  // WT_OPEN_SIDES_RULES_UI_V1_BEGIN
+  // WT_BOARDMODE_DOM_SYNC_FINAL_V1_BEGIN
+  // Store selected board mode outside React too, so createGame() can use it
+  // even when a New Game click happens before React state has fully settled.
+  useEffect(() => {
+    if (typeof document === "undefined" || typeof window === "undefined") return;
+
+    const readSelectMode = (sel) => {
+      const value = String(sel?.value || "").toLowerCase();
+      const text = String(sel?.selectedOptions?.[0]?.textContent || sel?.textContent || "").toLowerCase();
+      if (value.includes("quick") || value.includes("5") || text.includes("quick") || text.includes("5×5") || text.includes("5x5")) return "quick";
+      if (value.includes("standard") || value.includes("7") || text.includes("標準") || text.includes("7×7") || text.includes("7x7")) return "standard";
+      return "";
+    };
+
+    const syncFromSelect = (target) => {
+      const mode = readSelectMode(target);
+      if (!mode) return;
+      window.__wtPendingBoardMode = mode;
+      try { window.localStorage.setItem("wtBoardMode", mode); } catch (_e) {}
+    };
+
+    const onChange = (e) => {
+      const target = e.target;
+      if (!target || String(target.tagName || "").toLowerCase() !== "select") return;
+      syncFromSelect(target);
+    };
+
+    document.addEventListener("change", onChange, true);
+
+    // Initial sync from any visible board-mode selector.
+    for (const sel of Array.from(document.querySelectorAll("select"))) {
+      const mode = readSelectMode(sel);
+      if (mode) {
+        syncFromSelect(sel);
+        break;
+      }
+    }
+
+    return () => document.removeEventListener("change", onChange, true);
+  }, []);
+  // WT_BOARDMODE_DOM_SYNC_FINAL_V1_END
+
+
+  // WT_OPEN_RULES_IN_PANEL_FINAL_V1_BEGIN
+  // Put OPEN explanation inside rules/help/explanation panels only.
+  // Do not append it below the main board/guide.
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    const STYLE_ID = "wt-open-sides-rules-style-v1";
+    const STYLE_ID = "wt-open-rules-panel-style-final-v1";
     if (!document.getElementById(STYLE_ID)) {
       const style = document.createElement("style");
       style.id = STYLE_ID;
       style.textContent =
-        ".openRuleBlock{margin-top:8px;padding:8px 10px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:10px;color:#0f172a;font-size:12px;line-height:1.55}" +
-        ".openRuleBlock strong{color:#075985}" +
-        ".openRuleBlock .mini{display:inline-block;margin-right:6px;font-weight:900;color:#7c2d12}";
+        ".openRuleInline{margin-top:10px;padding:9px 10px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:10px;color:#0f172a;font-size:12px;line-height:1.55}" +
+        ".openRuleInline strong{color:#075985}" +
+        ".openRuleInline .mini{display:inline-block;margin-right:6px;font-weight:900;color:#7c2d12}";
       document.head.appendChild(style);
     }
 
     const html =
-      '<div class="openRuleBlock" data-wt-open-rule="1">' +
+      '<div class="openRuleInline" data-wt-open-rule-final="1">' +
       '<strong>OPEN / Open Sides：</strong>領地グループの周囲に残る、まだ塞がれていない接点です。' +
       '<span class="mini">OP1</span>は包囲寸前、' +
       '<span class="mini">OP2</span>は圧迫、' +
@@ -2402,22 +2447,42 @@ export default function Home() {
       '単語で相手のOPENを減らすと、次の捕獲・囲みに近づきます。' +
       '</div>';
 
+    const looksLikeRulesPanel = (el) => {
+      const txt = (el.textContent || "").trim();
+      if (!txt || txt.length > 7000) return false;
+      const cls = String(el.className || "").toLowerCase();
+      const role = String(el.getAttribute?.("role") || "").toLowerCase();
+      const id = String(el.id || "").toLowerCase();
+      const aria = String(el.getAttribute?.("aria-label") || "").toLowerCase();
+
+      const nameHit =
+        cls.includes("rule") || cls.includes("rules") || cls.includes("help") || cls.includes("tutorial") ||
+        cls.includes("modal") || cls.includes("dialog") || cls.includes("explain") ||
+        id.includes("rule") || id.includes("help") || id.includes("tutorial") || id.includes("modal") || id.includes("dialog") ||
+        role === "dialog" || aria.includes("rule") || aria.includes("help");
+
+      const textHit =
+        txt.includes("ルール") || txt.includes("説明") || txt.includes("遊び方") ||
+        txt.includes("Rules") || txt.includes("How to play") || txt.includes("Tutorial");
+
+      return nameHit && textHit;
+    };
+
     const add = () => {
-      if (document.querySelector('[data-wt-open-rule="1"]')) return;
+      // Remove older duplicate blocks if any survived runtime hydration.
+      for (const old of Array.from(document.querySelectorAll('[data-wt-escape-rule="1"], [data-wt-open-rule="1"]'))) {
+        old.remove();
+      }
 
-      const targets = Array.from(document.querySelectorAll("div, section, p"))
-        .filter((el) => {
-          const txt = (el.textContent || "").trim();
-          return txt.includes("遊び方:") || txt.includes("遊び方：") || txt.includes("How to play");
-        })
-        .filter((el) => (el.textContent || "").length < 900);
+      const panels = Array.from(document.querySelectorAll('[role="dialog"], .modal, .dialog, .rules, .rule, .help, .tutorial, .explain, .explanation, details, section, aside'))
+        .filter(looksLikeRulesPanel);
 
-      const target = targets[0];
-      if (!target) return;
-
-      const wrap = document.createElement("div");
-      wrap.innerHTML = html;
-      target.insertAdjacentElement("afterend", wrap);
+      for (const panel of panels) {
+        if (panel.querySelector('[data-wt-open-rule-final="1"]')) continue;
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html;
+        panel.appendChild(wrap.firstElementChild);
+      }
     };
 
     add();
@@ -2425,8 +2490,7 @@ export default function Home() {
     obs.observe(document.body, { childList: true, subtree: true });
     return () => obs.disconnect();
   }, []);
-  // WT_OPEN_SIDES_RULES_UI_V1_END
-
+  // WT_OPEN_RULES_IN_PANEL_FINAL_V1_END
 
   // WT_AUTO_BOARDMODE_NEWGAME_V1_BEGIN
   // UX rule: changing board mode immediately starts a new game in that mode.
@@ -2467,115 +2531,6 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [boardMode, state?.boardSize, state?.board?.length]);
   // WT_AUTO_BOARDMODE_NEWGAME_V1_END
-
-
-  // WT_ESCAPE_ROUTE_RULES_UI_V1_BEGIN
-  // Adds OPEN explanation to the visible guide/rules/explanation areas.
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-
-    const STYLE_ID = "wt-escape-route-rules-style-v1";
-    if (!document.getElementById(STYLE_ID)) {
-      const style = document.createElement("style");
-      style.id = STYLE_ID;
-      style.textContent =
-        ".escapeRuleBlock{margin-top:8px;padding:8px 10px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:10px;color:#0f172a;font-size:12px;line-height:1.55}" +
-        ".escapeRuleBlock strong{color:#075985}" +
-        ".escapeRuleBlock .mini{display:inline-block;margin-right:6px;font-weight:900;color:#b91c1c}";
-      document.head.appendChild(style);
-    }
-
-    const html =
-      '<div class="escapeRuleBlock" data-wt-escape-rule="1">' +
-      '<strong>OPEN：</strong>領地グループの周囲に残る空き出口です。' +
-      '<span class="mini">OP1</span>は包囲寸前、' +
-      '<span class="mini">OP2</span>は圧迫、' +
-      '<span class="mini">OP3</span>はまだ余裕。' +
-      '単語で相手のOPENを減らすと、次の捕獲・囲みに近づきます。' +
-      '</div>';
-
-    const addAfterGuide = () => {
-      if (document.getElementById("wt-escape-route-guide-v1")) return;
-
-      const candidates = Array.from(document.querySelectorAll("div, section, p"))
-        .filter((el) => {
-          const txt = (el.textContent || "").trim();
-          return txt.includes("遊び方:") || txt.includes("遊び方：");
-        })
-        .filter((el) => (el.textContent || "").length < 900);
-
-      const target = candidates[0];
-      if (!target) return;
-
-      const wrap = document.createElement("div");
-      wrap.id = "wt-escape-route-guide-v1";
-      wrap.innerHTML = html;
-      target.insertAdjacentElement("afterend", wrap);
-    };
-
-    const addToDialogs = () => {
-      const roots = Array.from(document.querySelectorAll('[role="dialog"], .modal, .dialog, .rules, .help, .explain, .explanation'))
-        .filter((el) => {
-          const txt = el.textContent || "";
-          return (txt.includes("ルール") || txt.includes("説明") || txt.includes("遊び方")) && !el.querySelector('[data-wt-escape-rule="1"]');
-        })
-        .filter((el) => (el.textContent || "").length < 5000);
-
-      for (const root of roots) {
-        const div = document.createElement("div");
-        div.innerHTML = html;
-        root.appendChild(div);
-      }
-    };
-
-    addAfterGuide();
-    addToDialogs();
-
-    const obs = new MutationObserver(() => {
-      addAfterGuide();
-      addToDialogs();
-    });
-
-    obs.observe(document.body, { childList: true, subtree: true });
-    return () => obs.disconnect();
-  }, []);
-  // WT_ESCAPE_ROUTE_RULES_UI_V1_END
-
-
-  // WT_BOARDMODE_MISMATCH_GUIDANCE_V1_BEGIN
-  // When selector mode and current game state differ, tell the player that
-  // the selected mode applies after pressing "新しいゲーム".
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-
-    const cssId = "wt-boardmode-mismatch-style-v1";
-    if (!document.getElementById(cssId)) {
-      const style = document.createElement("style");
-      style.id = cssId;
-      style.textContent =
-        ".modeMismatch{margin-top:3px;font-size:11px;font-weight:900;color:#b45309;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:3px 6px;line-height:1.25}" +
-        ".modeMismatch strong{color:#7c2d12}";
-      document.head.appendChild(style);
-    }
-
-    const old = document.getElementById("wt-boardmode-mismatch-v1");
-    if (old) old.remove();
-
-    const actual = wtActualBoardModeFromState(state, boardMode);
-    if (!state || !boardMode || actual === boardMode) return;
-
-    const anchor = document.querySelector(".modeActual");
-    if (!anchor) return;
-
-    const div = document.createElement("div");
-    div.id = "wt-boardmode-mismatch-v1";
-    div.className = "modeMismatch";
-    div.innerHTML = `<strong>${wtBoardModeLabel(boardMode)}</strong> に切替中…`;
-    anchor.insertAdjacentElement("afterend", div);
-  }, [boardMode, state?.boardSize, state?.board?.length]);
-  // WT_BOARDMODE_MISMATCH_GUIDANCE_V1_END
-
-
   // WT_QUICK5_FETCH_GUARD_V2_BEGIN
   // Safety net: some API helper paths may forget boardMode.
   // While this component is mounted, inject the selected boardMode into POST /games.
