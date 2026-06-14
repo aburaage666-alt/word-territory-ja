@@ -258,7 +258,7 @@ def create_game(payload: CreateGameRequest = CreateGameRequest()):
         finally:
             random.setstate(old_rng)
     else:
-        state = build_initial_state(bot_level=payload.botLevel)
+        state = build_initial_state(bot_level=payload.botLevel, board_mode=getattr(payload, "boardMode", "standard"), board_size=(getattr(payload, "boardSize", None) or getattr(payload, "board_size", None)))
 
     GAMES[game_id] = state
     return CreateGameResponse(game_id=game_id, state=state)
@@ -716,7 +716,7 @@ def create_async_game(payload: CreateGameRequest = CreateGameRequest()):
     game_id = str(uuid.uuid4())
     red_token = str(uuid.uuid4())[:12]
     blue_token = str(uuid.uuid4())[:12]
-    state = build_initial_state(bot_level=payload.botLevel, board_mode=payload.boardMode)
+    state = build_initial_state(bot_level=payload.botLevel, board_mode=getattr(payload, "boardMode", "standard"), board_size=(getattr(payload, "boardSize", None) or getattr(payload, "board_size", None)))
     state.vsBot = False
     state.botPlayer = "BLUE"
     state.botStyle = "Human Challenger"

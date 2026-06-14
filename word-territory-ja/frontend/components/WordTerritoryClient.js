@@ -2376,14 +2376,14 @@ export default function Home() {
   const [error,  setError]      = useState("");
   const [suggestions, setSugg]  = useState([]);
   const [mode,   setMode]       = useState("easy");
-  const [boardMode, setBoardMode] = useState(() => (typeof window !== "undefined" ? (window.localStorage.getItem("wtBoardMode") || "standard") : "standard")); // WT_INTRO_QUICK_BOARDMODE_DEFAULT_FINAL_V1
+  const [boardMode, setBoardMode] = useState(() => (typeof window !== "undefined" ? (window.localStorage.getItem("wtBoardMode") || "standard") : "standard")); // WT_INTRO_TUTOR_BOARDMODE_DEFAULT_V2
 
 
-  // WT_INTRO_QUICK_BOARDMODE_HELPERS_FINAL_V1_BEGIN
+  // WT_INTRO_TUTOR_BOARDMODE_HELPERS_V2_BEGIN
   function wtNormalizeBoardModeValue(value) {
     const v = String(value || "").toLowerCase();
-    if (v.includes("intro") || v.includes("tutorial") || v.includes("learn") || v.includes("導入")) return "intro";
-    if (v.includes("quick") || v.includes("5")) return "quick";
+    if (v.includes("intro") || v.includes("tutorial") || v.includes("learn") || v.includes("practice") || v.includes("導入") || v.includes("練習")) return "intro";
+    if (v.includes("quick") || v.includes("5")) return "quick5";
     return "standard";
   }
 
@@ -2391,6 +2391,13 @@ export default function Home() {
     const bm = wtNormalizeBoardModeValue(value);
     const size = bm === "standard" ? 7 : 5;
     return { boardMode: bm, board_mode: bm, boardSize: size, board_size: size };
+  }
+
+  function wtBoardModeLabel(value = boardMode) {
+    const bm = wtNormalizeBoardModeValue(value);
+    if (bm === "intro") return "導入 5×5（OPEN練習）";
+    if (bm === "quick5") return "Quick 5×5";
+    return "標準 7×7";
   }
 
   async function changeBoardMode(nextValue) {
@@ -2403,7 +2410,7 @@ export default function Home() {
     }
     await boot(mode, bm);
   }
-  // WT_INTRO_QUICK_BOARDMODE_HELPERS_FINAL_V1_END
+  // WT_INTRO_TUTOR_BOARDMODE_HELPERS_V2_END
   // UX rule: changing board mode immediately starts a new game in that mode.
   // This prevents "selector says Quick but current board is still 7x7".
   useEffect(() => {
@@ -2840,7 +2847,7 @@ const [thinking, setThinking] = useState(false);
     let lastErr;
     for (let attempt = 1; attempt <= 9; attempt++) {
       try {
-        const d = await createGame({ botLevel: m, ...wtBoardModePayload(bm) }, bm);
+        const d = await createGame({ botLevel: wtNormalizeBoardModeValue(bm) === "intro" ? "easy" : m, ...wtBoardModePayload(bm) }, bm);
         setGameId(d.game_id); setState(d.state); setDailyMode(false);
         setSpectatorMode(false); setSpectatorSteps(0); setSpectatorNote("");
         reset(); setAnimGen(0); setBootMsg("");
@@ -3805,7 +3812,7 @@ async function submitScore() {
               <select value={mode} onChange={e=>setMode(e.target.value)}>
                 <option value="easy">やさしい</option><option value="normal">ふつう</option>
                 <option value="strong">強い</option>
-              </select> <label className="boardModeCtl">盤面 <select value={boardMode} onChange={e=>changeBoardMode(e.target.value)}><option value="standard">標準 7×7</option><option value="quick">Quick 5×5</option>
+              </select> <label className="boardModeCtl">盤面 <select value={boardMode} onChange={e=>changeBoardMode(e.target.value)}><option value="standard">標準 7×7</option><option value="quick5">Quick 5×5</option>
                 <option value="intro">導入 5×5</option></select>
               {/* WT_QUICK5_MODE_SYNC_V1_DISPLAY */}
               <div className="modeActual" title="実際の盤面サイズ">
@@ -3872,6 +3879,7 @@ async function submitScore() {
             <li><strong>デイリーチャレンジ</strong> — same board worldwide each day. One attempt. 強い bot.</li>
           <li><strong>奪字</strong> — 1試合2回まで。敵文字を単語に含めると、そのロックを中立化します。</li>
             <li><strong>OPEN / Open Sides</strong> — 領地グループの周囲に残る、まだ塞がれていない接点です。<strong>OP1</strong>は包囲寸前、<strong>OP2</strong>は圧迫、<strong>OP3</strong>はまだ余裕。単語で相手のOPENを減らすと、次の捕獲・囲みに近づきます。</li>
+            <li><strong>練習 5×5</strong> — OPENと包囲を覚えるための導入盤です。ボットはTutorとして弱めに動きます。繰り返し遊ぶ短時間対戦はQuick 5×5を使います。</li>
           </ol>
         </div>
       )}
@@ -4148,7 +4156,7 @@ async function submitScore() {
               <label className="mini-select-label">盤面：
                 <select value={boardMode} onChange={e=>changeBoardMode(e.target.value)}>
                   <option value="standard">標準 7×7</option>
-                  <option value="quick">Quick 5×5</option>
+                  <option value="quick5">Quick 5×5</option>
                 <option value="intro">導入 5×5</option>
                 </select>
               </label>

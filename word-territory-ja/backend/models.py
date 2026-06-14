@@ -76,6 +76,8 @@ class GameState(BaseModel):
     coreMode: bool = False              # beginner/demo core mode (5×5): folds LOCK/奪字/回転/読み交換; seeding=rescue-only                 # Disarm / 奪字 uses per player, max 2
 
 
+    introMode: bool = False             # teaching board: 5x5 intro, komi=0, tutor bot
+    boardMode: str = "standard"         # "standard" | "quick5" | "intro"
 class CreateGameRequest(BaseModel):
     boardMode: str = "standard"
     boardSize: int | None = None

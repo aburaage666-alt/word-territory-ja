@@ -7863,3 +7863,248 @@ for _wt_qi_name in [
 
 # WT_QUICK5_INTRO_DIRECT_FINAL_V1_END
 
+
+# WT_INTRO_TUTOR_MODE_FINAL_V2_BEGIN
+# Final separation:
+# - standard: 7x7 competitive
+# - quick / quick5 / 5x5: competitive short game
+# - intro / tutorial / learn: teaching 5x5 only, komi=0, tutor bot
+try:
+    WT_IT_STANDARD_BOARD_SIZE_V2 = int(BOARD_SIZE)
+except Exception:
+    WT_IT_STANDARD_BOARD_SIZE_V2 = 7
+
+try:
+    WT_IT_STANDARD_OPENING_COORDS_V2 = list(OPENING_COORDS)
+except Exception:
+    WT_IT_STANDARD_OPENING_COORDS_V2 = [(1, 3), (2, 2), (2, 3), (2, 4), (2, 5), (3, 3), (4, 3)]
+
+try:
+    WT_IT_STANDARD_MAX_TURNS_V2 = int(MAX_TURNS)
+except Exception:
+    WT_IT_STANDARD_MAX_TURNS_V2 = 35
+
+WT_IT_QUICK_BOARD_SIZE_V2 = 5
+WT_IT_QUICK_MAX_TURNS_V2 = 20
+WT_IT_QUICK_OPENING_COORDS_V2 = [(0, 2), (1, 1), (1, 2), (1, 3), (2, 2)]
+
+def _wt_it_mode_v2(board_mode=None, board_size=None):
+    raw = str(board_mode or "").lower().strip().replace("-", "_")
+    try:
+        n = int(board_size) if board_size is not None else None
+    except Exception:
+        n = None
+    if raw in ("intro", "tutorial", "quick_intro", "learn", "opening", "practice"):
+        return "intro", WT_IT_QUICK_BOARD_SIZE_V2
+    if raw in ("quick", "quick5", "quick5x5", "5", "5x5") or n == WT_IT_QUICK_BOARD_SIZE_V2:
+        return "quick5", WT_IT_QUICK_BOARD_SIZE_V2
+    return "standard", WT_IT_STANDARD_BOARD_SIZE_V2
+
+def _wt_it_set_runtime_v2(size=None):
+    global BOARD_SIZE, OPENING_COORDS, MAX_TURNS
+    try:
+        n = int(size)
+    except Exception:
+        n = WT_IT_STANDARD_BOARD_SIZE_V2
+    if n == WT_IT_QUICK_BOARD_SIZE_V2:
+        BOARD_SIZE = WT_IT_QUICK_BOARD_SIZE_V2
+        OPENING_COORDS = list(WT_IT_QUICK_OPENING_COORDS_V2)
+        MAX_TURNS = WT_IT_QUICK_MAX_TURNS_V2
+    else:
+        BOARD_SIZE = WT_IT_STANDARD_BOARD_SIZE_V2
+        OPENING_COORDS = list(WT_IT_STANDARD_OPENING_COORDS_V2)
+        MAX_TURNS = WT_IT_STANDARD_MAX_TURNS_V2
+    return BOARD_SIZE
+
+def sync_board_runtime(state):
+    return _wt_it_set_runtime_v2(getattr(state, "boardSize", WT_IT_STANDARD_BOARD_SIZE_V2))
+
+_WT_IT_INTRO_LAYOUT_V2 = {
+    "blue": [((0, 0), "し")],
+    "red": [((4, 4), "し")],
+    "neutral": [
+        ((0, 1), "ま"), ((1, 0), "つ"), ((1, 1), "か"), ((1, 2), "な"),
+        ((2, 2), "み"),
+        ((2, 3), "な"), ((3, 3), "か"), ((4, 3), "つ"), ((3, 4), "ま"),
+    ],
+}
+
+def _wt_it_apply_intro_layout_v2(state):
+    try:
+        if len(state.board) != WT_IT_QUICK_BOARD_SIZE_V2:
+            return state
+        for r in range(len(state.board)):
+            for c in range(len(state.board[r])):
+                cell = state.board[r][c]
+                cell.letter = None
+                cell.owner = None
+                cell.fortified = False
+
+        for (r, c), ch in _WT_IT_INTRO_LAYOUT_V2["blue"]:
+            state.board[r][c].letter = ch
+            state.board[r][c].owner = "BLUE"
+        for (r, c), ch in _WT_IT_INTRO_LAYOUT_V2["red"]:
+            state.board[r][c].letter = ch
+            state.board[r][c].owner = "RED"
+        for (r, c), ch in _WT_IT_INTRO_LAYOUT_V2["neutral"]:
+            state.board[r][c].letter = ch
+
+        state.openingName = "導入 5×5（OPEN練習）"
+        recalc_scores(state)
+        try:
+            active, preview = generate_letter_market(state)
+            state.marketLetters = active
+            state.previewLetters = preview
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return state
+
+try:
+    _WT_IT_ORIGINAL_BUILD_INITIAL_STATE_V2
+except NameError:
+    _WT_IT_ORIGINAL_BUILD_INITIAL_STATE_V2 = build_initial_state
+
+def build_initial_state(bot_level: str = "normal", opening_idx: int | None = None, board_mode: str = "standard", board_size: int | None = None) -> GameState:
+    mode, size = _wt_it_mode_v2(board_mode, board_size)
+    _wt_it_set_runtime_v2(size)
+
+    # Intro is a lesson, not a competitive ladder. Force the opponent to tutor/easy.
+    effective_bot_level = "easy" if mode == "intro" else bot_level
+
+    try:
+        state = _WT_IT_ORIGINAL_BUILD_INITIAL_STATE_V2(bot_level=effective_bot_level, opening_idx=opening_idx, board_mode=mode, board_size=size)
+    except TypeError:
+        try:
+            state = _WT_IT_ORIGINAL_BUILD_INITIAL_STATE_V2(bot_level=effective_bot_level, opening_idx=opening_idx)
+        except TypeError:
+            state = _WT_IT_ORIGINAL_BUILD_INITIAL_STATE_V2(bot_level=effective_bot_level)
+
+    state.boardSize = size
+    try:
+        state.coreMode = bool(size == WT_IT_QUICK_BOARD_SIZE_V2)
+    except Exception:
+        pass
+
+    try:
+        state.introMode = bool(mode == "intro")
+        state.boardMode = mode
+    except Exception:
+        pass
+
+    try:
+        state.synergyState = dict(getattr(state, "synergyState", {}) or {})
+        state.synergyState["_boardMode"] = mode
+        state.synergyState["_introTutor"] = bool(mode == "intro")
+    except Exception:
+        pass
+
+    if mode == "intro":
+        try:
+            state.botLevel = "easy"
+            state.botStyle = "Tutor"
+        except Exception:
+            pass
+        state = _wt_it_apply_intro_layout_v2(state)
+    elif mode == "quick5":
+        try:
+            if not str(state.openingName or "").startswith("Quick 5×5") and not str(state.openingName or "").startswith("QUICK 5×5"):
+                state.openingName = "Quick 5×5 · " + str(state.openingName or "OPENING")
+        except Exception:
+            pass
+
+    return state
+
+def _wt_it_state_wrap_v2(fn):
+    def wrapped(state, *args, **kwargs):
+        sync_board_runtime(state)
+        return fn(state, *args, **kwargs)
+    wrapped.__name__ = getattr(fn, "__name__", "wrapped")
+    wrapped.__doc__ = getattr(fn, "__doc__", None)
+    return wrapped
+
+for _wt_it_name in [
+    "validate_and_apply_move",
+    "apply_seed_move",
+    "preview_move",
+    "pass_turn",
+    "find_candidate_words",
+    "find_almost_words",
+    "apply_bot_move",
+    "apply_demo_bot_move",
+    "get_market_stats",
+    "get_letter_preview_moves",
+    "get_threat_preview",
+    "get_placeable_empty_cells",
+    "apply_dazi_move",
+    "rotate_block_state",
+]:
+    _wt_it_fn = globals().get(_wt_it_name)
+    if callable(_wt_it_fn) and not getattr(_wt_it_fn, "_wt_it_wrapped_final_v2", False):
+        _wt_it_wrapped = _wt_it_state_wrap_v2(_wt_it_fn)
+        _wt_it_wrapped._wt_it_wrapped_final_v2 = True
+        globals()[_wt_it_name] = _wt_it_wrapped
+
+try:
+    _WT_IT_ORIGINAL_DECIDE_WINNER_V2
+except NameError:
+    _WT_IT_ORIGINAL_DECIDE_WINNER_V2 = decide_winner
+
+def decide_winner(state: GameState):
+    if getattr(state, "introMode", False):
+        red_t = count_territory(state, "RED")
+        blue_t = count_territory(state, "BLUE")
+        if red_t != blue_t:
+            return "RED" if red_t > blue_t else "BLUE"
+        if state.scores.redWord != state.scores.blueWord:
+            return "RED" if state.scores.redWord > state.scores.blueWord else "BLUE"
+        return "DRAW"
+    return _WT_IT_ORIGINAL_DECIDE_WINNER_V2(state)
+
+try:
+    _WT_IT_ORIGINAL_CHOOSE_BOT_MOVE_V2
+except NameError:
+    _WT_IT_ORIGINAL_CHOOSE_BOT_MOVE_V2 = choose_bot_move
+
+def _wt_it_intro_tutor_score_v2(state, move):
+    try:
+        ns = simulate_move(state, move)
+        last = ns.moveHistory[-1]
+        labels = set(last.comboLabels or [])
+        word = _norm_word(move.get("word", "") or "")
+        territory = max(0, int(last.territoryGained or 0))
+        captures = max(0, int(last.captureCount or 0))
+        locks = max(0, int(last.fortifiedCellsGained or 0))
+        score = 0.0
+        # Tutor bot should keep the lesson alive, not win hard.
+        score += territory * 12.0
+        score += captures * 80.0
+        score += locks * 8.0
+        score += max(0, len(word) - 3) * 5.0
+        if "橋渡し" in labels:
+            score += 30.0
+        if "分断" in labels:
+            score += 30.0
+        if "大領地" in labels or "大奪取" in labels:
+            score += 50.0
+        if "逆転" in labels or "領地変動" in labels:
+            score += 25.0
+        return score
+    except Exception:
+        return 9999.0
+
+def choose_bot_move(state: GameState):
+    if getattr(state, "introMode", False):
+        try:
+            moves = generate_normal_moves(state)
+        except Exception:
+            moves = []
+        if not moves:
+            return None
+        # Pick the least crushing legal word. This is teaching, not competition.
+        return min(moves, key=lambda m: _wt_it_intro_tutor_score_v2(state, m))
+    return _WT_IT_ORIGINAL_CHOOSE_BOT_MOVE_V2(state)
+
+# WT_INTRO_TUTOR_MODE_FINAL_V2_END
+
