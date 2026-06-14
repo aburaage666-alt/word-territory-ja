@@ -2378,6 +2378,120 @@ export default function Home() {
   const [mode,   setMode]       = useState("easy");
   const [boardMode, setBoardMode] = useState("standard");
 
+  // WT_AUTO_BOARDMODE_NEWGAME_V1_BEGIN
+  // UX rule: changing board mode immediately starts a new game in that mode.
+  // This prevents "selector says Quick but current board is still 7x7".
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    if (!state || !boardMode) return;
+
+    const actual = wtActualBoardModeFromState(state, boardMode);
+
+    if (actual === boardMode) {
+      window.__wtAutoBoardModeSyncInFlight = false;
+      if (window.__wtPendingBoardMode === boardMode) {
+        window.__wtPendingBoardMode = "";
+      }
+      return;
+    }
+
+    if (window.__wtAutoBoardModeSyncInFlight) return;
+
+    window.__wtAutoBoardModeSyncInFlight = true;
+    window.__wtPendingBoardMode = boardMode;
+
+    const timer = setTimeout(() => {
+      const buttons = Array.from(document.querySelectorAll("button"));
+      const newGameButton = buttons.find((b) => (b.textContent || "").includes("新しいゲーム"));
+
+      if (newGameButton) {
+        newGameButton.click();
+      }
+
+      // If backend/frontend is still stale, do not click repeatedly forever.
+      setTimeout(() => {
+        window.__wtAutoBoardModeSyncInFlight = false;
+      }, 1800);
+    }, 90);
+
+    return () => clearTimeout(timer);
+  }, [boardMode, state?.boardSize, state?.board?.length]);
+  // WT_AUTO_BOARDMODE_NEWGAME_V1_END
+
+
+  // WT_ESCAPE_ROUTE_RULES_UI_V1_BEGIN
+  // Adds 逃げ道 explanation to the visible guide/rules/explanation areas.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const STYLE_ID = "wt-escape-route-rules-style-v1";
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent =
+        ".escapeRuleBlock{margin-top:8px;padding:8px 10px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:10px;color:#0f172a;font-size:12px;line-height:1.55}" +
+        ".escapeRuleBlock strong{color:#075985}" +
+        ".escapeRuleBlock .mini{display:inline-block;margin-right:6px;font-weight:900;color:#b91c1c}";
+      document.head.appendChild(style);
+    }
+
+    const html =
+      '<div class="escapeRuleBlock" data-wt-escape-rule="1">' +
+      '<strong>逃げ道：</strong>領地グループの周囲に残る空き出口です。' +
+      '<span class="mini">逃1</span>は包囲寸前、' +
+      '<span class="mini">逃2</span>は圧迫、' +
+      '<span class="mini">逃3</span>はまだ余裕。' +
+      '単語で相手の逃げ道を減らすと、次の捕獲・囲みに近づきます。' +
+      '</div>';
+
+    const addAfterGuide = () => {
+      if (document.getElementById("wt-escape-route-guide-v1")) return;
+
+      const candidates = Array.from(document.querySelectorAll("div, section, p"))
+        .filter((el) => {
+          const txt = (el.textContent || "").trim();
+          return txt.includes("遊び方:") || txt.includes("遊び方：");
+        })
+        .filter((el) => (el.textContent || "").length < 900);
+
+      const target = candidates[0];
+      if (!target) return;
+
+      const wrap = document.createElement("div");
+      wrap.id = "wt-escape-route-guide-v1";
+      wrap.innerHTML = html;
+      target.insertAdjacentElement("afterend", wrap);
+    };
+
+    const addToDialogs = () => {
+      const roots = Array.from(document.querySelectorAll('[role="dialog"], .modal, .dialog, .rules, .help, .explain, .explanation'))
+        .filter((el) => {
+          const txt = el.textContent || "";
+          return (txt.includes("ルール") || txt.includes("説明") || txt.includes("遊び方")) && !el.querySelector('[data-wt-escape-rule="1"]');
+        })
+        .filter((el) => (el.textContent || "").length < 5000);
+
+      for (const root of roots) {
+        const div = document.createElement("div");
+        div.innerHTML = html;
+        root.appendChild(div);
+      }
+    };
+
+    addAfterGuide();
+    addToDialogs();
+
+    const obs = new MutationObserver(() => {
+      addAfterGuide();
+      addToDialogs();
+    });
+
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, []);
+  // WT_ESCAPE_ROUTE_RULES_UI_V1_END
+
+
   // WT_BOARDMODE_MISMATCH_GUIDANCE_V1_BEGIN
   // When selector mode and current game state differ, tell the player that
   // the selected mode applies after pressing "新しいゲーム".
@@ -2406,7 +2520,7 @@ export default function Home() {
     const div = document.createElement("div");
     div.id = "wt-boardmode-mismatch-v1";
     div.className = "modeMismatch";
-    div.innerHTML = `<strong>${wtBoardModeLabel(boardMode)}</strong> は新しいゲームで反映`;
+    div.innerHTML = `<strong>${wtBoardModeLabel(boardMode)}</strong> に切替中…`;
     anchor.insertAdjacentElement("afterend", div);
   }, [boardMode, state?.boardSize, state?.board?.length]);
   // WT_BOARDMODE_MISMATCH_GUIDANCE_V1_END
@@ -2434,7 +2548,7 @@ export default function Home() {
                 ...init,
                 body: JSON.stringify({
                   ...payload,
-                  boardMode: boardMode || "standard",
+                  boardMode: (window.__wtPendingBoardMode || boardMode || "standard"),
                 }),
               };
             }
