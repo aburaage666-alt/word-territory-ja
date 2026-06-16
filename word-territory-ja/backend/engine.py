@@ -2448,8 +2448,9 @@ def validate_and_apply_move(state: GameState, row: int, col: int, letter: str, p
             recalc_scores(temp)
             delta["territory_gain"] += min(bonus, len(candidates))
 
-    # WT_MULTI_IMPACT_CALL_V1
-    for _wt_mi_label in _wt_multi_impact_labels_v1(before, temp, player, word, delta, combos):
+
+    # WT_MULTI_IMPACT_CALL_V2
+    for _wt_mi_label in _wt_multi_impact_labels_v2(before, temp, player, word, delta, combos):
         if _wt_mi_label not in combos:
             combos.append(_wt_mi_label)
 
@@ -8114,12 +8115,12 @@ def choose_bot_move(state: GameState):
 # WT_INTRO_TUTOR_MODE_FINAL_V2_END
 
 
-# WT_MULTI_IMPACT_V1_BEGIN
-# Multi-Impact Move System.
-# Purpose: measure and surface dense turns where one word produces multiple board effects.
-# This is intentionally score-neutral. It does not add territory or word points.
+# WT_MULTI_IMPACT_V2_BEGIN
+# Multi-Impact Move System v2.
+# Purpose: detect truly dense turns, not every ordinary good move.
+# Score-neutral: no territory/word score changes.
 
-def _wt_mi_safe_region_count_v1(state, player: str) -> int:
+def _wt_mi_safe_region_count_v2(state, player: str) -> int:
     try:
         return int(_count_connected_regions(state, player))
     except Exception:
@@ -8128,13 +8129,13 @@ def _wt_mi_safe_region_count_v1(state, player: str) -> int:
         except Exception:
             return 0
 
-def _wt_mi_liberty_stats_v1(state, player: str):
+def _wt_mi_liberty_stats_v2(state, player: str):
     try:
         groups = compute_group_liberties(state, player)
     except Exception:
-        return {"groups": 0, "min": 99, "near": 0}
+        return {"groups": 0, "min": 99, "near": 0, "atari": 0}
     if not groups:
-        return {"groups": 0, "min": 99, "near": 0}
+        return {"groups": 0, "min": 99, "near": 0, "atari": 0}
     libs = []
     for g in groups:
         try:
@@ -8145,9 +8146,10 @@ def _wt_mi_liberty_stats_v1(state, player: str):
         "groups": len(groups),
         "min": min(libs) if libs else 99,
         "near": sum(1 for x in libs if x <= 1),
+        "atari": sum(1 for x in libs if x == 1),
     }
 
-def _wt_mi_score_diff_v1(state, player: str) -> int:
+def _wt_mi_score_diff_v2(state, player: str) -> int:
     opp = other_player(player)
     try:
         return int(total_score(state, player) - total_score(state, opp))
@@ -8159,8 +8161,7 @@ def _wt_mi_score_diff_v1(state, player: str) -> int:
         except Exception:
             return 0
 
-def _wt_multi_impact_labels_v1(before_state, after_state, player: str, word: str, delta: dict, existing_labels: list[str]) -> list[str]:
-    effects = []
+def _wt_multi_impact_labels_v2(before_state, after_state, player: str, word: str, delta: dict, existing_labels: list[str]) -> list[str]:
     labels = list(existing_labels or [])
     opp = other_player(player)
 
@@ -8173,24 +8174,31 @@ def _wt_multi_impact_labels_v1(before_state, after_state, player: str, word: str
     except Exception:
         capture_count = 0
 
-    if territory_gain >= 3:
-        effects.append("大きく獲得")
-    if capture_count >= 1 or "捕獲" in labels or "大奪取" in labels:
-        effects.append("捕獲")
+    effects = []
 
-    before_my_regions = _wt_mi_safe_region_count_v1(before_state, player)
-    after_my_regions = _wt_mi_safe_region_count_v1(after_state, player)
-    if before_my_regions > 1 and after_my_regions < before_my_regions:
+    if territory_gain >= 4:
+        effects.append("大きく獲得")
+    if capture_count >= 2:
+        effects.append("大捕獲" if capture_count >= 3 else "捕獲")
+
+    before_my_regions = _wt_mi_safe_region_count_v2(before_state, player)
+    after_my_regions = _wt_mi_safe_region_count_v2(after_state, player)
+    if territory_gain >= 1 and before_my_regions > 1 and after_my_regions < before_my_regions:
         effects.append("接続")
 
-    before_opp_regions = _wt_mi_safe_region_count_v1(before_state, opp)
-    after_opp_regions = _wt_mi_safe_region_count_v1(after_state, opp)
-    if after_opp_regions > before_opp_regions:
+    before_opp_regions = _wt_mi_safe_region_count_v2(before_state, opp)
+    after_opp_regions = _wt_mi_safe_region_count_v2(after_state, opp)
+    if territory_gain >= 1 and after_opp_regions > before_opp_regions:
         effects.append("分断")
 
-    b_lib = _wt_mi_liberty_stats_v1(before_state, opp)
-    a_lib = _wt_mi_liberty_stats_v1(after_state, opp)
-    if a_lib["near"] > b_lib["near"] or a_lib["min"] < b_lib["min"]:
+    b_lib = _wt_mi_liberty_stats_v2(before_state, opp)
+    a_lib = _wt_mi_liberty_stats_v2(after_state, opp)
+    open_pressure = (
+        a_lib["atari"] > b_lib["atari"]
+        or (b_lib["min"] >= 3 and a_lib["min"] <= 1)
+        or (a_lib["near"] >= b_lib["near"] + 2)
+    )
+    if open_pressure:
         effects.append("OPEN詰め")
 
     try:
@@ -8201,7 +8209,9 @@ def _wt_multi_impact_labels_v1(before_state, after_state, player: str, word: str
         lang = _LANG
     except Exception:
         lang = "ja"
-    if (lang == "ja" and wl >= 4) or (lang != "ja" and wl >= 5):
+
+    board_effect_count = len(effects)
+    if board_effect_count >= 1 and ((lang == "ja" and wl >= 5) or (lang != "ja" and wl >= 6)):
         effects.append("長語")
 
     uniq = []
@@ -8220,11 +8230,12 @@ def _wt_multi_impact_labels_v1(before_state, after_state, player: str, word: str
             out.append("二重の手")
         out.append("多重:" + "＋".join(uniq[:4]))
 
-    before_diff = _wt_mi_score_diff_v1(before_state, player)
-    after_diff = _wt_mi_score_diff_v1(after_state, player)
-    if before_diff < 0 and after_diff > 0 and ("逆転" in labels or capture_count >= 1 or territory_gain >= 3):
+    before_diff = _wt_mi_score_diff_v2(before_state, player)
+    after_diff = _wt_mi_score_diff_v2(after_state, player)
+    swing = after_diff - before_diff
+    if before_diff <= -3 and after_diff >= 1 and swing >= 6 and (capture_count >= 2 or territory_gain >= 4 or n >= 3):
         out.append("逆転の一手")
 
     return out
-# WT_MULTI_IMPACT_V1_END
+# WT_MULTI_IMPACT_V2_END
 

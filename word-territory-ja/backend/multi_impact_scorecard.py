@@ -1,9 +1,9 @@
-# WT_MULTI_IMPACT_SCORECARD_V1
+# WT_MULTI_IMPACT_SCORECARD_V2
 # Run from project root:
 #   cd C:\Users\info\Downloads\word-territory-ja-clean\word-territory-ja
 #   py -3 .\backend\multi_impact_scorecard.py --games 60 --bot-level normal --max-turns 40
 #
-# This is a diagnostic tool. It measures whether WT has enough dense turns.
+# Diagnostic tool. It measures gameplay density after Multi-Impact v2.
 # It does not change game rules.
 
 import os
@@ -58,6 +58,7 @@ def run_match(i, seed, bot_level, max_turns):
     moves = list(getattr(state, "moveHistory", []) or [])
     tier_counts = Counter()
     capture_turns = 0
+    major_capture_turns = 0
     reverse_turns = 0
     deadish_turns = 0
     word_turns = 0
@@ -74,7 +75,9 @@ def run_match(i, seed, bot_level, max_turns):
 
         if move_type == "WORD" and word:
             word_turns += 1
-            if gain <= 0 and cap <= 0 and not any(x in ls for x in ("二重の手", "三重の手", "四重の手", "橋渡し", "分断", "ENCIRCLE PRESSURE", "OPEN詰め")):
+            has_dense = any(x in ls for x in ("二重の手", "三重の手", "四重の手", "逆転の一手"))
+            has_known_effect = cap > 0 or gain >= 2 or any(("多重:" in x or x in ("橋渡し", "分断", "大奪取")) for x in ls)
+            if not has_dense and not has_known_effect:
                 deadish_turns += 1
 
         if "二重の手" in ls:
@@ -85,7 +88,9 @@ def run_match(i, seed, bot_level, max_turns):
             tier_counts["quad"] += 1
         if cap > 0:
             capture_turns += 1
-        if "逆転の一手" in ls or "逆転" in ls:
+        if cap >= 2:
+            major_capture_turns += 1
+        if "逆転の一手" in ls:
             reverse_turns += 1
         if gain > best_gain:
             best_gain = gain
@@ -109,6 +114,7 @@ def run_match(i, seed, bot_level, max_turns):
         "quad": tier_counts["quad"],
         "multi_total": tier_counts["double"] + tier_counts["triple"] + tier_counts["quad"],
         "capture_turns": capture_turns,
+        "major_capture_turns": major_capture_turns,
         "reverse_turns": reverse_turns,
         "deadish_turns": deadish_turns,
         "deadish_ratio": round(deadish_turns / word_turns, 3) if word_turns else 0,
@@ -137,11 +143,13 @@ def main():
         print(
             f"{i+1:03d} {row['winner']} gap={row['gap']} "
             f"multi={row['multi_total']} D/T/Q={row['double']}/{row['triple']}/{row['quad']} "
-            f"cap={row['capture_turns']} rev={row['reverse_turns']} dead={row['deadish_ratio']} "
+            f"cap={row['capture_turns']} majorcap={row['major_capture_turns']} "
+            f"rev={row['reverse_turns']} dead={row['deadish_ratio']} "
             f"best={row['best_word']} +{row['best_gain']} [{row['best_labels']}]"
         )
 
-    print("\n=== MULTI-IMPACT SUMMARY ===")
+    print()
+    print("=== MULTI-IMPACT SUMMARY V2 ===")
     print("games:", len(rows))
     print("winners:", dict(Counter(r["winner"] for r in rows)))
     print("avg_gap:", avg(rows, "gap"))
@@ -152,13 +160,16 @@ def main():
     print("games_with_multi:", sum(1 for r in rows if r["multi_total"] > 0), "/", len(rows))
     print("games_with_triple_plus:", sum(1 for r in rows if r["triple"] + r["quad"] > 0), "/", len(rows))
     print("avg_capture_turns:", avg(rows, "capture_turns"))
+    print("avg_major_capture_turns:", avg(rows, "major_capture_turns"))
     print("games_with_reverse:", sum(1 for r in rows if r["reverse_turns"] > 0), "/", len(rows))
     print("avg_deadish_ratio:", avg(rows, "deadish_ratio"))
-    print("\nTargets for Quick 5x5 later:")
-    print("- double: 1 to 3 per game")
-    print("- triple: at least once every 2 to 3 games")
-    print("- quad: about once every 10 games")
-    print("- deadish_ratio: lower is better; watch if above 0.30")
+    print()
+    print("Targets:")
+    print("- Quick 5x5 double: 1 to 3 per game")
+    print("- Quick 5x5 triple: at least once every 2 to 3 games")
+    print("- Quick 5x5 quad: about once every 10 games")
+    print("- Standard 7x7 can be higher, but quad every game is too common")
+    print("- deadish_ratio above 0.30 means low-density turns remain")
 
 
 if __name__ == "__main__":
