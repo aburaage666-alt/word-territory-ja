@@ -1,10 +1,10 @@
-# WT_MULTI_IMPACT_SCORECARD_V3
+# WT_MULTI_IMPACT_SCORECARD_V4
 # Run from project root:
 #   cd C:\Users\info\Downloads\word-territory-ja-clean\word-territory-ja
 #   py -3 .\backend\multi_impact_scorecard.py --games 60 --bot-level normal --max-turns 40
 #   py -3 .\backend\multi_impact_scorecard.py --games 30 --bot-level normal --max-turns 40 --paired
 #
-# Diagnostic tool. It measures gameplay peaks after Multi-Impact v3.
+# Diagnostic tool. It measures true gameplay peaks after Multi-Impact v4.
 # It does not change game rules.
 
 import os
@@ -13,7 +13,7 @@ os.environ.setdefault("WT_LANG", "ja")
 import argparse
 import random
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 
 sys.path.insert(0, "backend")
 
@@ -88,9 +88,9 @@ def run_match(i, seed, bot_level, max_turns, start_player):
 
         if move_type == "WORD" and word:
             word_turns += 1
-            has_dense = any(x in ls for x in ("二重の手", "三重の手", "四重の手", "大逆転の一手"))
-            has_known_effect = cap > 0 or gain >= 2 or any(("多重:" in x or x in ("橋渡し", "分断", "大奪取")) for x in ls)
-            if not has_dense and not has_known_effect:
+            has_peak = any(x in ls for x in ("二重の手", "三重の手", "四重の手", "大逆転の一手"))
+            has_basic_effect = cap > 0 or gain >= 2 or any(("多重:" in x or x in ("橋渡し", "分断", "大奪取")) for x in ls)
+            if not has_peak and not has_basic_effect:
                 deadish_turns += 1
 
         if "二重の手" in ls:
@@ -117,7 +117,7 @@ def run_match(i, seed, bot_level, max_turns, start_player):
     red = total_score(state, "RED")
     blue = total_score(state, "BLUE")
     winner = "RED" if red > blue else "BLUE" if blue > red else "DRAW"
-    first_player_won = (winner == start_player)
+    first_player_won = winner == start_player
 
     return {
         "match": i,
@@ -150,12 +150,28 @@ def avg(rows, key):
     return round(sum(r[key] for r in rows) / len(rows), 3) if rows else 0
 
 
+def breakdown_by_start(rows):
+    out = {}
+    for sp in ("RED", "BLUE"):
+        sub = [r for r in rows if r["start_player"] == sp]
+        if not sub:
+            continue
+        out[sp] = {
+            "games": len(sub),
+            "winners": dict(Counter(r["winner"] for r in sub)),
+            "first_wins": sum(1 for r in sub if r["first_player_won"]),
+            "avg_gap": avg(sub, "gap"),
+        }
+    return out
+
+
 def print_summary(rows, title):
     print()
     print(title)
     print("games:", len(rows))
     print("winners:", dict(Counter(r["winner"] for r in rows)))
     print("start_players:", dict(Counter(r["start_player"] for r in rows)))
+    print("by_start:", breakdown_by_start(rows))
     print("first_player_wins:", sum(1 for r in rows if r["first_player_won"]), "/", len(rows))
     print("avg_gap:", avg(rows, "gap"))
     print("avg_multi_total:", avg(rows, "multi_total"))
@@ -200,7 +216,7 @@ def main():
                 f"best={row['best_word']} +{row['best_gain']} [{row['best_labels']}]"
             )
 
-    print_summary(rows, "=== MULTI-IMPACT SUMMARY V3 ===")
+    print_summary(rows, "=== MULTI-IMPACT SUMMARY V4 ===")
     print()
     print("Targets:")
     print("- avg_multi_total: 2 to 5")

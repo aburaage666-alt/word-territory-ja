@@ -2449,8 +2449,8 @@ def validate_and_apply_move(state: GameState, row: int, col: int, letter: str, p
             delta["territory_gain"] += min(bonus, len(candidates))
 
 
-    # WT_MULTI_IMPACT_CALL_V3
-    for _wt_mi_label in _wt_multi_impact_labels_v3(before, temp, player, word, delta, combos):
+    # WT_MULTI_IMPACT_CALL_V4
+    for _wt_mi_label in _wt_multi_impact_labels_v4(before, temp, player, word, delta, combos):
         if _wt_mi_label not in combos:
             combos.append(_wt_mi_label)
 
@@ -8115,12 +8115,11 @@ def choose_bot_move(state: GameState):
 # WT_INTRO_TUTOR_MODE_FINAL_V2_END
 
 
-# WT_MULTI_IMPACT_V3_BEGIN
-# Multi-Impact Move System v3.
-# Purpose: keep only real gameplay peaks.
-# Score-neutral: no territory/word score changes.
+# WT_MULTI_IMPACT_V4_BEGIN
+# Multi-Impact Move System v4.
+# Purpose: keep only true gameplay peaks. Score-neutral.
 
-def _wt_mi_safe_region_count_v3(state, player: str) -> int:
+def _wt_mi_safe_region_count_v4(state, player: str) -> int:
     try:
         return int(_count_connected_regions(state, player))
     except Exception:
@@ -8129,7 +8128,7 @@ def _wt_mi_safe_region_count_v3(state, player: str) -> int:
         except Exception:
             return 0
 
-def _wt_mi_liberty_stats_v3(state, player: str):
+def _wt_mi_liberty_stats_v4(state, player: str):
     try:
         groups = compute_group_liberties(state, player)
     except Exception:
@@ -8149,7 +8148,7 @@ def _wt_mi_liberty_stats_v3(state, player: str):
         "atari": sum(1 for x in libs if x == 1),
     }
 
-def _wt_mi_score_diff_v3(state, player: str) -> int:
+def _wt_mi_score_diff_v4(state, player: str) -> int:
     opp = other_player(player)
     try:
         return int(total_score(state, player) - total_score(state, opp))
@@ -8161,7 +8160,7 @@ def _wt_mi_score_diff_v3(state, player: str) -> int:
         except Exception:
             return 0
 
-def _wt_multi_impact_labels_v3(before_state, after_state, player: str, word: str, delta: dict, existing_labels: list[str]) -> list[str]:
+def _wt_multi_impact_labels_v4(before_state, after_state, player: str, word: str, delta: dict, existing_labels: list[str]) -> list[str]:
     opp = other_player(player)
 
     try:
@@ -8175,27 +8174,25 @@ def _wt_multi_impact_labels_v3(before_state, after_state, player: str, word: str
 
     effects = []
 
-    # Stricter than v2. These should represent peaks, not ordinary good moves.
-    if territory_gain >= 5:
+    if territory_gain >= 6:
         effects.append("大きく獲得")
     if capture_count >= 3:
         effects.append("大捕獲")
 
-    before_my_regions = _wt_mi_safe_region_count_v3(before_state, player)
-    after_my_regions = _wt_mi_safe_region_count_v3(after_state, player)
-    if territory_gain >= 2 and before_my_regions > 1 and after_my_regions < before_my_regions:
+    before_my_regions = _wt_mi_safe_region_count_v4(before_state, player)
+    after_my_regions = _wt_mi_safe_region_count_v4(after_state, player)
+    if territory_gain >= 3 and before_my_regions >= 2 and after_my_regions < before_my_regions:
         effects.append("接続")
 
-    before_opp_regions = _wt_mi_safe_region_count_v3(before_state, opp)
-    after_opp_regions = _wt_mi_safe_region_count_v3(after_state, opp)
-    if territory_gain >= 2 and after_opp_regions > before_opp_regions:
-        effects.append("分断")
+    before_opp_regions = _wt_mi_safe_region_count_v4(before_state, opp)
+    after_opp_regions = _wt_mi_safe_region_count_v4(after_state, opp)
+    if territory_gain >= 3 and after_opp_regions >= before_opp_regions + 2:
+        effects.append("大分断")
 
-    b_lib = _wt_mi_liberty_stats_v3(before_state, opp)
-    a_lib = _wt_mi_liberty_stats_v3(after_state, opp)
-    # New atari, or a very large OPEN pressure jump only.
-    if a_lib["atari"] > b_lib["atari"] or (a_lib["near"] >= b_lib["near"] + 3 and a_lib["min"] <= 1):
-        effects.append("OPEN詰め")
+    b_lib = _wt_mi_liberty_stats_v4(before_state, opp)
+    a_lib = _wt_mi_liberty_stats_v4(after_state, opp)
+    if a_lib["atari"] >= b_lib["atari"] + 2 or (b_lib["min"] >= 4 and a_lib["min"] <= 1):
+        effects.append("強いOPEN詰め")
 
     try:
         wl = len(_norm_word(word))
@@ -8206,9 +8203,8 @@ def _wt_multi_impact_labels_v3(before_state, after_state, player: str, word: str
     except Exception:
         lang = "ja"
 
-    # Long-word achievement is secondary only; it should not inflate ordinary word moves.
     board_effect_count = len(effects)
-    if board_effect_count >= 2 and ((lang == "ja" and wl >= 6) or (lang != "ja" and wl >= 7)):
+    if board_effect_count >= 2 and ((lang == "ja" and wl >= 7) or (lang != "ja" and wl >= 8)):
         effects.append("長語")
 
     uniq = []
@@ -8227,12 +8223,14 @@ def _wt_multi_impact_labels_v3(before_state, after_state, player: str, word: str
             out.append("二重の手")
         out.append("多重:" + "＋".join(uniq[:4]))
 
-    before_diff = _wt_mi_score_diff_v3(before_state, player)
-    after_diff = _wt_mi_score_diff_v3(after_state, player)
+    before_diff = _wt_mi_score_diff_v4(before_state, player)
+    after_diff = _wt_mi_score_diff_v4(after_state, player)
     swing = after_diff - before_diff
-    if before_diff <= -4 and after_diff >= 1 and swing >= 8 and ("大捕獲" in uniq or "大きく獲得" in uniq or n >= 3):
+
+    # Do not let ordinary multi-impact moves or old Bot labels become comeback drama.
+    if before_diff <= -5 and after_diff >= 2 and swing >= 12 and (capture_count >= 3 or territory_gain >= 7):
         out.append("大逆転の一手")
 
     return out
-# WT_MULTI_IMPACT_V3_END
+# WT_MULTI_IMPACT_V4_END
 
