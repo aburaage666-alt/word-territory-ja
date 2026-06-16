@@ -2448,6 +2448,11 @@ def validate_and_apply_move(state: GameState, row: int, col: int, letter: str, p
             recalc_scores(temp)
             delta["territory_gain"] += min(bonus, len(candidates))
 
+    # WT_MULTI_IMPACT_CALL_V1
+    for _wt_mi_label in _wt_multi_impact_labels_v1(before, temp, player, word, delta, combos):
+        if _wt_mi_label not in combos:
+            combos.append(_wt_mi_label)
+
     item = MoveHistoryItem(
         turn=state.turn,
         player=player,
@@ -8107,4 +8112,119 @@ def choose_bot_move(state: GameState):
     return _WT_IT_ORIGINAL_CHOOSE_BOT_MOVE_V2(state)
 
 # WT_INTRO_TUTOR_MODE_FINAL_V2_END
+
+
+# WT_MULTI_IMPACT_V1_BEGIN
+# Multi-Impact Move System.
+# Purpose: measure and surface dense turns where one word produces multiple board effects.
+# This is intentionally score-neutral. It does not add territory or word points.
+
+def _wt_mi_safe_region_count_v1(state, player: str) -> int:
+    try:
+        return int(_count_connected_regions(state, player))
+    except Exception:
+        try:
+            return len(compute_group_liberties(state, player))
+        except Exception:
+            return 0
+
+def _wt_mi_liberty_stats_v1(state, player: str):
+    try:
+        groups = compute_group_liberties(state, player)
+    except Exception:
+        return {"groups": 0, "min": 99, "near": 0}
+    if not groups:
+        return {"groups": 0, "min": 99, "near": 0}
+    libs = []
+    for g in groups:
+        try:
+            libs.append(int(g.get("liberty", 99)))
+        except Exception:
+            libs.append(99)
+    return {
+        "groups": len(groups),
+        "min": min(libs) if libs else 99,
+        "near": sum(1 for x in libs if x <= 1),
+    }
+
+def _wt_mi_score_diff_v1(state, player: str) -> int:
+    opp = other_player(player)
+    try:
+        return int(total_score(state, player) - total_score(state, opp))
+    except Exception:
+        try:
+            if player == "RED":
+                return int((state.scores.redTerritory + state.scores.redWord) - (state.scores.blueTerritory + state.scores.blueWord))
+            return int((state.scores.blueTerritory + state.scores.blueWord) - (state.scores.redTerritory + state.scores.redWord))
+        except Exception:
+            return 0
+
+def _wt_multi_impact_labels_v1(before_state, after_state, player: str, word: str, delta: dict, existing_labels: list[str]) -> list[str]:
+    effects = []
+    labels = list(existing_labels or [])
+    opp = other_player(player)
+
+    try:
+        territory_gain = int((delta or {}).get("territory_gain", 0) or 0)
+    except Exception:
+        territory_gain = 0
+    try:
+        capture_count = int((delta or {}).get("capture_count", 0) or 0)
+    except Exception:
+        capture_count = 0
+
+    if territory_gain >= 3:
+        effects.append("大きく獲得")
+    if capture_count >= 1 or "捕獲" in labels or "大奪取" in labels:
+        effects.append("捕獲")
+
+    before_my_regions = _wt_mi_safe_region_count_v1(before_state, player)
+    after_my_regions = _wt_mi_safe_region_count_v1(after_state, player)
+    if before_my_regions > 1 and after_my_regions < before_my_regions:
+        effects.append("接続")
+
+    before_opp_regions = _wt_mi_safe_region_count_v1(before_state, opp)
+    after_opp_regions = _wt_mi_safe_region_count_v1(after_state, opp)
+    if after_opp_regions > before_opp_regions:
+        effects.append("分断")
+
+    b_lib = _wt_mi_liberty_stats_v1(before_state, opp)
+    a_lib = _wt_mi_liberty_stats_v1(after_state, opp)
+    if a_lib["near"] > b_lib["near"] or a_lib["min"] < b_lib["min"]:
+        effects.append("OPEN詰め")
+
+    try:
+        wl = len(_norm_word(word))
+    except Exception:
+        wl = len(str(word or ""))
+    try:
+        lang = _LANG
+    except Exception:
+        lang = "ja"
+    if (lang == "ja" and wl >= 4) or (lang != "ja" and wl >= 5):
+        effects.append("長語")
+
+    uniq = []
+    for x in effects:
+        if x not in uniq:
+            uniq.append(x)
+
+    out = []
+    n = len(uniq)
+    if n >= 2:
+        if n >= 4:
+            out.append("四重の手")
+        elif n == 3:
+            out.append("三重の手")
+        else:
+            out.append("二重の手")
+        out.append("多重:" + "＋".join(uniq[:4]))
+
+    before_diff = _wt_mi_score_diff_v1(before_state, player)
+    after_diff = _wt_mi_score_diff_v1(after_state, player)
+    if before_diff < 0 and after_diff > 0 and ("逆転" in labels or capture_count >= 1 or territory_gain >= 3):
+        out.append("逆転の一手")
+
+    return out
+# WT_MULTI_IMPACT_V1_END
 
