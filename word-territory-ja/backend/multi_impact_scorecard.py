@@ -1,10 +1,11 @@
-# WT_MULTI_IMPACT_SCORECARD_V4
+# WT_MULTI_IMPACT_SCORECARD_V5_SECOND_KOMI
 # Run from project root:
 #   cd C:\Users\info\Downloads\word-territory-ja-clean\word-territory-ja
 #   py -3 .\backend\multi_impact_scorecard.py --games 60 --bot-level normal --max-turns 40
 #   py -3 .\backend\multi_impact_scorecard.py --games 30 --bot-level normal --max-turns 40 --paired
+#   py -3 .\backend\multi_impact_scorecard.py --games 30 --bot-level normal --max-turns 40 --paired --sweep-second-komi 0,2,4,6,8,10,12
 #
-# Diagnostic tool. It measures true gameplay peaks after Multi-Impact v4.
+# Diagnostic tool. It measures true gameplay peaks and virtual second-player komi.
 # It does not change game rules.
 
 import os
@@ -13,11 +14,15 @@ os.environ.setdefault("WT_LANG", "ja")
 import argparse
 import random
 import sys
-from collections import Counter, defaultdict
+from collections import Counter
 
 sys.path.insert(0, "backend")
 
 from engine import build_initial_state, apply_bot_move, pass_turn
+
+
+def other_player(player):
+    return "BLUE" if player == "RED" else "RED"
 
 
 def safe_bot(state):
@@ -42,6 +47,40 @@ def total_score(state, player):
     if player == "RED":
         return int(getattr(s, "redTerritory", 0) or 0) + int(getattr(s, "redWord", 0) or 0)
     return int(getattr(s, "blueTerritory", 0) or 0) + int(getattr(s, "blueWord", 0) or 0)
+
+
+def winner_from_scores(red, blue):
+    if red > blue:
+        return "RED"
+    if blue > red:
+        return "BLUE"
+    return "DRAW"
+
+
+def adjusted_scores(row, second_komi):
+    red = int(row["red"])
+    blue = int(row["blue"])
+    second = other_player(row["start_player"])
+    if second == "RED":
+        red += second_komi
+    else:
+        blue += second_komi
+    return red, blue
+
+
+def adjusted_winner(row, second_komi):
+    red, blue = adjusted_scores(row, second_komi)
+    return winner_from_scores(red, blue)
+
+
+def adjusted_first_player_won(row, second_komi):
+    w = adjusted_winner(row, second_komi)
+    return bool(w == row["start_player"])
+
+
+def adjusted_gap(row, second_komi):
+    red, blue = adjusted_scores(row, second_komi)
+    return abs(red - blue)
 
 
 def build_state(bot_level, start_player):
@@ -116,7 +155,7 @@ def run_match(i, seed, bot_level, max_turns, start_player):
 
     red = total_score(state, "RED")
     blue = total_score(state, "BLUE")
-    winner = "RED" if red > blue else "BLUE" if blue > red else "DRAW"
+    winner = winner_from_scores(red, blue)
     first_player_won = winner == start_player
 
     return {
@@ -150,7 +189,11 @@ def avg(rows, key):
     return round(sum(r[key] for r in rows) / len(rows), 3) if rows else 0
 
 
-def breakdown_by_start(rows):
+def avg_adjusted_gap(rows, second_komi):
+    return round(sum(adjusted_gap(r, second_komi) for r in rows) / len(rows), 3) if rows else 0
+
+
+def breakdown_by_start(rows, second_komi=0):
     out = {}
     for sp in ("RED", "BLUE"):
         sub = [r for r in rows if r["start_player"] == sp]
@@ -158,22 +201,29 @@ def breakdown_by_start(rows):
             continue
         out[sp] = {
             "games": len(sub),
-            "winners": dict(Counter(r["winner"] for r in sub)),
-            "first_wins": sum(1 for r in sub if r["first_player_won"]),
-            "avg_gap": avg(sub, "gap"),
+            "raw_winners": dict(Counter(r["winner"] for r in sub)),
+            "adj_winners": dict(Counter(adjusted_winner(r, second_komi) for r in sub)),
+            "raw_first_wins": sum(1 for r in sub if r["first_player_won"]),
+            "adj_first_wins": sum(1 for r in sub if adjusted_first_player_won(r, second_komi)),
+            "raw_avg_gap": avg(sub, "gap"),
+            "adj_avg_gap": avg_adjusted_gap(sub, second_komi),
         }
     return out
 
 
-def print_summary(rows, title):
+def print_summary(rows, title, second_komi):
     print()
     print(title)
     print("games:", len(rows))
-    print("winners:", dict(Counter(r["winner"] for r in rows)))
+    print("second_komi:", second_komi)
+    print("raw_winners:", dict(Counter(r["winner"] for r in rows)))
+    print("adjusted_winners:", dict(Counter(adjusted_winner(r, second_komi) for r in rows)))
     print("start_players:", dict(Counter(r["start_player"] for r in rows)))
-    print("by_start:", breakdown_by_start(rows))
-    print("first_player_wins:", sum(1 for r in rows if r["first_player_won"]), "/", len(rows))
-    print("avg_gap:", avg(rows, "gap"))
+    print("by_start:", breakdown_by_start(rows, second_komi))
+    print("raw_first_player_wins:", sum(1 for r in rows if r["first_player_won"]), "/", len(rows))
+    print("adjusted_first_player_wins:", sum(1 for r in rows if adjusted_first_player_won(r, second_komi)), "/", len(rows))
+    print("raw_avg_gap:", avg(rows, "gap"))
+    print("adjusted_avg_gap:", avg_adjusted_gap(rows, second_komi))
     print("avg_multi_total:", avg(rows, "multi_total"))
     print("avg_double:", avg(rows, "double"))
     print("avg_triple:", avg(rows, "triple"))
@@ -188,6 +238,32 @@ def print_summary(rows, title):
     print("avg_deadish_ratio:", avg(rows, "deadish_ratio"))
 
 
+def parse_komi_list(text):
+    vals = []
+    for raw in str(text or "").split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            vals.append(int(raw))
+        except ValueError:
+            raise SystemExit("invalid komi value: " + raw)
+    return vals
+
+
+def print_komi_sweep(rows, komi_values):
+    if not komi_values:
+        return
+    print()
+    print("=== SECOND-KOMI SWEEP ===")
+    print("komi, adjusted_winners, adjusted_first_player_wins, adjusted_avg_gap")
+    for k in komi_values:
+        winners = dict(Counter(adjusted_winner(r, k) for r in rows))
+        first = sum(1 for r in rows if adjusted_first_player_won(r, k))
+        gap = avg_adjusted_gap(rows, k)
+        print(f"{k}: winners={winners} first_wins={first}/{len(rows)} avg_gap={gap}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--games", type=int, default=60)
@@ -196,6 +272,8 @@ def main():
     ap.add_argument("--max-turns", type=int, default=40)
     ap.add_argument("--start-player", default="RED", choices=["RED", "BLUE"])
     ap.add_argument("--paired", action="store_true")
+    ap.add_argument("--second-komi", type=int, default=0)
+    ap.add_argument("--sweep-second-komi", default="")
     args = ap.parse_args()
 
     rows = []
@@ -207,8 +285,10 @@ def main():
         for start_player, seed in pair:
             row = run_match(len(rows) + 1, seed, args.bot_level, args.max_turns, start_player)
             rows.append(row)
+            adj_w = adjusted_winner(row, args.second_komi)
             print(
-                f"{len(rows):03d} start={row['start_player']} {row['winner']} gap={row['gap']} "
+                f"{len(rows):03d} start={row['start_player']} raw={row['winner']} adj={adj_w} "
+                f"rawgap={row['gap']} adjgap={adjusted_gap(row, args.second_komi)} "
                 f"multi={row['multi_total']} D/T/Q={row['double']}/{row['triple']}/{row['quad']} "
                 f"cap={row['capture_turns']} majorcap={row['major_capture_turns']} "
                 f"majorrev={row['major_reverse_turns']} oldrev={row['existing_reverse_labels']} "
@@ -216,16 +296,14 @@ def main():
                 f"best={row['best_word']} +{row['best_gain']} [{row['best_labels']}]"
             )
 
-    print_summary(rows, "=== MULTI-IMPACT SUMMARY V4 ===")
+    print_summary(rows, "=== MULTI-IMPACT SUMMARY V5 SECOND-KOMI ===", args.second_komi)
+    print_komi_sweep(rows, parse_komi_list(args.sweep_second_komi))
     print()
     print("Targets:")
-    print("- avg_multi_total: 2 to 5")
-    print("- avg_double: 1 to 3")
-    print("- avg_triple: 0.3 to 1.2")
-    print("- avg_quad: 0.0 to 0.3")
-    print("- games_with_major_reverse: 5 to 15 per 60 games")
-    print("- avg_deadish_ratio: 0.05 to 0.30")
-    print("- paired first_player_wins should be near 50 percent")
+    print("- paired adjusted_first_player_wins should move toward 50 percent")
+    print("- choose the smallest second_komi that avoids clear first-player dominance")
+    print("- after choosing komi, implement it in actual scoring only if gameplay still feels fair")
+    print("- avg_quad 0.0 to 0.3 remains acceptable")
 
 
 if __name__ == "__main__":
