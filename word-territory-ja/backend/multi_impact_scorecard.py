@@ -1,9 +1,10 @@
-# WT_MULTI_IMPACT_SCORECARD_V2
+# WT_MULTI_IMPACT_SCORECARD_V3
 # Run from project root:
 #   cd C:\Users\info\Downloads\word-territory-ja-clean\word-territory-ja
 #   py -3 .\backend\multi_impact_scorecard.py --games 60 --bot-level normal --max-turns 40
+#   py -3 .\backend\multi_impact_scorecard.py --games 30 --bot-level normal --max-turns 40 --paired
 #
-# Diagnostic tool. It measures gameplay density after Multi-Impact v2.
+# Diagnostic tool. It measures gameplay peaks after Multi-Impact v3.
 # It does not change game rules.
 
 import os
@@ -43,12 +44,22 @@ def total_score(state, player):
     return int(getattr(s, "blueTerritory", 0) or 0) + int(getattr(s, "blueWord", 0) or 0)
 
 
-def run_match(i, seed, bot_level, max_turns):
-    random.seed(seed)
+def build_state(bot_level, start_player):
     try:
         state = build_initial_state(bot_level=bot_level)
     except TypeError:
         state = build_initial_state(bot_level)
+    try:
+        if start_player in ("RED", "BLUE"):
+            state.currentPlayer = start_player
+    except Exception:
+        pass
+    return state
+
+
+def run_match(i, seed, bot_level, max_turns, start_player):
+    random.seed(seed)
+    state = build_state(bot_level, start_player)
 
     safety = 0
     while not getattr(state, "winner", None) and safety < max_turns:
@@ -59,7 +70,9 @@ def run_match(i, seed, bot_level, max_turns):
     tier_counts = Counter()
     capture_turns = 0
     major_capture_turns = 0
-    reverse_turns = 0
+    major_reverse_turns = 0
+    existing_reverse_labels = 0
+    bot_adjust_labels = 0
     deadish_turns = 0
     word_turns = 0
     best_word = ""
@@ -75,7 +88,7 @@ def run_match(i, seed, bot_level, max_turns):
 
         if move_type == "WORD" and word:
             word_turns += 1
-            has_dense = any(x in ls for x in ("二重の手", "三重の手", "四重の手", "逆転の一手"))
+            has_dense = any(x in ls for x in ("二重の手", "三重の手", "四重の手", "大逆転の一手"))
             has_known_effect = cap > 0 or gain >= 2 or any(("多重:" in x or x in ("橋渡し", "分断", "大奪取")) for x in ls)
             if not has_dense and not has_known_effect:
                 deadish_turns += 1
@@ -88,10 +101,14 @@ def run_match(i, seed, bot_level, max_turns):
             tier_counts["quad"] += 1
         if cap > 0:
             capture_turns += 1
-        if cap >= 2:
+        if cap >= 3:
             major_capture_turns += 1
-        if "逆転の一手" in ls:
-            reverse_turns += 1
+        if "大逆転の一手" in ls:
+            major_reverse_turns += 1
+        if any(x == "逆転の一手" or x == "逆転" for x in ls):
+            existing_reverse_labels += 1
+        if "Bot調整" in ls:
+            bot_adjust_labels += 1
         if gain > best_gain:
             best_gain = gain
             best_word = word
@@ -100,10 +117,13 @@ def run_match(i, seed, bot_level, max_turns):
     red = total_score(state, "RED")
     blue = total_score(state, "BLUE")
     winner = "RED" if red > blue else "BLUE" if blue > red else "DRAW"
+    first_player_won = (winner == start_player)
 
     return {
         "match": i,
+        "start_player": start_player,
         "winner": winner,
+        "first_player_won": bool(first_player_won),
         "red": red,
         "blue": blue,
         "gap": abs(red - blue),
@@ -115,7 +135,9 @@ def run_match(i, seed, bot_level, max_turns):
         "multi_total": tier_counts["double"] + tier_counts["triple"] + tier_counts["quad"],
         "capture_turns": capture_turns,
         "major_capture_turns": major_capture_turns,
-        "reverse_turns": reverse_turns,
+        "major_reverse_turns": major_reverse_turns,
+        "existing_reverse_labels": existing_reverse_labels,
+        "bot_adjust_labels": bot_adjust_labels,
         "deadish_turns": deadish_turns,
         "deadish_ratio": round(deadish_turns / word_turns, 3) if word_turns else 0,
         "best_word": best_word,
@@ -128,30 +150,13 @@ def avg(rows, key):
     return round(sum(r[key] for r in rows) / len(rows), 3) if rows else 0
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--games", type=int, default=60)
-    ap.add_argument("--seed", type=int, default=42000)
-    ap.add_argument("--bot-level", default="normal", choices=["easy", "normal", "strong"])
-    ap.add_argument("--max-turns", type=int, default=40)
-    args = ap.parse_args()
-
-    rows = []
-    for i in range(args.games):
-        row = run_match(i + 1, args.seed + i, args.bot_level, args.max_turns)
-        rows.append(row)
-        print(
-            f"{i+1:03d} {row['winner']} gap={row['gap']} "
-            f"multi={row['multi_total']} D/T/Q={row['double']}/{row['triple']}/{row['quad']} "
-            f"cap={row['capture_turns']} majorcap={row['major_capture_turns']} "
-            f"rev={row['reverse_turns']} dead={row['deadish_ratio']} "
-            f"best={row['best_word']} +{row['best_gain']} [{row['best_labels']}]"
-        )
-
+def print_summary(rows, title):
     print()
-    print("=== MULTI-IMPACT SUMMARY V2 ===")
+    print(title)
     print("games:", len(rows))
     print("winners:", dict(Counter(r["winner"] for r in rows)))
+    print("start_players:", dict(Counter(r["start_player"] for r in rows)))
+    print("first_player_wins:", sum(1 for r in rows if r["first_player_won"]), "/", len(rows))
     print("avg_gap:", avg(rows, "gap"))
     print("avg_multi_total:", avg(rows, "multi_total"))
     print("avg_double:", avg(rows, "double"))
@@ -161,15 +166,50 @@ def main():
     print("games_with_triple_plus:", sum(1 for r in rows if r["triple"] + r["quad"] > 0), "/", len(rows))
     print("avg_capture_turns:", avg(rows, "capture_turns"))
     print("avg_major_capture_turns:", avg(rows, "major_capture_turns"))
-    print("games_with_reverse:", sum(1 for r in rows if r["reverse_turns"] > 0), "/", len(rows))
+    print("games_with_major_reverse:", sum(1 for r in rows if r["major_reverse_turns"] > 0), "/", len(rows))
+    print("avg_existing_reverse_labels:", avg(rows, "existing_reverse_labels"))
+    print("avg_bot_adjust_labels:", avg(rows, "bot_adjust_labels"))
     print("avg_deadish_ratio:", avg(rows, "deadish_ratio"))
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--games", type=int, default=60)
+    ap.add_argument("--seed", type=int, default=42000)
+    ap.add_argument("--bot-level", default="normal", choices=["easy", "normal", "strong"])
+    ap.add_argument("--max-turns", type=int, default=40)
+    ap.add_argument("--start-player", default="RED", choices=["RED", "BLUE"])
+    ap.add_argument("--paired", action="store_true")
+    args = ap.parse_args()
+
+    rows = []
+    for i in range(args.games):
+        if args.paired:
+            pair = [("RED", args.seed + i * 2), ("BLUE", args.seed + i * 2 + 1)]
+        else:
+            pair = [(args.start_player, args.seed + i)]
+        for start_player, seed in pair:
+            row = run_match(len(rows) + 1, seed, args.bot_level, args.max_turns, start_player)
+            rows.append(row)
+            print(
+                f"{len(rows):03d} start={row['start_player']} {row['winner']} gap={row['gap']} "
+                f"multi={row['multi_total']} D/T/Q={row['double']}/{row['triple']}/{row['quad']} "
+                f"cap={row['capture_turns']} majorcap={row['major_capture_turns']} "
+                f"majorrev={row['major_reverse_turns']} oldrev={row['existing_reverse_labels']} "
+                f"botadj={row['bot_adjust_labels']} dead={row['deadish_ratio']} "
+                f"best={row['best_word']} +{row['best_gain']} [{row['best_labels']}]"
+            )
+
+    print_summary(rows, "=== MULTI-IMPACT SUMMARY V3 ===")
     print()
     print("Targets:")
-    print("- Quick 5x5 double: 1 to 3 per game")
-    print("- Quick 5x5 triple: at least once every 2 to 3 games")
-    print("- Quick 5x5 quad: about once every 10 games")
-    print("- Standard 7x7 can be higher, but quad every game is too common")
-    print("- deadish_ratio above 0.30 means low-density turns remain")
+    print("- avg_multi_total: 2 to 5")
+    print("- avg_double: 1 to 3")
+    print("- avg_triple: 0.3 to 1.2")
+    print("- avg_quad: 0.0 to 0.3")
+    print("- games_with_major_reverse: 5 to 15 per 60 games")
+    print("- avg_deadish_ratio: 0.05 to 0.30")
+    print("- paired first_player_wins should be near 50 percent")
 
 
 if __name__ == "__main__":
