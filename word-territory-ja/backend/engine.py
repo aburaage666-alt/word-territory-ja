@@ -8259,3 +8259,48 @@ def _wt_multi_impact_labels_v4(before_state, after_state, player: str, word: str
     return out
 # WT_MULTI_IMPACT_V4_END
 
+
+# WT_SECOND_PLAYER_KOMI_FINAL_OVERRIDE_V3_BEGIN
+# Final override for dynamic second-player komi.
+# This block is intentionally placed at the end of engine.py so these definitions win.
+# Bot/evaluation calls total_score(), which is RAW.
+# Final winner calls komi_adjusted_total_score(), which gives the second player +4.0.
+
+_SECOND_PLAYER_KOMI_FINAL_OVERRIDE_V3 = 4.0
+
+def _wt_starting_player_final_override_v3(state: GameState) -> str:
+    sp = getattr(state, "startingPlayer", None)
+    return sp if sp in ("RED", "BLUE") else "RED"
+
+def _wt_second_player_final_override_v3(state: GameState) -> str:
+    return "BLUE" if _wt_starting_player_final_override_v3(state) == "RED" else "RED"
+
+def _wt_second_player_komi_amount_final_override_v3(state: GameState, player: str) -> float:
+    try:
+        komi = float(getattr(state, "secondPlayerKomi", _SECOND_PLAYER_KOMI_FINAL_OVERRIDE_V3))
+    except Exception:
+        komi = _SECOND_PLAYER_KOMI_FINAL_OVERRIDE_V3
+    return komi if player == _wt_second_player_final_override_v3(state) else 0.0
+
+def raw_total_score(state: GameState, player: str) -> float:
+    if player == "RED":
+        return state.scores.redTerritory * 1.5 + state.scores.redWord
+    return state.scores.blueTerritory * 1.5 + state.scores.blueWord
+
+def total_score(state: GameState, player: str) -> float:
+    # RAW only. Bot/evaluation code must not receive komi.
+    return raw_total_score(state, player)
+
+def komi_adjusted_total_score(state: GameState, player: str) -> float:
+    return raw_total_score(state, player) + _wt_second_player_komi_amount_final_override_v3(state, player)
+
+def decide_winner(state: GameState):
+    red_total = komi_adjusted_total_score(state, "RED")
+    blue_total = komi_adjusted_total_score(state, "BLUE")
+    if red_total > blue_total:
+        return "RED"
+    if blue_total > red_total:
+        return "BLUE"
+    return "DRAW"
+# WT_SECOND_PLAYER_KOMI_FINAL_OVERRIDE_V3_END
+

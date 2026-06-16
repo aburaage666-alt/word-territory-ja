@@ -274,7 +274,7 @@ def main():
     ap.add_argument("--max-turns", type=int, default=40)
     ap.add_argument("--start-player", default="RED", choices=["RED", "BLUE"])
     ap.add_argument("--paired", action="store_true")
-    ap.add_argument("--second-komi", type=int, default=0)
+    ap.add_argument("--second-komi", type=int, default=4)
     ap.add_argument("--sweep-second-komi", default="")
     args = ap.parse_args()
 
