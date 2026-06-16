@@ -8418,3 +8418,137 @@ def decide_winner(state: GameState):
     return "DRAW"
 # WT_SECOND_PLAYER_KOMI_6_FINAL_OVERRIDE_V1_END
 
+# WT_LONGWORD_MARKET_V3_OVERRIDE_BEGIN
+# Direct legal-move long-word market repair.
+# V2 depended too much on find_almost_words. V3 scans candidate letters through
+# _fast_bot_moves_for_letter. It changes market offers only.
+# No scoring, capture, bot evaluation, or winner logic changes.
+def _wt_longword_market_candidates_v2(state, min_len: int = 4, limit: int = 12) -> list[dict]:
+    if _LANG != "ja":
+        return []
+
+    try:
+        excluded = set(getattr(state, "usedWords", []) or [])
+    except Exception:
+        excluded = set()
+
+    letters = []
+    try:
+        for l in list(getattr(state, "marketLetters", []) or []) + list(getattr(state, "previewLetters", []) or []):
+            if l and l not in letters:
+                letters.append(l)
+    except Exception:
+        pass
+
+    try:
+        weighted = sorted(list(_ALL_LETTERS), key=lambda x: -int(_LETTER_WEIGHTS.get(x, 1)))
+    except Exception:
+        weighted = list(_ALL_LETTERS)
+
+    for l in weighted:
+        if l and l not in letters:
+            letters.append(l)
+
+    out = []
+    seen = set()
+    for l in letters:
+        if not l or l in seen:
+            continue
+        seen.add(l)
+        try:
+            moves = _fast_bot_moves_for_letter(state, l, max_results=12, excluded=excluded)
+        except Exception:
+            moves = []
+
+        best_word = ""
+        best_gain = 0
+        long_count = 0
+        for m in moves or []:
+            w = str(m.get("word", "") or "")
+            if len(w) >= min_len:
+                long_count += 1
+                gain = int(m.get("territory_gain", 0) or 0)
+                if len(w) > len(best_word) or (len(w) == len(best_word) and gain > best_gain):
+                    best_word = w
+                    best_gain = gain
+
+        if best_word:
+            out.append({
+                "letter": l,
+                "word": best_word,
+                "length": len(best_word),
+                "gain": best_gain,
+                "count": long_count,
+            })
+            if len(out) >= limit * 2:
+                break
+
+    out.sort(key=lambda x: (
+        int(x.get("length", 0)),
+        int(x.get("gain", 0)),
+        int(x.get("count", 0)),
+    ), reverse=True)
+    return out[:limit]
+
+
+def _wt_active_has_long_letter_v3(state, active: list[str], min_len: int = 4) -> bool:
+    try:
+        excluded = set(getattr(state, "usedWords", []) or [])
+    except Exception:
+        excluded = set()
+    for l in active or []:
+        try:
+            moves = _fast_bot_moves_for_letter(state, l, max_results=8, excluded=excluded)
+        except Exception:
+            moves = []
+        for m in moves or []:
+            if len(str(m.get("word", "") or "")) >= min_len:
+                return True
+    return False
+
+
+def _wt_enforce_longword_market_v2(state, active: list[str], preview: list[str] | None = None) -> tuple[list[str], list[str]]:
+    if _LANG != "ja":
+        return list(active or [])[:3], list(preview or [])[:3]
+
+    active = list(active or [])[:3]
+    preview = list(preview or [])[:3]
+    if not active:
+        return active, preview
+
+    cands = _wt_longword_market_candidates_v2(state, min_len=4, limit=16)
+    if not cands:
+        return active, preview
+
+    active_set = set(active)
+    if not _wt_active_has_long_letter_v3(state, active, min_len=4):
+        chosen = next((c for c in cands if c["letter"] not in active_set), cands[0])
+        chosen_letter = chosen["letter"]
+
+        scored = []
+        for i, l in enumerate(active):
+            try:
+                st = _letter_best_stats(state, l)
+                best_len = len(str(st.get("bestWord", "") or ""))
+                word_count = int(st.get("wordCount", 0) or 0)
+                best_gain = int(st.get("bestGain", 0) or 0)
+            except Exception:
+                best_len = 0
+                word_count = 0
+                best_gain = 0
+            scored.append((1 if best_len >= 4 else 0, word_count, best_gain, i))
+
+        replace_idx = sorted(scored)[0][3]
+        active[replace_idx] = chosen_letter
+        active_set = set(active)
+
+    preview_set = set(preview)
+    if preview:
+        for c in cands:
+            l = c["letter"]
+            if l not in active_set and l not in preview_set:
+                preview[-1] = l
+                break
+
+    return active[:3], preview[:3]
+# WT_LONGWORD_MARKET_V3_OVERRIDE_END
