@@ -91,6 +91,8 @@ def build_state(bot_level, start_player):
     try:
         if start_player in ("RED", "BLUE"):
             state.currentPlayer = start_player
+            state.startingPlayer = start_player
+            state.secondPlayerKomi = 4.0
     except Exception:
         pass
     return state

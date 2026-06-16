@@ -161,11 +161,34 @@ def clone_state(state: GameState) -> GameState:
     return deepcopy(state)
 
 
-def total_score(state: GameState, player: str) -> float:
+
+# WT_SECOND_PLAYER_KOMI_V1_BEGIN
+# Dynamic second-player komi.
+# The second player receives +4.0 total score points.
+# This corrects the measured first-player bias without changing placement/capture rules.
+
+def _wt_starting_player_v1(state: GameState) -> str:
+    sp = getattr(state, "startingPlayer", None)
+    return sp if sp in ("RED", "BLUE") else "RED"
+
+def _wt_second_player_v1(state: GameState) -> str:
+    return other_player(_wt_starting_player_v1(state))
+
+def _wt_second_player_komi_v1(state: GameState, player: str) -> float:
+    try:
+        komi = float(getattr(state, "secondPlayerKomi", _SECOND_PLAYER_KOMI))
+    except Exception:
+        komi = float(_SECOND_PLAYER_KOMI)
+    return komi if player == _wt_second_player_v1(state) else 0.0
+
+def raw_total_score(state: GameState, player: str) -> float:
     if player == "RED":
         return state.scores.redTerritory * 1.5 + state.scores.redWord
     return state.scores.blueTerritory * 1.5 + state.scores.blueWord
+# WT_SECOND_PLAYER_KOMI_V1_END
 
+def total_score(state: GameState, player: str) -> float:
+    return raw_total_score(state, player) + _wt_second_player_komi_v1(state, player)
 
 def count_territory(state: GameState, player: str) -> int:
     return sum(1 for row in state.board for cell in row if cell.owner == player)
@@ -223,6 +246,8 @@ def build_initial_state(bot_level: str = "easy", opening_idx: int | None = None)
         boardSize=BOARD_SIZE,
         board=board,
         currentPlayer="RED",
+        startingPlayer="RED",
+        secondPlayerKomi=_SECOND_PLAYER_KOMI,
         turn=1,
         usedWords=[],
         recentMoves=[],
@@ -2630,16 +2655,16 @@ def is_game_over(state: GameState) -> bool:
 
 
 def decide_winner(state: GameState):
-    # 案4: territory count is primary (Othello-style)
-    red_t = count_territory(state, "RED")
-    blue_t = count_territory(state, "BLUE")
-    if red_t != blue_t:
-        return "RED" if red_t > blue_t else "BLUE"
-    # Tiebreak: word score
-    if state.scores.redWord != state.scores.blueWord:
-        return "RED" if state.scores.redWord > state.scores.blueWord else "BLUE"
+    # WT_SECOND_PLAYER_KOMI_V1:
+    # Winner is decided by komi-adjusted total_score.
+    # This is dynamic: if RED starts, BLUE receives komi; if BLUE starts, RED receives komi.
+    red_total = total_score(state, "RED")
+    blue_total = total_score(state, "BLUE")
+    if red_total > blue_total:
+        return "RED"
+    if blue_total > red_total:
+        return "BLUE"
     return "DRAW"
-
 
 # BOT
 
@@ -5414,7 +5439,7 @@ except Exception:
 # This affects final winner determination only. It does not change legal moves,
 # word validation, captures, locks, or Bot move selection.
 
-_SECOND_PLAYER_KOMI = 4.0
+_SECOND_PLAYER_KOMI = 4.0  # WT_SECOND_PLAYER_KOMI_V1: 後手コミ4点（勝敗・総点用）
 
 def decide_winner(state):
     red_t = count_territory(state, "RED")
