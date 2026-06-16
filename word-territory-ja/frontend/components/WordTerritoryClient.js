@@ -830,6 +830,43 @@ function wtDaziTargetKeys(state) {
   return keys;
 }
 
+
+// WT_SECOND_PLAYER_BONUS_UI_V3
+// Display helper for final score.
+// Japanese UI: 後攻ボーナス +6：🔵 BLUE
+// English UI: Second-player bonus +6: BLUE
+const wtBonusStartingPlayer = (st) => st?.startingPlayer === "BLUE" ? "BLUE" : "RED";
+const wtBonusSecondPlayer = (st) => wtBonusStartingPlayer(st) === "RED" ? "BLUE" : "RED";
+const wtBonusValue = (st) => {
+  const n = Number(st?.secondPlayerKomi);
+  return Number.isFinite(n) ? n : 6;
+};
+const wtBonusTerritory = (st, p) => {
+  if (!st || !st.scores) return 0;
+  return p === "RED" ? Number(st.scores.redTerritory || 0) : Number(st.scores.blueTerritory || 0);
+};
+const wtBonusWord = (st, p) => {
+  if (!st || !st.scores) return 0;
+  return p === "RED" ? Number(st.scores.redWord || 0) : Number(st.scores.blueWord || 0);
+};
+const wtBonusRawTotal = (st, p) => wtBonusTerritory(st, p) * 1.5 + wtBonusWord(st, p);
+const wtBonusFinalTotal = (st, p) => wtBonusRawTotal(st, p) + (wtBonusSecondPlayer(st) === p ? wtBonusValue(st) : 0);
+const wtBonusFmt = (n) => {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "0";
+  return Number.isInteger(x) ? String(x) : x.toFixed(1);
+};
+const wtSecondPlayerBonusLabelJa = (st) => {
+  const p = wtBonusSecondPlayer(st);
+  const player = p === "RED" ? "🔴 RED" : "🔵 BLUE";
+  return `後攻ボーナス +${wtBonusFmt(wtBonusValue(st))}：${player}`;
+};
+const wtSecondPlayerBonusLabelEn = (st) => {
+  const p = wtBonusSecondPlayer(st);
+  const player = p === "RED" ? "RED" : "BLUE";
+  return `Second-player bonus +${wtBonusFmt(wtBonusValue(st))}: ${player}`;
+};
+
 export default function Home() {
 
   // WT_JA_FINAL_UI_POLISH_V1
@@ -3541,6 +3578,12 @@ async function submitScore() {
   const lockedS   = new Set((state?.lastFortifiedCells  ||[]).map(c=>asKey(c.row,c.col)));
   const lockedOrderMap = new Map((state?.lastFortifiedCells||[]).map((c,i)=>[asKey(c.row,c.col), i]));
   const redT = tScore(state,"RED"), blueT = tScore(state,"BLUE");
+  // WT_SECOND_PLAYER_BONUS_DERIVED_V3
+  const redFinalT = state ? wtBonusFinalTotal(state, "RED") : 0;
+  const blueFinalT = state ? wtBonusFinalTotal(state, "BLUE") : 0;
+  const secondPlayerBonusLabel = state ? wtSecondPlayerBonusLabelJa(state) : "後攻ボーナス +6：🔵 BLUE";
+  const secondPlayerBonusLabelEn = state ? wtSecondPlayerBonusLabelEn(state) : "Second-player bonus +6: BLUE";
+
   const comebackChance = state && !state.winner && state.currentPlayer && state.currentPlayer !== state.botPlayer
     ? (() => { const p=state.currentPlayer; const opp=p==="RED"?"BLUE":"RED";
                const my=tScore(state,p), op=tScore(state,opp); return op-my>=6; })()
@@ -3858,11 +3901,17 @@ async function submitScore() {
         <div className="srow">
           <span className="stxt red-t">🔴 {redT} cells</span>
           <span className="smid">
-            {redT===blueT ? "同点" : `${redT>blueT?"🔴 RED":"🔵 BLUE"} +${Math.abs(redT-blueT)}`}
+            {redFinalT===blueFinalT ? "最終同点" : `${redFinalT>blueFinalT?"🔴 RED":"🔵 BLUE"} +${wtBonusFmt(Math.abs(redFinalT-blueFinalT))}`}
           </span>
           <span className="stxt blue-t">{blueT} cells 🔵</span>
         </div>
         <div className="bar"><div className="br" style={{width:`${pct}%`}}/><div className="bb" style={{width:`${100-pct}%`}}/></div>
+        {state && (
+          <div className="bonus-note">
+            最終点: 🔴 {wtBonusFmt(redFinalT)} – {wtBonusFmt(blueFinalT)} 🔵
+            <span>{secondPlayerBonusLabel}</span>
+          </div>
+        )}
       </div>
 
       {/* ── rules ── */}
@@ -3963,14 +4012,14 @@ async function submitScore() {
                  state.winner === "RED"  ? "🔴 REDの勝ち！" :
                                            "🔵 BLUEの勝ち！"}
                 <span className="winner-score">
-                  {state.winner !== "DRAW" && ` · ${Math.max(redT,blueT)}–${Math.min(redT,blueT)}`}
+                  {state.winner !== "DRAW" && ` · 最終 ${wtBonusFmt(redFinalT)}–${wtBonusFmt(blueFinalT)}`}
                 </span>
                 {bestMove && <div className="best-move-inline">最大領地変動: <strong>{moveLabel(bestMove)}</strong></div>}
               </div>
               <div className="battle-report-card report-polished">
                 <div className="report-head">
                   <div><span className="report-kicker">対戦レポート</span><strong>{state.openingName}</strong></div>
-                  <div className="report-score"><span>🔴 {redT}</span><span>🔵 {blueT}</span></div>
+                  <div className="report-score"><span>🔴 最終 {wtBonusFmt(redFinalT)}</span><span>🔵 最終 {wtBonusFmt(blueFinalT)}</span></div>
                 </div>
                 {bestMove && <div className="report-best"><span>最大領地変動</span><strong>{moveLabel(bestMove)}</strong></div>}
                 <div className="report-stats">
@@ -3980,7 +4029,7 @@ async function submitScore() {
                 </div>
                 {state?.board && <pre className="report-emoji">{buildEmojiBoard(state.board)}</pre>}
                 <div className="report-actions">
-                  <button className="bcopy" onClick={async()=>{try{await navigator.clipboard.writeText(buildShare(dailyInfo?.dayNumber || "無料", "", {winner:state.winner, redScore:redT, blueScore:blueT, bestMove:bestMove?moveLabel(bestMove):"", openingName:state.openingName, emojiBoard:buildEmojiBoard(state.board)}));setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}}}>{copied?"✓ コピーしました":"結果をコピー"}</button>
+                  <button className="bcopy" onClick={async()=>{try{await navigator.clipboard.writeText(buildShare(dailyInfo?.dayNumber || "無料", "", {winner:state.winner, redScore:wtBonusFmt(redFinalT), blueScore:wtBonusFmt(blueFinalT), bestMove:bestMove?moveLabel(bestMove):"", openingName:state.openingName, emojiBoard:buildEmojiBoard(state.board)}));setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}}}>{copied?"✓ コピーしました":"結果をコピー"}</button>
                   <button className="bcopy" onClick={async()=>{try{await navigator.clipboard.writeText(buildEmojiBoard(state.board));setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}}}>盤面をコピー</button>
                 </div>
               </div>
@@ -4577,6 +4626,9 @@ async function submitScore() {
                      font-weight:900;border-radius:12px;margin-bottom:8px;letter-spacing:1px}
       .battle-title{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#94a3b8;margin-bottom:4px}
       .winner-score{font-size:16px;font-weight:400;color:#aaa;margin-left:8px}
+      /* WT_SECOND_PLAYER_BONUS_CSS_V3 */
+      .bonus-note{margin-top:6px;text-align:center;font-size:12px;color:#475569;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+      .bonus-note span{background:#fff7ed;border:1px solid #fed7aa;border-radius:999px;padding:2px 8px;color:#9a3412;font-weight:800}
       .best-move-inline{font-size:13px;color:#f8fafc;margin-top:4px;letter-spacing:.2px}
       .best-move-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin:12px 0;font-size:13px;color:#111}
       .battle-report-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:0 6px 24px rgba(15,23,42,.06)}
