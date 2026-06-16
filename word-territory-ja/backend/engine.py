@@ -1282,6 +1282,25 @@ def generate_letter_market(state: GameState) -> tuple[list[str], list[str]]:
     except Exception:
         pass
 
+    # WT_SAFE_ATTACH_LONGWORD_MARKET_V1
+    # Long-word bias: surface the letter that completes the longest reachable word.
+    # This makes 4-5 kana words appear in real play more often without changing scoring.
+    try:
+        longs = [a for a in find_almost_words(state, limit=12) if a.get("length", 0) >= 4]
+        if longs:
+            best = max(longs, key=lambda a: a["length"])
+            ll = best["needs"]
+            if ll not in board_letters:
+                entry = dict(playable.get(ll, {"words": 1, "gain": 2, "best_word": "",
+                                               "power": True, "is_vowel": ll in VOWELS}))
+                entry["gain"] = max(int(entry.get("gain", 0)), best["length"] + 2)
+                entry["power"] = True
+                entry["best_word"] = best.get("word", entry.get("best_word", ""))
+                entry["words"] = max(1, int(entry.get("words", 0)))
+                playable[ll] = entry
+    except Exception:
+        pass
+
     def pick(pool_dict, key_fn, exclude):
         candidates = [(l, s) for l, s in pool_dict.items() if l not in exclude]
         if not candidates:
