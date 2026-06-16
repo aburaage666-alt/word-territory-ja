@@ -1051,6 +1051,9 @@ def _letter_best_stats(state: GameState, letter: str) -> dict:
         else:
             roles.append("布石")
 
+    # WT_LONGWORD_MARKET_V2_ROLE_BOOST
+    if _LANG == "ja" and len(str(best_word or "")) >= 4 and "LONG" not in roles:
+        roles.append("LONG")
     best_role = _pick_best_role(roles, len(moves), best_gain, best_word)
     payload = {
         "wordCount": len(moves),
@@ -1248,6 +1251,94 @@ def _apply_comeback_wild(state: GameState, active: list[str]) -> list[str]:
         return active
 
 
+
+# WT_LONGWORD_MARKET_V2_BEGIN
+# Strong but safe long-word market bias for JP.
+# Goal: increase 4+ kana word reach without changing scoring, capture, bot evaluation,
+# or final winner logic. It only changes which market letters are offered.
+def _wt_longword_market_candidates_v2(state, min_len: int = 4, limit: int = 12) -> list[dict]:
+    if _LANG != "ja":
+        return []
+    try:
+        board = board_letters_set(state)
+        almost = find_almost_words(state, limit=max(24, limit * 4))
+    except Exception:
+        return []
+
+    out = []
+    seen = set()
+    for a in sorted(almost, key=lambda x: (int(x.get("length", 0) or 0), len(str(x.get("word", "")))), reverse=True):
+        l = str(a.get("needs", "") or "")
+        w = str(a.get("word", "") or "")
+        ln = int(a.get("length", 0) or len(w))
+        if not l or l in board or l in seen:
+            continue
+        if ln < min_len:
+            continue
+        seen.add(l)
+        out.append({"letter": l, "word": w, "length": ln})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _wt_market_letter_best_word_len_v2(state, letter: str) -> int:
+    try:
+        stats = _letter_best_stats(state, letter)
+        return len(str(stats.get("bestWord", "") or ""))
+    except Exception:
+        return 0
+
+
+def _wt_enforce_longword_market_v2(state, active: list[str], preview: list[str] | None = None) -> tuple[list[str], list[str]]:
+    # Guarantee one active long-word enabler when the board offers one.
+    # Conservative: JP only, no score/capture/final-winner change, and no forced play.
+    if _LANG != "ja":
+        return list(active or [])[:3], list(preview or [])[:3]
+
+    active = list(active or [])[:3]
+    preview = list(preview or [])[:3]
+    if not active:
+        return active, preview
+
+    cands = _wt_longword_market_candidates_v2(state, min_len=4, limit=16)
+    if not cands:
+        return active, preview
+
+    active_set = set(active)
+    preview_set = set(preview)
+    has_long = any(c["letter"] in active_set for c in cands)
+    if not has_long:
+        chosen = next((c for c in cands if c["letter"] not in active_set), cands[0])
+        chosen_letter = chosen["letter"]
+
+        scored = []
+        for i, l in enumerate(active):
+            try:
+                st = _letter_best_stats(state, l)
+                best_len = len(str(st.get("bestWord", "") or ""))
+                word_count = int(st.get("wordCount", 0) or 0)
+                best_gain = int(st.get("bestGain", 0) or 0)
+            except Exception:
+                best_len = 0
+                word_count = 0
+                best_gain = 0
+            scored.append((1 if best_len >= 4 else 0, word_count, best_gain, i))
+
+        replace_idx = sorted(scored)[0][3]
+        active[replace_idx] = chosen_letter
+        active_set = set(active)
+
+    if preview:
+        for c in cands:
+            l = c["letter"]
+            if l not in active_set and l not in preview_set:
+                preview[-1] = l
+                break
+
+    return active[:3], preview[:3]
+# WT_LONGWORD_MARKET_V2_END
+
 def generate_letter_market(state: GameState) -> tuple[list[str], list[str]]:
     """
     3-slot Letter Market:
@@ -1418,6 +1509,8 @@ def generate_letter_market(state: GameState) -> tuple[list[str], list[str]]:
         if vowels_avail:
             preview[-1] = _r.choice(vowels_avail)
 
+    # WT_LONGWORD_MARKET_V2_CALL_GENERATE
+    active, preview = _wt_enforce_longword_market_v2(state, active, preview)
     active = _apply_comeback_wild(state, active)
     return active[:3], preview[:3]
 
@@ -1477,6 +1570,8 @@ def advance_market(state: GameState, used_letter: str) -> tuple[list[str], list[
         l = _r.choices(pool, weights=[_LETTER_WEIGHTS[l] for l in pool])[0]
         preview.append(l); existing.add(l)
 
+    # WT_LONGWORD_MARKET_V2_CALL_ADVANCE
+    active, preview = _wt_enforce_longword_market_v2(state, active, preview)
     active = _apply_comeback_wild(state, active)
     return active[:3], preview[:3]
 
