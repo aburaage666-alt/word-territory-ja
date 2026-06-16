@@ -1,3 +1,4 @@
+# WT_SCORECARD_ENGINE_SCORE_ALIGNMENT_V1
 # WT_MULTI_IMPACT_SCORECARD_V5_SECOND_KOMI
 # Run from project root:
 #   cd C:\Users\info\Downloads\word-territory-ja-clean\word-territory-ja
@@ -18,6 +19,7 @@ from collections import Counter
 
 sys.path.insert(0, "backend")
 
+import engine as _wt_engine_mod
 from engine import build_initial_state, apply_bot_move, pass_turn
 
 
@@ -40,14 +42,19 @@ def labels(move):
     return [str(x) for x in (getattr(move, "comboLabels", None) or [])]
 
 
+
 def total_score(state, player):
+    # Engine-aligned RAW score.
+    # Prefer engine.raw_total_score when available. Fallback keeps the current
+    # territory weight used by engine.total_score: territory * 1.5 + word points.
+    if hasattr(_wt_engine_mod, "raw_total_score"):
+        return float(_wt_engine_mod.raw_total_score(state, player))
     s = getattr(state, "scores", None)
     if not s:
-        return 0
+        return 0.0
     if player == "RED":
-        return int(getattr(s, "redTerritory", 0) or 0) + int(getattr(s, "redWord", 0) or 0)
-    return int(getattr(s, "blueTerritory", 0) or 0) + int(getattr(s, "blueWord", 0) or 0)
-
+        return float(getattr(s, "redTerritory", 0) or 0) * 1.5 + float(getattr(s, "redWord", 0) or 0)
+    return float(getattr(s, "blueTerritory", 0) or 0) * 1.5 + float(getattr(s, "blueWord", 0) or 0)
 
 def winner_from_scores(red, blue):
     if red > blue:
@@ -298,7 +305,7 @@ def main():
                 f"best={row['best_word']} +{row['best_gain']} [{row['best_labels']}]"
             )
 
-    print_summary(rows, "=== MULTI-IMPACT SUMMARY V5 SECOND-KOMI ===", args.second_komi)
+    print_summary(rows, "=== MULTI-IMPACT SUMMARY V6 ENGINE-SCORE ===", args.second_komi)
     print_komi_sweep(rows, parse_komi_list(args.sweep_second_komi))
     print()
     print("Targets:")
