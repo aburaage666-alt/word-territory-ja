@@ -99,7 +99,7 @@ def build_state(bot_level, start_player):
         if start_player in ("RED", "BLUE"):
             state.currentPlayer = start_player
             state.startingPlayer = start_player
-            state.secondPlayerKomi = 4.0
+            state.secondPlayerKomi = 6.0
     except Exception:
         pass
     return state
@@ -281,7 +281,7 @@ def main():
     ap.add_argument("--max-turns", type=int, default=40)
     ap.add_argument("--start-player", default="RED", choices=["RED", "BLUE"])
     ap.add_argument("--paired", action="store_true")
-    ap.add_argument("--second-komi", type=int, default=4)
+    ap.add_argument("--second-komi", type=int, default=6)
     ap.add_argument("--sweep-second-komi", default="")
     args = ap.parse_args()
 
@@ -305,7 +305,7 @@ def main():
                 f"best={row['best_word']} +{row['best_gain']} [{row['best_labels']}]"
             )
 
-    print_summary(rows, "=== MULTI-IMPACT SUMMARY V6 ENGINE-SCORE ===", args.second_komi)
+    print_summary(rows, "=== MULTI-IMPACT SUMMARY V7 KOMI6 ENGINE-SCORE ===", args.second_komi)
     print_komi_sweep(rows, parse_komi_list(args.sweep_second_komi))
     print()
     print("Targets:")

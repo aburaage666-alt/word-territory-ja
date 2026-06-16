@@ -49,7 +49,7 @@ class GameState(BaseModel):
     board: List[List[Cell]]
     currentPlayer: Player
     startingPlayer: Player = "RED"
-    secondPlayerKomi: float = 4.0
+    secondPlayerKomi: float = 6.0
     turn: int
     usedWords: List[str]
     recentMoves: List[str]
