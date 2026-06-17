@@ -8755,3 +8755,211 @@ def _wt_small_group_capture_after_cap_v3(before, after, player, word, turn) -> i
 
     return added
 # WT_SMALL_GROUP_CAPTURE_V3_END
+
+# WT_PAIR_CAPTURE_V4_BEGIN
+# Pair-capture wrapper test.
+# Purpose:
+# - V3 showed pair shapes exist but the hook/cap path did not produce multi-cell captures.
+# - V4 wraps validate_and_apply_move so a 4+ kana move that captures one cell
+#   from a 2-cell enemy group captures the paired cell too.
+# - Bot test wrapper occasionally selects such a candidate so diagnostics can measure it.
+# Limits:
+# - JP only for 4+ kana pair capture.
+# - one paired cell max per move.
+# - no final score / second-player bonus changes.
+_WT_PAIR_CAPTURE_V4_ENABLED = True
+_WT_PAIR_CAPTURE_BOT_TEST_ENABLED = True
+_WT_PAIR_CAPTURE_BOT_TEST_MOD = 10
+_WT_PAIR_CAPTURE_BOT_TEST_PHASE = 4
+
+if "_wt_original_validate_apply_v4" not in globals():
+    _wt_original_validate_apply_v4 = validate_and_apply_move
+if "_wt_original_apply_bot_move_v4" not in globals():
+    _wt_original_apply_bot_move_v4 = apply_bot_move
+
+
+def _wt_groups_for_owner_v4(state, owner):
+    seen = set()
+    groups = []
+    for r in range(len(state.board)):
+        for c in range(len(state.board[r])):
+            if (r, c) in seen:
+                continue
+            if state.board[r][c].owner != owner:
+                continue
+            stack = [(r, c)]
+            cells = []
+            while stack:
+                cr, cc = stack.pop()
+                if (cr, cc) in seen:
+                    continue
+                if state.board[cr][cc].owner != owner:
+                    continue
+                seen.add((cr, cc))
+                cells.append((cr, cc))
+                for nr, nc in get_neighbors(cr, cc):
+                    if (nr, nc) not in seen and state.board[nr][nc].owner == owner:
+                        stack.append((nr, nc))
+            if cells:
+                groups.append(tuple(sorted(cells)))
+    return groups
+
+
+def _wt_pair_capture_add_v4(before, after, player, word):
+    if not globals().get("_WT_PAIR_CAPTURE_V4_ENABLED", False):
+        return 0
+    if _LANG == "ja" and len(_norm_word(word or "")) < 4:
+        return 0
+
+    opponent = other_player(player)
+    added = 0
+
+    for group in _wt_groups_for_owner_v4(before, opponent):
+        if len(group) != 2:
+            continue
+
+        captured_now = []
+        remaining = []
+        for r, c in group:
+            if after.board[r][c].owner == player:
+                captured_now.append((r, c))
+            else:
+                remaining.append((r, c))
+
+        if len(captured_now) != 1 or len(remaining) != 1:
+            continue
+
+        rr, cc = remaining[0]
+        cell = after.board[rr][cc]
+        if getattr(cell, "fortified", False):
+            continue
+        try:
+            if _is_capture_cooling(after, rr, cc, player):
+                continue
+        except Exception:
+            pass
+
+        cell.owner = player
+        added += 1
+        break
+
+    if added:
+        try:
+            last = after.moveHistory[-1]
+            last.captureCount = int((last.captureCount or 0) + added)
+            labels = list(last.comboLabels or [])
+            if "PAIR CAPTURE" not in labels and "小連捕" not in labels:
+                labels.append("小連捕")
+            last.comboLabels = labels
+        except Exception:
+            pass
+
+    return added
+
+
+def validate_and_apply_move(state, row, col, letter, path=None, *args, **kwargs):
+    before = clone_state(state)
+    player = getattr(before, "currentPlayer", "RED")
+    after = _wt_original_validate_apply_v4(state, row, col, letter, path, *args, **kwargs)
+
+    try:
+        last = after.moveHistory[-1] if after.moveHistory else None
+        word = getattr(last, "word", "") if last else ""
+        _wt_pair_capture_add_v4(before, after, player, word)
+    except Exception:
+        pass
+
+    return after
+
+
+def _wt_candidate_pair_move_v4(state, max_results=30):
+    if _LANG != "ja":
+        return None
+    try:
+        moves = _fast_bot_moves(
+            state,
+            max_len=5,
+            max_results=max_results,
+            excluded=set(getattr(state, "usedWords", []) or []),
+        )
+    except Exception:
+        moves = []
+
+    player = getattr(state, "currentPlayer", "RED")
+    best = None
+    best_key = None
+
+    for m in moves or []:
+        word = str(m.get("word", "") or "")
+        if len(_norm_word(word)) < 4:
+            continue
+        try:
+            path = []
+            for p in m.get("path", []) or []:
+                if hasattr(p, "row") and hasattr(p, "col"):
+                    path.append(Coord(row=p.row, col=p.col))
+                elif isinstance(p, dict):
+                    path.append(Coord(row=p.get("row"), col=p.get("col")))
+                else:
+                    rr, cc = p
+                    path.append(Coord(row=rr, col=cc))
+            probe = _wt_original_validate_apply_v4(
+                clone_state(state),
+                m["row"],
+                m["col"],
+                m["letter"],
+                path,
+                advance_market_flag=False,
+            )
+            before = clone_state(state)
+            add = _wt_pair_capture_add_v4(before, probe, player, word)
+        except TypeError:
+            try:
+                probe = _wt_original_validate_apply_v4(
+                    clone_state(state),
+                    m["row"],
+                    m["col"],
+                    m["letter"],
+                    path,
+                )
+                before = clone_state(state)
+                add = _wt_pair_capture_add_v4(before, probe, player, word)
+            except Exception:
+                add = 0
+        except Exception:
+            add = 0
+
+        if add <= 0:
+            continue
+
+        key = (len(word), int(m.get("territory_gain", 0) or 0), int(m.get("score", 0) or 0))
+        if best_key is None or key > best_key:
+            best = m
+            best_key = key
+
+    return best
+
+
+def apply_bot_move(state):
+    if globals().get("_WT_PAIR_CAPTURE_BOT_TEST_ENABLED", False):
+        try:
+            turn = int(getattr(state, "turn", 0) or 0)
+            mod = int(globals().get("_WT_PAIR_CAPTURE_BOT_TEST_MOD", 10))
+            phase = int(globals().get("_WT_PAIR_CAPTURE_BOT_TEST_PHASE", 4))
+            if mod > 0 and (turn % mod) == phase:
+                m = _wt_candidate_pair_move_v4(state, max_results=32)
+                if m:
+                    path = []
+                    for p in m.get("path", []) or []:
+                        if hasattr(p, "row") and hasattr(p, "col"):
+                            path.append(Coord(row=p.row, col=p.col))
+                        elif isinstance(p, dict):
+                            path.append(Coord(row=p.get("row"), col=p.get("col")))
+                        else:
+                            rr, cc = p
+                            path.append(Coord(row=rr, col=cc))
+                    return validate_and_apply_move(state, m["row"], m["col"], m["letter"], path)
+        except Exception:
+            pass
+    return _wt_original_apply_bot_move_v4(state)
+# WT_PAIR_CAPTURE_V4_END

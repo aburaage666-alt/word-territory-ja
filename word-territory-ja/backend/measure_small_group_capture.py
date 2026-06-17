@@ -1,4 +1,4 @@
-# measure_small_group_capture.py - small group-capture diagnostic V3
+# measure_small_group_capture.py - small group-capture diagnostic V4
 import os, sys, statistics
 from pathlib import Path
 
@@ -26,8 +26,9 @@ def run():
     events = 0
     caps = []
     maxcaps = []
-    enabled = bool(getattr(engine, "_WT_SMALL_GROUP_CAPTURE_ENABLED", False))
-    v3 = bool(getattr(engine, "_wt_small_group_capture_after_cap_v3", None))
+    pair_label = 0
+    enabled = bool(getattr(engine, "_WT_PAIR_CAPTURE_V4_ENABLED", False))
+    bot_enabled = bool(getattr(engine, "_WT_PAIR_CAPTURE_BOT_TEST_ENABLED", False))
 
     for _ in range(GAMES):
         st = build(MODE)
@@ -40,23 +41,27 @@ def run():
                 break
             last = st.moveHistory[-1] if st.moveHistory else None
             cap = int((last.captureCount or 0) if last else 0)
+            labels = list((last.comboLabels or []) if last else [])
             if cap > 0:
                 events += 1
                 caps.append(cap)
                 mx = max(mx, cap)
+            if "小連捕" in labels or "PAIR CAPTURE" in labels:
+                pair_label += 1
             if getattr(st, "winner", None):
                 break
         maxcaps.append(mx)
 
     avg = lambda x: statistics.mean(x) if x else 0
-    print("=== SMALL GROUP CAPTURE DIAGNOSTIC V3 ===")
+    print("=== SMALL GROUP CAPTURE DIAGNOSTIC V4 ===")
     print(f"enabled: {enabled}")
-    print(f"v3_followup_enabled: {v3}")
+    print(f"bot_test_enabled: {bot_enabled}")
     print(f"games: {GAMES}")
     print(f"capture events/game: {events/GAMES:.2f}")
     print(f"avg capture size: {avg(caps):.2f}")
     print(f"max capture/game avg: {avg(maxcaps):.2f}")
     print(f"multi-cell capture events: {sum(1 for x in caps if x >= 2)}")
+    print(f"pair_capture_label_events: {pair_label}")
 
 if __name__ == "__main__":
     run()
