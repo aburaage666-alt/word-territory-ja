@@ -8552,3 +8552,81 @@ def _wt_enforce_longword_market_v2(state, active: list[str], preview: list[str] 
 
     return active[:3], preview[:3]
 # WT_LONGWORD_MARKET_V3_OVERRIDE_END
+
+# WT_CAPTURE_WARNING_SMALL_GROUP_V1_BEGIN
+_WT_SMALL_GROUP_CAPTURE_ENABLED = True
+_WT_SMALL_GROUP_CAPTURE_MIN_SIZE = 2
+_WT_SMALL_GROUP_CAPTURE_MAX_SIZE = 2
+
+def _wt_coords_v1(path):
+    out=[]
+    for p in path or []:
+        if hasattr(p,"row") and hasattr(p,"col"):
+            out.append(Coord(row=p.row,col=p.col))
+        elif isinstance(p,dict):
+            out.append(Coord(row=p.get("row"),col=p.get("col")))
+        else:
+            try:
+                r,c=p; out.append(Coord(row=r,col=c))
+            except Exception:
+                pass
+    return out
+
+def get_capture_warning_cells(state, player=None, limit=12):
+    """Actual legal-move capture warning: cells owned by player that opponent can take next."""
+    if getattr(state,"winner",None):
+        return []
+    defender = player or getattr(state,"currentPlayer","RED")
+    attacker = other_player(defender)
+    probe = clone_state(state)
+    probe.currentPlayer = attacker
+    try:
+        moves = _fast_bot_moves(probe, max_len=4, max_results=max(18,limit*3), excluded=set(getattr(state,"usedWords",[]) or []))
+    except Exception:
+        moves=[]
+    out=[]; seen=set()
+    for m in moves:
+        try:
+            path=_wt_coords_v1(m.get("path",[]))
+            try:
+                after=validate_and_apply_move(clone_state(probe),m["row"],m["col"],m["letter"],path,advance_market_flag=False)
+            except TypeError:
+                after=validate_and_apply_move(clone_state(probe),m["row"],m["col"],m["letter"],path)
+            last=after.moveHistory[-1] if after.moveHistory else None
+        except Exception:
+            continue
+        cells=[]
+        for r in range(len(state.board)):
+            for c in range(len(state.board[r])):
+                if state.board[r][c].owner==defender and after.board[r][c].owner==attacker and (r,c) not in seen:
+                    seen.add((r,c)); cells.append({"row":r,"col":c})
+        if not cells:
+            continue
+        word = getattr(last,"word",m.get("word","")) if last else m.get("word","")
+        cap = max(len(cells), int((getattr(last,"captureCount",0) or 0) if last else 0))
+        out.append({"attacker":attacker,"defender":defender,"row":m.get("row"),"col":m.get("col"),"word":word,"captureCount":cap,"cells":cells,"level":"high" if cap>=2 else "medium","reason":f"{attacker} can capture {len(cells)} with {word}","comboLabels":list((getattr(last,"comboLabels",[]) or []) if last else [])})
+        if len(out)>=limit:
+            break
+    return out
+
+def get_threat_preview(state, limit=8):
+    ws=get_capture_warning_cells(state, player=getattr(state,"currentPlayer","RED"), limit=limit)
+    return [{"row":w.get("row"),"col":w.get("col"),"word":w.get("word"),"territorySwing":w.get("captureCount",0),"captureCount":w.get("captureCount",0),"comboLabels":w.get("comboLabels",[]),"cells":w.get("cells",[]),"reason":w.get("reason",""),"level":w.get("level","medium")} for w in ws[:limit]]
+
+def apply_group_captures(state, player):
+    """Small multi-cell capture: only fully surrounded enemy groups of exactly 2 cells."""
+    if not globals().get("_WT_SMALL_GROUP_CAPTURE_ENABLED",False):
+        return 0
+    opp=other_player(player); captured=0
+    min_s=int(globals().get("_WT_SMALL_GROUP_CAPTURE_MIN_SIZE",2)); max_s=int(globals().get("_WT_SMALL_GROUP_CAPTURE_MAX_SIZE",2))
+    for g in compute_group_liberties(state,opp):
+        cells=list(g.get("cells",[]))
+        if g.get("liberty",99)!=0 or len(cells)<min_s or len(cells)>max_s:
+            continue
+        for r,c in cells:
+            cell=state.board[r][c]
+            if getattr(cell,"fortified",False) or _is_capture_cooling(state,r,c,player):
+                continue
+            cell.owner=player; captured+=1
+    return captured
+# WT_CAPTURE_WARNING_SMALL_GROUP_V1_END
