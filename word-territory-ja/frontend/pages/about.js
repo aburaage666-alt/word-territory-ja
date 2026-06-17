@@ -111,6 +111,15 @@ export default function About() {
       <div style={{ textAlign: "center", marginTop: 22 }}>
         <a href="/" style={{ textDecoration: "none", border: "1px solid #7c3aed", borderRadius: 999, padding: "10px 18px", color: "#fff", background: "#7c3aed", fontWeight: 900, fontSize: 14 }}>ゲームを始める</a>
       </div>
-    </div>
+    
+{/* WT_PAIR_CAPTURE_RULE_NOTE_BEGIN */}
+<div className="rule-card pair-capture-rule">
+  <strong>連鎖捕り / Pair Capture</strong>
+  <p>4文字以上の語で、2マスの敵グループを連続して奪取。</p>
+  <p>Capture a connected 2-cell enemy pair with a 4+ letter word.</p>
+</div>
+{/* WT_PAIR_CAPTURE_RULE_NOTE_END */}
+
+</div>
   );
 }
