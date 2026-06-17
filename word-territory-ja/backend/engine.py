@@ -2457,6 +2457,8 @@ def validate_and_apply_move(state: GameState, row: int, col: int, letter: str, p
     # JP v11: large-dictionary capture caps.
     # In a dense kana dictionary, words are available often; captures must scale by word length.
     _jp_apply_enemy_capture_cap(before, temp, player, word, state.turn)
+    # WT_SMALL_GROUP_CAPTURE_CALL_V3
+    _wt_small_group_capture_after_cap_v3(before, temp, player, word, state.turn)
 
     apply_locks(temp)
 
@@ -8677,3 +8679,79 @@ def apply_group_captures(state, player):
             groups_done += 1
     return captured
 # WT_SMALL_GROUP_CAPTURE_V2_END
+
+# WT_SMALL_GROUP_CAPTURE_V3_BEGIN
+# Follow-up two-cell capture.
+# If a legal word already captures one cell from a 2-cell enemy group,
+# and the move is at least 4 kana, capture the paired cell as well.
+# This keeps the test narrow: no large groups, no short-word explosion.
+def _wt_before_enemy_groups_v3(before, opponent):
+    seen = set()
+    groups = []
+    for r in range(len(before.board)):
+        for c in range(len(before.board[r])):
+            if (r, c) in seen:
+                continue
+            if before.board[r][c].owner != opponent:
+                continue
+            stack = [(r, c)]
+            cells = []
+            while stack:
+                cr, cc = stack.pop()
+                if (cr, cc) in seen:
+                    continue
+                if before.board[cr][cc].owner != opponent:
+                    continue
+                seen.add((cr, cc))
+                cells.append((cr, cc))
+                for nr, nc in get_neighbors(cr, cc):
+                    if (nr, nc) not in seen and before.board[nr][nc].owner == opponent:
+                        stack.append((nr, nc))
+            if cells:
+                groups.append(cells)
+    return groups
+
+
+def _wt_small_group_capture_after_cap_v3(before, after, player, word, turn) -> int:
+    if _LANG == "ja" and len(_norm_word(word)) < 4:
+        return 0
+    opponent = other_player(player)
+    added = 0
+
+    for group in _wt_before_enemy_groups_v3(before, opponent):
+        if len(group) != 2:
+            continue
+
+        captured_now = []
+        remaining = []
+        for r, c in group:
+            if after.board[r][c].owner == player:
+                captured_now.append((r, c))
+            else:
+                remaining.append((r, c))
+
+        if len(captured_now) != 1 or len(remaining) != 1:
+            continue
+
+        rr, cc = remaining[0]
+        target = after.board[rr][cc]
+        if getattr(target, "fortified", False):
+            continue
+        if _is_capture_cooling(after, rr, cc, player):
+            continue
+
+        # Do not allow this test to exceed the existing JP cap for 4+ words.
+        cap = _jp_capture_cap_for_word(word, player, turn) if _LANG == "ja" else 999
+        current_flips = 0
+        for r, c in group:
+            if before.board[r][c].owner == opponent and after.board[r][c].owner == player:
+                current_flips += 1
+        if current_flips >= cap:
+            continue
+
+        target.owner = player
+        added += 1
+        break
+
+    return added
+# WT_SMALL_GROUP_CAPTURE_V3_END
