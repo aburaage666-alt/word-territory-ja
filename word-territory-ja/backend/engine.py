@@ -8630,3 +8630,50 @@ def apply_group_captures(state, player):
             cell.owner=player; captured+=1
     return captured
 # WT_CAPTURE_WARNING_SMALL_GROUP_V1_END
+
+# WT_SMALL_GROUP_CAPTURE_V2_BEGIN
+# Small multi-cell capture V2.
+# Exactly 2-cell enemy groups, liberty <= 1, max one group per move.
+_WT_SMALL_GROUP_CAPTURE_ENABLED = True
+_WT_SMALL_GROUP_CAPTURE_MIN_SIZE = 2
+_WT_SMALL_GROUP_CAPTURE_MAX_SIZE = 2
+_WT_SMALL_GROUP_CAPTURE_LIBERTY_THRESHOLD = 1
+_WT_SMALL_GROUP_CAPTURE_MAX_GROUPS_PER_MOVE = 1
+
+def apply_group_captures(state, player):
+    if not globals().get("_WT_SMALL_GROUP_CAPTURE_ENABLED", False):
+        return 0
+    opp = other_player(player)
+    min_s = int(globals().get("_WT_SMALL_GROUP_CAPTURE_MIN_SIZE", 2))
+    max_s = int(globals().get("_WT_SMALL_GROUP_CAPTURE_MAX_SIZE", 2))
+    thr = int(globals().get("_WT_SMALL_GROUP_CAPTURE_LIBERTY_THRESHOLD", 1))
+    max_groups = int(globals().get("_WT_SMALL_GROUP_CAPTURE_MAX_GROUPS_PER_MOVE", 1))
+    candidates = []
+    for g in compute_group_liberties(state, opp):
+        cells = list(g.get("cells", []))
+        lib = int(g.get("liberty", 99))
+        if lib > thr:
+            continue
+        if len(cells) < min_s or len(cells) > max_s:
+            continue
+        candidates.append((lib, -len(cells), cells))
+    candidates.sort()
+    captured = 0
+    groups_done = 0
+    for _lib, _neg_size, cells in candidates:
+        if groups_done >= max_groups:
+            break
+        did = 0
+        for r, c in cells:
+            cell = state.board[r][c]
+            if getattr(cell, "fortified", False):
+                continue
+            if _is_capture_cooling(state, r, c, player):
+                continue
+            cell.owner = player
+            did += 1
+        if did:
+            captured += did
+            groups_done += 1
+    return captured
+# WT_SMALL_GROUP_CAPTURE_V2_END
