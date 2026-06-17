@@ -28,7 +28,7 @@ def run():
     maxcaps = []
     pair_label = 0
     enabled = bool(getattr(engine, "_WT_PAIR_CAPTURE_V4_ENABLED", False))
-    bot_enabled = bool(getattr(engine, "_WT_PAIR_CAPTURE_BOT_TEST_ENABLED", False))
+    bot_enabled = bool(getattr(engine, "_WT_PAIR_CAPTURE_BOT_PREFERENCE_ENABLED", False))
 
     for _ in range(GAMES):
         st = build(MODE)
@@ -46,7 +46,7 @@ def run():
                 events += 1
                 caps.append(cap)
                 mx = max(mx, cap)
-            if "小連捕" in labels or "PAIR CAPTURE" in labels:
+            if "連鎖捕り" in labels or "Pair Capture" in labels:
                 pair_label += 1
             if getattr(st, "winner", None):
                 break
@@ -55,7 +55,7 @@ def run():
     avg = lambda x: statistics.mean(x) if x else 0
     print("=== SMALL GROUP CAPTURE DIAGNOSTIC V4 ===")
     print(f"enabled: {enabled}")
-    print(f"bot_test_enabled: {bot_enabled}")
+    print(f"bot_pair_capture_preference: {bot_enabled}")
     print(f"games: {GAMES}")
     print(f"capture events/game: {events/GAMES:.2f}")
     print(f"avg capture size: {avg(caps):.2f}")

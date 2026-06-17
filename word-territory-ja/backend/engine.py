@@ -8768,9 +8768,9 @@ def _wt_small_group_capture_after_cap_v3(before, after, player, word, turn) -> i
 # - one paired cell max per move.
 # - no final score / second-player bonus changes.
 _WT_PAIR_CAPTURE_V4_ENABLED = True
-_WT_PAIR_CAPTURE_BOT_TEST_ENABLED = True
-_WT_PAIR_CAPTURE_BOT_TEST_MOD = 10
-_WT_PAIR_CAPTURE_BOT_TEST_PHASE = 4
+_WT_PAIR_CAPTURE_BOT_PREFERENCE_ENABLED = True
+_WT_PAIR_CAPTURE_BOT_PREFERENCE_MOD = 10
+_WT_PAIR_CAPTURE_BOT_PREFERENCE_PHASE = 4
 
 if "_wt_original_validate_apply_v4" not in globals():
     _wt_original_validate_apply_v4 = validate_and_apply_move
@@ -8848,8 +8848,9 @@ def _wt_pair_capture_add_v4(before, after, player, word):
             last = after.moveHistory[-1]
             last.captureCount = int((last.captureCount or 0) + added)
             labels = list(last.comboLabels or [])
-            if "PAIR CAPTURE" not in labels and "小連捕" not in labels:
-                labels.append("小連捕")
+            label = "連鎖捕り" if _LANG == "ja" else "Pair Capture"
+            if label not in labels:
+                labels.append(label)
             last.comboLabels = labels
         except Exception:
             pass
@@ -8941,11 +8942,11 @@ def _wt_candidate_pair_move_v4(state, max_results=30):
 
 
 def apply_bot_move(state):
-    if globals().get("_WT_PAIR_CAPTURE_BOT_TEST_ENABLED", False):
+    if globals().get("_WT_PAIR_CAPTURE_BOT_PREFERENCE_ENABLED", False):
         try:
             turn = int(getattr(state, "turn", 0) or 0)
-            mod = int(globals().get("_WT_PAIR_CAPTURE_BOT_TEST_MOD", 10))
-            phase = int(globals().get("_WT_PAIR_CAPTURE_BOT_TEST_PHASE", 4))
+            mod = int(globals().get("_WT_PAIR_CAPTURE_BOT_PREFERENCE_MOD", 10))
+            phase = int(globals().get("_WT_PAIR_CAPTURE_BOT_PREFERENCE_PHASE", 4))
             if mod > 0 and (turn % mod) == phase:
                 m = _wt_candidate_pair_move_v4(state, max_results=32)
                 if m:
