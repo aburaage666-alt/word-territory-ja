@@ -12,7 +12,7 @@
 
 Pair Capture!
 
-Capture a connected 2-cell enemy pair with a 4+ letter word.
+Pair Capture: Capture a connected 2-cell enemy pair with a 4+ letter word.
 
 ## Internal name
 

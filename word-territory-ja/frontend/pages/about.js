@@ -109,17 +109,32 @@ export default function About() {
       </div>
 
       <div style={{ textAlign: "center", marginTop: 22 }}>
+
+        {/* WT_PAIR_CAPTURE_RULE_NOTE_BEGIN */}
+        <div
+          className="pair-capture-rule-card"
+          style={{
+            border: "1px solid #dbe5f3",
+            borderRadius: 16,
+            padding: "16px 18px",
+            margin: "10px 0",
+            background: "#fff",
+            boxSizing: "border-box",
+            width: "100%",
+          }}
+        >
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>連鎖捕り / Pair Capture</div>
+          <div style={{ lineHeight: 1.7 }}>
+            4文字以上の語で、2マスの敵グループの一部を取ると、もう一方も続けて取れることがあります。
+          </div>
+          <div style={{ lineHeight: 1.7, marginTop: 8 }}>
+            Pair Capture: Capture a connected 2-cell enemy pair with a 4+ letter word.
+          </div>
+        </div>
+        {/* WT_PAIR_CAPTURE_RULE_NOTE_END */}
+
         <a href="/" style={{ textDecoration: "none", border: "1px solid #7c3aed", borderRadius: 999, padding: "10px 18px", color: "#fff", background: "#7c3aed", fontWeight: 900, fontSize: 14 }}>ゲームを始める</a>
       </div>
-    
-{/* WT_PAIR_CAPTURE_RULE_NOTE_BEGIN */}
-<div className="rule-card pair-capture-rule">
-  <strong>連鎖捕り / Pair Capture</strong>
-  <p>4文字以上の語で、2マスの敵グループを連続して奪取。</p>
-  <p>Capture a connected 2-cell enemy pair with a 4+ letter word.</p>
-</div>
-{/* WT_PAIR_CAPTURE_RULE_NOTE_END */}
-
 </div>
   );
 }
