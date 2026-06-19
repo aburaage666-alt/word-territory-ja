@@ -102,38 +102,65 @@ export default function About() {
       <Mech name="導入 5×5：はじめての練習" body="初回理解用の導入盤です。OPENと包囲を早く体験するための配置で、ボットはTutorとして弱めに動きます。繰り返し遊ぶ場合はQuick 5×5：短時間対戦か標準 7×7を使います。" />
 
       <div style={card}>
-        <div style={{ fontWeight: 900, fontSize: 14.5 }}>勝敗</div>
+        
+      {/* WT_PAIR_CAPTURE_DEMO_CARD_BEGIN */}
+      <Mech
+        name="DEMO：連鎖捕り / Pair Capture"
+        body={
+          <>
+            <div style={{ marginBottom: 8 }}>
+              4文字以上の語で、2マスの敵グループを連続して奪取する見本です。通常対戦では低頻度の見せ場なので、DEMOで確認できます。
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(5, 28px)",
+                gap: 4,
+                margin: "10px 0",
+                alignItems: "center",
+              }}
+              aria-label="連鎖捕り見本盤面"
+            >
+              {["", "赤", "青", "青", "", "", "赤", "敵", "敵", "", "", "赤", "語", "路", "", "", "", "", "", "", "", "", "", "", ""].map((c, i) => (
+                <span
+                  key={i}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    border: "1px solid #dbe5f3",
+                    background: c === "敵" ? "#fee2e2" : c === "語" || c === "路" ? "#ede9fe" : "#f8fbff",
+                    color: c === "敵" ? "#b91c1c" : "#0f172a",
+                  }}
+                >
+                  {c}
+                </span>
+              ))}
+            </div>
+            <div>
+              例：4文字以上の語で隣接した敵2マスの一部を取ると、もう一方も続けて取れることがあります。
+            </div>
+            <div style={{ marginTop: 8 }}>
+              Pair Capture: Capture a connected 2-cell enemy pair with a 4+ letter word.
+            </div>
+          </>
+        }
+      />
+      {/* WT_PAIR_CAPTURE_DEMO_CARD_END */}
+
+<div style={{ fontWeight: 900, fontSize: 14.5 }}>勝敗</div>
         <div style={{ fontSize: 13.5, color: "#475569", lineHeight: 1.6, marginTop: 4 }}>
           最後に陣地（マス）が多い方の勝ちです。標準・Quickでは後手に少しコミが付きます。導入 5×5：はじめての練習 は学習用なのでコミ0です。
         </div>
       </div>
 
       <div style={{ textAlign: "center", marginTop: 22 }}>
-
-        {/* WT_PAIR_CAPTURE_RULE_NOTE_BEGIN */}
-        <div
-          className="pair-capture-rule-card"
-          style={{
-            border: "1px solid #dbe5f3",
-            borderRadius: 16,
-            padding: "16px 18px",
-            margin: "10px 0",
-            background: "#fff",
-            boxSizing: "border-box",
-            width: "100%",
-          }}
-        >
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>連鎖捕り / Pair Capture</div>
-          <div style={{ lineHeight: 1.7 }}>
-            4文字以上の語で、2マスの敵グループの一部を取ると、もう一方も続けて取れることがあります。
-          </div>
-          <div style={{ lineHeight: 1.7, marginTop: 8 }}>
-            Pair Capture: Capture a connected 2-cell enemy pair with a 4+ letter word.
-          </div>
-        </div>
-        {/* WT_PAIR_CAPTURE_RULE_NOTE_END */}
-
-        <a href="/" style={{ textDecoration: "none", border: "1px solid #7c3aed", borderRadius: 999, padding: "10px 18px", color: "#fff", background: "#7c3aed", fontWeight: 900, fontSize: 14 }}>ゲームを始める</a>
+<a href="/" style={{ textDecoration: "none", border: "1px solid #7c3aed", borderRadius: 999, padding: "10px 18px", color: "#fff", background: "#7c3aed", fontWeight: 900, fontSize: 14 }}>ゲームを始める</a>
       </div>
 </div>
   );
